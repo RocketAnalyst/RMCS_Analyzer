@@ -94,10 +94,13 @@ class TimeAligner:
 
     The original TestData is never modified.
 
-    Alignment subtracts the selected reference time from every
-    timestamp:
+    Alignment subtracts the selected reference time from the
+    working time axis:
 
         aligned_time = original_time - reference_time
+
+    The source-provided calibrated_time_s channel is preserved
+    unchanged. Only the working time_s channel is shifted.
     """
 
     @classmethod
@@ -119,6 +122,10 @@ class TimeAligner:
         if settings is None:
             settings = AlignmentSettings()
 
+        # ---------------------------------------------------------
+        # Alignment disabled
+        # ---------------------------------------------------------
+
         if not settings.enabled:
             return cls._copy_without_alignment(
                 test_data
@@ -126,7 +133,12 @@ class TimeAligner:
 
         reference_event = None
 
+        # ---------------------------------------------------------
+        # Determine reference time
+        # ---------------------------------------------------------
+
         if settings.manual_reference_time_s is not None:
+
             if not np.isfinite(
                 settings.manual_reference_time_s
             ):
@@ -139,6 +151,7 @@ class TimeAligner:
             )
 
         else:
+
             if events is None:
                 raise ValueError(
                     "Alignment requires detected events "
@@ -159,34 +172,80 @@ class TimeAligner:
                 reference_event.time_s
             )
 
+        # ---------------------------------------------------------
+        # Align working time axis
+        # ---------------------------------------------------------
+
         aligned_time = (
             test_data.time_s.copy()
             - reference_time_s
         )
 
+        # ---------------------------------------------------------
+        # Create aligned data
+        # ---------------------------------------------------------
+
         aligned_data = TestData(
+            # -----------------------------------------------------
+            # Primary channels
+            # -----------------------------------------------------
+
             time_s=aligned_time,
+
             thrust_N=test_data.thrust_N.copy(),
-            raw_hx711=(
-                test_data.raw_hx711.copy()
-                if test_data.raw_hx711 is not None
+
+            # -----------------------------------------------------
+            # Standardized optional channels
+            #
+            # calibrated_time_s intentionally remains unchanged.
+            # It represents the source-provided calibrated timeline,
+            # while time_s represents the current working timeline.
+            # -----------------------------------------------------
+
+            calibrated_time_s=(
+                test_data.calibrated_time_s.copy()
+                if test_data.calibrated_time_s is not None
                 else None
             ),
+
+            raw_thrust_N=(
+                test_data.raw_thrust_N.copy()
+                if test_data.raw_thrust_N is not None
+                else None
+            ),
+
+            prop_loss_kg=(
+                test_data.prop_loss_kg.copy()
+                if test_data.prop_loss_kg is not None
+                else None
+            ),
+
+            pressure_psi=(
+                test_data.pressure_psi.copy()
+                if test_data.pressure_psi is not None
+                else None
+            ),
+
+            # -----------------------------------------------------
+            # Existing processing channels
+            # -----------------------------------------------------
+
             delta=(
                 test_data.delta.copy()
                 if test_data.delta is not None
                 else None
             ),
+
             state=(
                 test_data.state.copy()
                 if test_data.state is not None
                 else None
             ),
-            pressure_kPa=(
-                test_data.pressure_kPa.copy()
-                if test_data.pressure_kPa is not None
-                else None
-            ),
+
+            # -----------------------------------------------------
+            # Metadata
+            # -----------------------------------------------------
+
             metadata=test_data.metadata,
         )
 
@@ -202,31 +261,70 @@ class TimeAligner:
     def _copy_without_alignment(
         test_data: TestData,
     ) -> AlignmentResult:
-        """Return an independent copy without changing time."""
+        """
+        Return an independent copy without changing time.
+
+        All time-series channels are copied. The original
+        TestData object is never modified.
+        """
 
         copied_data = TestData(
+            # -----------------------------------------------------
+            # Primary channels
+            # -----------------------------------------------------
+
             time_s=test_data.time_s.copy(),
+
             thrust_N=test_data.thrust_N.copy(),
-            raw_hx711=(
-                test_data.raw_hx711.copy()
-                if test_data.raw_hx711 is not None
+
+            # -----------------------------------------------------
+            # Standardized optional channels
+            # -----------------------------------------------------
+
+            calibrated_time_s=(
+                test_data.calibrated_time_s.copy()
+                if test_data.calibrated_time_s is not None
                 else None
             ),
+
+            raw_thrust_N=(
+                test_data.raw_thrust_N.copy()
+                if test_data.raw_thrust_N is not None
+                else None
+            ),
+
+            prop_loss_kg=(
+                test_data.prop_loss_kg.copy()
+                if test_data.prop_loss_kg is not None
+                else None
+            ),
+
+            pressure_psi=(
+                test_data.pressure_psi.copy()
+                if test_data.pressure_psi is not None
+                else None
+            ),
+
+            # -----------------------------------------------------
+            # Existing processing channels
+            # -----------------------------------------------------
+
             delta=(
                 test_data.delta.copy()
                 if test_data.delta is not None
                 else None
             ),
+
             state=(
                 test_data.state.copy()
                 if test_data.state is not None
                 else None
             ),
-            pressure_kPa=(
-                test_data.pressure_kPa.copy()
-                if test_data.pressure_kPa is not None
-                else None
-            ),
+
+            # -----------------------------------------------------
+            # Metadata
+            # -----------------------------------------------------
+
             metadata=test_data.metadata,
         )
 

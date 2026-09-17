@@ -15,9 +15,13 @@ class TestMetadata:
     tare_raw: Optional[int] = None
 
     motor_designation: str = ""
+    motor_type: str = ""
     manufacturer: str = ""
     builder: str = ""
+    case_material: str = ""
     test_date: str = ""
+    test_stand: str = ""
+    test_operator: str = ""
     location: str = ""
 
     motor_diameter: Optional[float] = None
@@ -28,6 +32,13 @@ class TestMetadata:
 
     nozzle_throat: Optional[float] = None
     nozzle_exit: Optional[float] = None
+    nozzle_material: str = ""
+
+    load_cell: str = ""
+    load_cell_calibration: str = ""
+    pressure_sensor: str = ""
+    pressure_sensor_calibration: str = ""
+    sample_rate_hz: Optional[float] = None
 
     notes: str = ""
 
@@ -39,16 +50,22 @@ class TestData:
 
     Time is stored internally in seconds.
     Thrust is stored internally in Newtons.
+    Pressure is stored internally in PSI.
+
+    The original acquisition time is preserved separately from an
+    optional test-stand-calibrated time.
     """
 
     time_s: np.ndarray
     thrust_N: np.ndarray
 
-    raw_hx711: Optional[np.ndarray] = None
+    calibrated_time_s: Optional[np.ndarray] = None
+    raw_thrust_N: Optional[np.ndarray] = None
+    prop_loss_kg: Optional[np.ndarray] = None
+    pressure_psi: Optional[np.ndarray] = None
+
     delta: Optional[np.ndarray] = None
     state: Optional[np.ndarray] = None
-
-    pressure_kPa: Optional[np.ndarray] = None
 
     metadata: TestMetadata = field(
         default_factory=TestMetadata
@@ -74,7 +91,7 @@ class TestData:
     @property
     def sample_rate_hz(self) -> float:
         """
-        Estimate the sampling rate from the time data.
+        Estimate the sampling rate from the original time data.
         """
 
         if self.sample_count < 2:

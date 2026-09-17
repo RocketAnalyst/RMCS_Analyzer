@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+import numpy as np
+
 from ..analysis.events import EventDetector
 from ..data.models import TestData
 from .alignment import AlignmentResult, TimeAligner
@@ -35,6 +37,7 @@ class ProcessingResult:
     @property
     def valid(self) -> bool:
         """Return True when both raw and prepared data are valid."""
+
         return (
             self.raw_validation.valid
             and self.prepared_validation.valid
@@ -77,6 +80,8 @@ class ProcessingPipeline:
           ↓
         Validate
           ↓
+        Select Analysis Timeline
+          ↓
         Clean / Trim
           ↓
         Baseline Correction
@@ -86,6 +91,14 @@ class ProcessingPipeline:
         Align Time
           ↓
         Validate Prepared Data
+
+    When a valid Time Cal (s) source column is available, it is used
+    as the working analysis timeline before any time-based processing.
+
+    When Time Cal (s) is unavailable or contains no usable values,
+    the original Time(s) timeline is used instead.
+
+    The original imported TestData is never modified.
     """
 
     def __init__(
@@ -113,6 +126,12 @@ class ProcessingPipeline:
         Process test data according to the supplied settings.
 
         Raw imported data is never modified.
+
+        If the imported file contains a valid Time Cal (s) column,
+        that timeline becomes the working analysis timeline before
+        cleaning and baseline correction.
+
+        The original Time(s) remains preserved in raw_data.
         """
 
         if settings is None:
@@ -146,18 +165,34 @@ class ProcessingPipeline:
             )
 
         # ---------------------------------------------------------
-        # 2. Clean / trim
+        # 2. Select analysis timeline
+        # ---------------------------------------------------------
+        #
+        # This MUST happen before cleaning and baseline correction.
+        #
+        # Time Cal (s), when valid, becomes the working time axis.
+        #
+        # The original imported Time(s) remains untouched inside
+        # test_data and is returned as ProcessingResult.raw_data.
+        #
+
+        working_data = self._apply_calibrated_time(
+            test_data
+        )
+
+        # ---------------------------------------------------------
+        # 3. Clean / trim
         # ---------------------------------------------------------
 
         cleaning_result = self.cleaner.prepare(
-            test_data,
+            working_data,
             settings.cleaning,
         )
 
         prepared_data = cleaning_result.data
 
         # ---------------------------------------------------------
-        # 3. Baseline correction
+        # 4. Baseline correction
         # ---------------------------------------------------------
 
         baseline_result = self.baseline_corrector.correct(
@@ -168,7 +203,7 @@ class ProcessingPipeline:
         prepared_data = baseline_result.data
 
         # ---------------------------------------------------------
-        # 4. Detect events
+        # 5. Detect events
         # ---------------------------------------------------------
 
         event_set = self.event_detector.detect_events(
@@ -176,7 +211,7 @@ class ProcessingPipeline:
         )
 
         # ---------------------------------------------------------
-        # 5. Align time
+        # 6. Align time
         # ---------------------------------------------------------
 
         alignment_result = self.time_aligner.align(
@@ -188,7 +223,7 @@ class ProcessingPipeline:
         prepared_data = alignment_result.data
 
         # ---------------------------------------------------------
-        # 6. Validate prepared data
+        # 7. Validate prepared data
         # ---------------------------------------------------------
 
         prepared_validation = self.validator.validate(
@@ -210,4 +245,90 @@ class ProcessingPipeline:
             event_set=event_set,
             alignment_result=alignment_result,
             issues=issues,
+        )
+
+    @staticmethod
+    def _apply_calibrated_time(
+        test_data: TestData,
+    ) -> TestData:
+        """
+        Use the source-provided calibrated time as the working
+        analysis timeline when usable data is available.
+
+        The original TestData object is never modified.
+
+        If calibrated_time_s is:
+
+            - missing
+            - empty
+            - the wrong length
+            - entirely non-finite
+            - contains any non-finite values
+
+        the original Time(s) timeline is retained.
+
+        The calibrated timeline is preserved in calibrated_time_s
+        for traceability.
+        """
+
+        calibrated_time = test_data.calibrated_time_s
+
+        if calibrated_time is None:
+            return test_data
+
+        calibrated_time = np.asarray(
+            calibrated_time,
+            dtype=float,
+        )
+
+        if calibrated_time.size == 0:
+            return test_data
+
+        if calibrated_time.shape != test_data.time_s.shape:
+            return test_data
+
+        if not np.any(np.isfinite(calibrated_time)):
+            return test_data
+
+        if not np.all(np.isfinite(calibrated_time)):
+            return test_data
+
+        return TestData(
+            time_s=calibrated_time.copy(),
+
+            thrust_N=test_data.thrust_N.copy(),
+
+            calibrated_time_s=calibrated_time.copy(),
+
+            raw_thrust_N=(
+                None
+                if test_data.raw_thrust_N is None
+                else test_data.raw_thrust_N.copy()
+            ),
+
+            prop_loss_kg=(
+                None
+                if test_data.prop_loss_kg is None
+                else test_data.prop_loss_kg.copy()
+            ),
+
+            pressure_psi=(
+                None
+                if test_data.pressure_psi is None
+                else test_data.pressure_psi.copy()
+            ),
+
+            delta=(
+                None
+                if test_data.delta is None
+                else test_data.delta.copy()
+            ),
+
+            state=(
+                None
+                if test_data.state is None
+                else test_data.state.copy()
+            ),
+
+            metadata=test_data.metadata,
         )

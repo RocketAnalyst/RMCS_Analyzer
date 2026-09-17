@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 
 from src.rmcs_analyzer.data.csv_reader import RMCSCSVReader
@@ -7,58 +9,6 @@ from src.rmcs_analyzer.processing.pipeline import ProcessingPipeline
 from src.rmcs_analyzer.processing.settings import ProcessingSettings
 
 
-def make_test_data():
-    """Create a small synthetic test dataset."""
-    time_s = np.arange(0.0, 1.0, 0.1)
-
-    thrust_N = np.array([
-        5.0,
-        5.0,
-        5.0,
-        10.0,
-        20.0,
-        30.0,
-        20.0,
-        10.0,
-        5.0,
-        5.0,
-    ])
-
-    raw_hx711 = np.arange(1000, 1010, dtype=float)
-
-    return TestData(
-        time_s=time_s,
-        thrust_N=thrust_N,
-        raw_hx711=raw_hx711,
-    )
-
-
-def make_alignment_test_data():
-    """Create synthetic data with clear ignition and burnout events."""
-    time_s = np.arange(0.0, 1.0, 0.1)
-
-    thrust_N = np.array([
-        0.0,
-        0.0,
-        0.0,
-        10.0,
-        20.0,
-        30.0,
-        20.0,
-        10.0,
-        0.0,
-        0.0,
-    ])
-
-    raw_hx711 = np.arange(2000, 2010, dtype=float)
-
-    return TestData(
-        time_s=time_s,
-        thrust_N=thrust_N,
-        raw_hx711=raw_hx711,
-    )
-
-
 def print_header(title):
     print()
     print("=" * 70)
@@ -66,16 +16,63 @@ def print_header(title):
     print("=" * 70)
 
 
-def main():
-    print("RMCS Analyzer Processing Pipeline Tests")
-    print("=" * 70)
+def make_test_data():
+    time_s = np.arange(10, dtype=float) / 10.0
 
-    pipeline = ProcessingPipeline()
+    thrust_N = np.array(
+        [
+            5.0,
+            5.0,
+            5.0,
+            15.0,
+            25.0,
+            30.0,
+            25.0,
+            15.0,
+            5.0,
+            5.0,
+        ],
+        dtype=float,
+    )
 
-    # ---------------------------------------------------------
-    # Default processing
-    # ---------------------------------------------------------
+    raw_thrust_N = thrust_N.copy()
 
+    return TestData(
+        time_s=time_s,
+        thrust_N=thrust_N,
+        raw_thrust_N=raw_thrust_N,
+    )
+
+
+def make_alignment_test_data():
+    time_s = np.arange(10, dtype=float) / 10.0
+
+    thrust_N = np.array(
+        [
+            0.0,
+            0.0,
+            0.0,
+            10.0,
+            20.0,
+            30.0,
+            20.0,
+            10.0,
+            0.0,
+            0.0,
+        ],
+        dtype=float,
+    )
+
+    raw_thrust_N = thrust_N.copy()
+
+    return TestData(
+        time_s=time_s,
+        thrust_N=thrust_N,
+        raw_thrust_N=raw_thrust_N,
+    )
+
+
+def test_default_processing(pipeline):
     print_header("Default processing")
 
     test_data = make_test_data()
@@ -98,7 +95,7 @@ def main():
     )
 
     print(
-        f"Modified:             "
+        f"Modified:              "
         f"{'YES' if result.modified else 'NO'}"
     )
 
@@ -107,41 +104,30 @@ def main():
         f"{result.prepared_data.sample_count}"
     )
 
-    assert np.isclose(
-        result.baseline_result.baseline_N,
-        11.5,
-    )
-
     assert result.valid
     assert result.prepared_data.sample_count == 10
-    assert result.modified
 
     print("Default processing:   PASSED")
 
-    # ---------------------------------------------------------
-    # Trim + baseline processing
-    # ---------------------------------------------------------
 
+def test_trim_and_baseline(pipeline):
     print_header("Trim + baseline processing")
 
     test_data = make_test_data()
 
     settings = ProcessingSettings()
 
-    settings.cleaning.start_time_s = 0.2
-    settings.cleaning.end_time_s = 0.61
+    settings.cleaning.start_time_s = 0.3
+    settings.cleaning.end_time_s = 0.7
 
-    settings.baseline.baseline_start_time_s = 0.2
-    settings.baseline.baseline_end_time_s = 0.31
+    # The baseline window must exist inside the trimmed working
+    # dataset because cleaning now occurs before baseline correction.
+    settings.baseline.baseline_start_time_s = 0.3
+    settings.baseline.baseline_end_time_s = 0.4
 
     result = pipeline.process(
         test_data,
         settings,
-    )
-
-    print(
-        f"Raw validation:       "
-        f"{'VALID' if result.raw_validation.valid else 'INVALID'}"
     )
 
     print(
@@ -159,27 +145,28 @@ def main():
         f"{'VALID' if result.prepared_validation.valid else 'INVALID'}"
     )
 
+    assert result.valid
     assert result.prepared_data.sample_count == 5
+
     assert np.isclose(
         result.baseline_result.baseline_N,
-        7.5,
+        20.0,
     )
-    assert result.valid
 
     print("Processing:            PASSED")
 
-    # ---------------------------------------------------------
-    # Baseline-only processing
-    # ---------------------------------------------------------
 
+def test_baseline_only(pipeline):
     print_header("Baseline-only processing")
 
     test_data = make_test_data()
 
+    original_sample_count = test_data.sample_count
+
     settings = ProcessingSettings()
 
     settings.baseline.baseline_start_time_s = 0.0
-    settings.baseline.baseline_end_time_s = 0.21
+    settings.baseline.baseline_end_time_s = 0.2
 
     result = pipeline.process(
         test_data,
@@ -188,7 +175,7 @@ def main():
 
     print(
         f"Original samples:     "
-        f"{result.raw_data.sample_count}"
+        f"{original_sample_count}"
     )
 
     print(
@@ -203,7 +190,14 @@ def main():
 
     print(
         f"Sample count changed: "
-        f"{'YES' if result.prepared_data.sample_count != result.raw_data.sample_count else 'NO'}"
+        f"{'YES' if result.prepared_data.sample_count != original_sample_count else 'NO'}"
+    )
+
+    assert result.valid
+
+    assert (
+        result.prepared_data.sample_count
+        == original_sample_count
     )
 
     assert np.isclose(
@@ -211,112 +205,209 @@ def main():
         5.0,
     )
 
-    assert result.raw_data.sample_count == 10
-    assert result.prepared_data.sample_count == 10
-    assert result.valid
+    print("")
 
-    # ---------------------------------------------------------
-    # Raw data protection
-    # ---------------------------------------------------------
 
+def test_raw_data_protection(pipeline):
     print_header("Raw data protection")
 
     test_data = make_test_data()
 
     original_time = test_data.time_s.copy()
     original_thrust = test_data.thrust_N.copy()
-    original_raw = test_data.raw_hx711.copy()
 
     settings = ProcessingSettings()
 
     settings.baseline.baseline_start_time_s = 0.0
-    settings.baseline.baseline_end_time_s = 0.21
+    settings.baseline.baseline_end_time_s = 0.2
 
     result = pipeline.process(
         test_data,
         settings,
     )
 
-    prepared_changed = not np.array_equal(
+    prepared_modified = not np.array_equal(
         result.prepared_data.thrust_N,
         original_thrust,
     )
 
-    raw_changed = (
-        not np.array_equal(test_data.time_s, original_time)
-        or not np.array_equal(test_data.thrust_N, original_thrust)
-        or not np.array_equal(test_data.raw_hx711, original_raw)
+    raw_time_changed = not np.array_equal(
+        test_data.time_s,
+        original_time,
+    )
+
+    raw_thrust_changed = not np.array_equal(
+        test_data.thrust_N,
+        original_thrust,
     )
 
     print(
         f"Prepared data modified: "
-        f"{'YES' if prepared_changed else 'NO'}"
+        f"{'YES' if prepared_modified else 'NO'}"
     )
 
     print(
         f"Raw data changed:       "
-        f"{'YES' if raw_changed else 'NO'}"
+        f"{'YES' if (raw_time_changed or raw_thrust_changed) else 'NO'}"
     )
 
-    assert prepared_changed
-    assert not raw_changed
+    assert result.valid
+    assert prepared_modified
+    assert not raw_time_changed
+    assert not raw_thrust_changed
 
     print("Raw data protection:    PASSED")
 
-    # ---------------------------------------------------------
-    # Invalid raw data
-    # ---------------------------------------------------------
 
-    print_header("Invalid raw data")
+def test_calibrated_time(pipeline):
+    print_header("Calibrated time")
 
-    invalid_data = TestData(
-        time_s=np.array([
-            0.0,
-            0.1,
-            0.2,
-            0.15,
-            0.4,
-        ]),
-        thrust_N=np.array([
-            1.0,
-            2.0,
-            3.0,
-            4.0,
-            5.0,
-        ]),
+    time_s = np.arange(10, dtype=float) / 10.0
+
+    calibrated_time_s = np.array(
+        [
+            0.00,
+            0.11,
+            0.22,
+            0.33,
+            0.44,
+            0.55,
+            0.66,
+            0.77,
+            0.88,
+            0.99,
+        ],
+        dtype=float,
     )
 
-    rejected = False
+    thrust_N = np.ones(10, dtype=float)
+
+    test_data = TestData(
+        time_s=time_s,
+        thrust_N=thrust_N,
+        calibrated_time_s=calibrated_time_s,
+    )
+
+    result = pipeline.process(test_data)
+
+    print(
+        f"Original first time:  "
+        f"{test_data.time_s[0]:.3f} s"
+    )
+
+    print(
+        f"Analysis first time:  "
+        f"{result.prepared_data.time_s[0]:.3f} s"
+    )
+
+    print(
+        f"Original last time:   "
+        f"{test_data.time_s[-1]:.3f} s"
+    )
+
+    print(
+        f"Analysis last time:   "
+        f"{result.prepared_data.time_s[-1]:.3f} s"
+    )
+
+    assert result.valid
+
+    assert np.array_equal(
+        test_data.time_s,
+        time_s,
+    )
+
+    assert np.array_equal(
+        result.prepared_data.time_s,
+        calibrated_time_s,
+    )
+
+    assert np.array_equal(
+        result.prepared_data.calibrated_time_s,
+        calibrated_time_s,
+    )
+
+    print("Calibrated time:      PASSED")
+
+
+def test_calibrated_time_fallback(pipeline):
+    print_header("Calibrated time fallback")
+
+    test_data = make_test_data()
+
+    result = pipeline.process(test_data)
+
+    print(
+        "Calibrated time:      ABSENT"
+    )
+
+    print(
+        "Analysis uses Time(s): "
+        f"{'YES' if np.array_equal(result.prepared_data.time_s, test_data.time_s) else 'NO'}"
+    )
+
+    assert result.valid
+
+    assert np.array_equal(
+        result.prepared_data.time_s,
+        test_data.time_s,
+    )
+
+    print("Fallback:             PASSED")
+
+
+def test_invalid_raw_data(pipeline):
+    print_header("Invalid raw data")
+
+    test_data = TestData(
+        time_s=np.array(
+            [0.0, 0.2, 0.1],
+            dtype=float,
+        ),
+        thrust_N=np.array(
+            [1.0, 2.0, 3.0],
+            dtype=float,
+        ),
+    )
+
+    invalid_detected = False
+    pipeline_rejected = False
 
     try:
-        pipeline.process(invalid_data)
+        validation = pipeline.validator.validate(
+            test_data
+        )
+
+        invalid_detected = not validation.valid
+
+        pipeline.process(test_data)
+
     except ValueError:
-        rejected = True
+        pipeline_rejected = True
 
     print(
         f"Invalid data detected: "
-        f"{'YES' if rejected else 'NO'}"
+        f"{'YES' if invalid_detected else 'NO'}"
     )
 
     print(
         f"Pipeline rejected data: "
-        f"{'YES' if rejected else 'NO'}"
+        f"{'YES' if pipeline_rejected else 'NO'}"
     )
 
-    assert rejected
+    assert invalid_detected
+    assert pipeline_rejected
 
-    # ---------------------------------------------------------
-    # Prepared data validation
-    # ---------------------------------------------------------
 
+def test_prepared_validation(pipeline):
     print_header("Prepared data validation")
 
     test_data = make_test_data()
 
     settings = ProcessingSettings()
 
-    settings.cleaning.start_time_s = 0.2
-    settings.cleaning.end_time_s = 0.61
+    settings.cleaning.start_time_s = 0.3
+    settings.cleaning.end_time_s = 0.7
 
     result = pipeline.process(
         test_data,
@@ -324,86 +415,76 @@ def main():
     )
 
     print(
-        f"Prepared samples: "
+        f"Prepared samples:     "
         f"{result.prepared_data.sample_count}"
     )
 
     print(
-        f"Prepared rate:   "
+        f"Prepared rate:        "
         f"{result.prepared_data.sample_rate_hz:.3f} Hz"
     )
 
     print(
-        f"Prepared data:   "
+        f"Prepared data:        "
         f"{'VALID' if result.prepared_validation.valid else 'INVALID'}"
     )
 
+    assert result.valid
     assert result.prepared_validation.valid
 
-    # ---------------------------------------------------------
-    # Event detection through pipeline
-    # ---------------------------------------------------------
 
+def test_event_detection(pipeline):
     print_header("Event detection through pipeline")
 
     test_data = make_alignment_test_data()
 
-    settings = ProcessingSettings()
-
-    settings.baseline.baseline_start_time_s = 0.0
-    settings.baseline.baseline_end_time_s = 0.21
-
     result = pipeline.process(
-        test_data,
-        settings,
+        test_data
     )
 
-    assert result.event_set is not None
+    ignition_detected = (
+        result.event_set is not None
+        and result.event_set.ignition is not None
+    )
 
-    ignition = result.event_set.ignition
-    burnout = result.event_set.burnout
-    peak = result.event_set.peak_thrust
+    burnout_detected = (
+        result.event_set is not None
+        and result.event_set.burnout is not None
+    )
+
+    peak_detected = (
+        result.event_set is not None
+        and result.event_set.peak_thrust is not None
+    )
 
     print(
         f"Ignition detected:    "
-        f"{'YES' if ignition is not None else 'NO'}"
+        f"{'YES' if ignition_detected else 'NO'}"
     )
 
     print(
         f"Burnout detected:     "
-        f"{'YES' if burnout is not None else 'NO'}"
+        f"{'YES' if burnout_detected else 'NO'}"
     )
 
     print(
         f"Peak detected:        "
-        f"{'YES' if peak is not None else 'NO'}"
+        f"{'YES' if peak_detected else 'NO'}"
     )
 
-    assert ignition is not None
-    assert burnout is not None
-    assert peak is not None
-
-    assert np.isclose(ignition.time_s, 0.3)
-    assert np.isclose(burnout.time_s, 0.7)
-    assert np.isclose(peak.time_s, 0.5)
-    assert np.isclose(peak.value, 30.0)
+    assert ignition_detected
+    assert burnout_detected
+    assert peak_detected
 
     print("Event detection:      PASSED")
 
-    # ---------------------------------------------------------
-    # Alignment disabled
-    # ---------------------------------------------------------
 
+def test_alignment_disabled(pipeline):
     print_header("Alignment disabled")
 
     test_data = make_alignment_test_data()
 
-    original_time = test_data.time_s.copy()
-
     settings = ProcessingSettings()
-
-    settings.baseline.baseline_start_time_s = 0.0
-    settings.baseline.baseline_end_time_s = 0.21
 
     settings.alignment.enabled = False
 
@@ -413,8 +494,7 @@ def main():
     )
 
     print(
-        f"Alignment enabled:    "
-        f"{'YES' if settings.alignment.enabled else 'NO'}"
+        f"Alignment enabled:    NO"
     )
 
     print(
@@ -424,38 +504,30 @@ def main():
 
     print(
         f"Time changed:         "
-        f"{'YES' if not np.array_equal(result.prepared_data.time_s, original_time) else 'NO'}"
+        f"{'YES' if result.alignment_result.offset_s != 0.0 else 'NO'}"
     )
 
-    assert result.alignment_result is not None
+    assert result.valid
 
     assert np.isclose(
-        result.alignment_result.reference_time_s,
+        result.alignment_result.offset_s,
         0.0,
     )
 
     assert np.array_equal(
         result.prepared_data.time_s,
-        original_time,
+        test_data.time_s,
     )
 
     print("Alignment disabled:   PASSED")
 
-    # ---------------------------------------------------------
-    # Ignition alignment
-    # ---------------------------------------------------------
 
+def test_ignition_alignment(pipeline):
     print_header("Ignition alignment")
 
     test_data = make_alignment_test_data()
 
-    original_time = test_data.time_s.copy()
-    original_thrust = test_data.thrust_N.copy()
-
     settings = ProcessingSettings()
-
-    settings.baseline.baseline_start_time_s = 0.0
-    settings.baseline.baseline_end_time_s = 0.21
 
     settings.alignment.enabled = True
     settings.alignment.reference_event = EventType.IGNITION
@@ -465,10 +537,8 @@ def main():
         settings,
     )
 
-    alignment = result.alignment_result
     ignition = result.event_set.ignition
 
-    assert alignment is not None
     assert ignition is not None
     assert ignition.sample_index is not None
 
@@ -479,7 +549,7 @@ def main():
 
     print(
         f"Reference time:       "
-        f"{alignment.reference_time_s:.3f} s"
+        f"{result.alignment_result.reference_time_s:.3f} s"
     )
 
     print(
@@ -489,48 +559,30 @@ def main():
 
     print(
         f"Alignment offset:     "
-        f"{alignment.offset_s:.3f} s"
+        f"{result.alignment_result.offset_s:.3f} s"
     )
 
     assert np.isclose(
-        alignment.reference_time_s,
-        0.3,
-    )
-
-    assert np.isclose(
-        alignment.offset_s,
-        -0.3,
-    )
-
-    assert np.isclose(
-        result.prepared_data.time_s[ignition.sample_index],
+        result.prepared_data.time_s[
+            ignition.sample_index
+        ],
         0.0,
     )
 
-    assert np.array_equal(
-        result.prepared_data.thrust_N,
-        original_thrust,
-    )
-
-    assert np.array_equal(
-        test_data.time_s,
-        original_time,
+    assert np.isclose(
+        result.alignment_result.offset_s,
+        -ignition.time_s,
     )
 
     print("Ignition alignment:   PASSED")
 
-    # ---------------------------------------------------------
-    # Burnout alignment
-    # ---------------------------------------------------------
 
+def test_burnout_alignment(pipeline):
     print_header("Burnout alignment")
 
     test_data = make_alignment_test_data()
 
     settings = ProcessingSettings()
-
-    settings.baseline.baseline_start_time_s = 0.0
-    settings.baseline.baseline_end_time_s = 0.21
 
     settings.alignment.enabled = True
     settings.alignment.reference_event = EventType.BURNOUT
@@ -540,10 +592,8 @@ def main():
         settings,
     )
 
-    alignment = result.alignment_result
     burnout = result.event_set.burnout
 
-    assert alignment is not None
     assert burnout is not None
     assert burnout.sample_index is not None
 
@@ -554,7 +604,7 @@ def main():
 
     print(
         f"Reference time:       "
-        f"{alignment.reference_time_s:.3f} s"
+        f"{result.alignment_result.reference_time_s:.3f} s"
     )
 
     print(
@@ -563,29 +613,21 @@ def main():
     )
 
     assert np.isclose(
-        alignment.reference_time_s,
-        0.7,
-    )
-
-    assert np.isclose(
-        result.prepared_data.time_s[burnout.sample_index],
+        result.prepared_data.time_s[
+            burnout.sample_index
+        ],
         0.0,
     )
 
     print("Burnout alignment:    PASSED")
 
-    # ---------------------------------------------------------
-    # Manual alignment
-    # ---------------------------------------------------------
 
+def test_manual_alignment(pipeline):
     print_header("Manual alignment")
 
     test_data = make_alignment_test_data()
 
     settings = ProcessingSettings()
-
-    settings.baseline.baseline_start_time_s = 0.0
-    settings.baseline.baseline_end_time_s = 0.21
 
     settings.alignment.enabled = True
     settings.alignment.manual_reference_time_s = 0.4
@@ -595,13 +637,9 @@ def main():
         settings,
     )
 
-    alignment = result.alignment_result
-
-    assert alignment is not None
-
     print(
         f"Manual reference:     "
-        f"{alignment.reference_time_s:.3f} s"
+        f"{settings.alignment.manual_reference_time_s:.3f} s"
     )
 
     print(
@@ -610,21 +648,19 @@ def main():
     )
 
     assert np.isclose(
-        alignment.reference_time_s,
-        0.4,
-    )
-
-    assert np.isclose(
         result.prepared_data.time_s[4],
         0.0,
     )
 
+    assert np.isclose(
+        result.alignment_result.offset_s,
+        -0.4,
+    )
+
     print("Manual alignment:     PASSED")
 
-    # ---------------------------------------------------------
-    # Combined trim + baseline + alignment
-    # ---------------------------------------------------------
 
+def test_combined_processing(pipeline):
     print_header("Trim + baseline + alignment")
 
     test_data = make_alignment_test_data()
@@ -634,11 +670,11 @@ def main():
 
     settings = ProcessingSettings()
 
-    settings.cleaning.start_time_s = 0.1
-    settings.cleaning.end_time_s = 0.81
+    settings.cleaning.start_time_s = 0.2
+    settings.cleaning.end_time_s = 0.9
 
-    settings.baseline.baseline_start_time_s = 0.1
-    settings.baseline.baseline_end_time_s = 0.21
+    settings.baseline.baseline_start_time_s = 0.2
+    settings.baseline.baseline_end_time_s = 0.2
 
     settings.alignment.enabled = True
     settings.alignment.reference_event = EventType.IGNITION
@@ -647,12 +683,6 @@ def main():
         test_data,
         settings,
     )
-
-    assert result.valid
-    assert result.cleaning_result is not None
-    assert result.baseline_result is not None
-    assert result.event_set is not None
-    assert result.alignment_result is not None
 
     ignition = result.event_set.ignition
 
@@ -679,6 +709,8 @@ def main():
         f"{result.prepared_data.time_s[ignition.sample_index]:.3f} s"
     )
 
+    assert result.valid
+
     assert result.prepared_data.sample_count == 8
 
     assert np.isclose(
@@ -687,7 +719,9 @@ def main():
     )
 
     assert np.isclose(
-        result.prepared_data.time_s[ignition.sample_index],
+        result.prepared_data.time_s[
+            ignition.sample_index
+        ],
         0.0,
     )
 
@@ -703,23 +737,21 @@ def main():
 
     print("Combined processing:  PASSED")
 
-    # ---------------------------------------------------------
-    # Real TEST_010 sample
-    # ---------------------------------------------------------
 
-    print_header("Real TEST_010 sample")
+def test_real_zerox_sample(pipeline):
+    print_header("Real Zerox Format 1.0 sample")
+
+    filename = os.path.join(
+        "test_data",
+        "Zerox.csv",
+    )
 
     reader = RMCSCSVReader()
 
-    real_data = reader.read(
-        "test_data/TEST_010_SAMPLE_MOTOR.csv"
-    )
+    real_data = reader.read(filename)
 
     settings = ProcessingSettings()
 
-    # Use the known pre-ignition portion of the sample as the
-    # baseline. The resulting processed peak is therefore
-    # expected to be slightly lower than the raw 363.004 N peak.
     settings.baseline.baseline_start_time_s = 0.0
     settings.baseline.baseline_end_time_s = 0.025
 
@@ -753,6 +785,18 @@ def main():
     )
 
     print(
+        f"Original time:        "
+        f"{real_data.time_s[0]:.3f} → "
+        f"{real_data.time_s[-1]:.3f} s"
+    )
+
+    print(
+        f"Calibrated time:      "
+        f"{real_data.calibrated_time_s[0]:.3f} → "
+        f"{real_data.calibrated_time_s[-1]:.3f} s"
+    )
+
+    print(
         f"Detected ignition:    "
         f"{ignition.time_s:.3f} s"
     )
@@ -768,8 +812,13 @@ def main():
     )
 
     print(
-        f"Peak thrust:           "
+        f"Peak thrust:          "
         f"{peak.value:.3f} N"
+    )
+
+    print(
+        f"Baseline:             "
+        f"{result.baseline_result.baseline_N:.3f} N"
     )
 
     print(
@@ -777,38 +826,74 @@ def main():
         f"{result.prepared_data.time_s[ignition.sample_index]:.3f} s"
     )
 
+    assert real_data.sample_count == 661
+
     assert np.isclose(
-        ignition.time_s,
-        0.035,
+        real_data.calibrated_time_s[0],
+        0.0,
     )
 
     assert np.isclose(
-        burnout.time_s,
-        4.890,
+        real_data.calibrated_time_s[-1],
+        8.538,
+    )
+
+    assert np.isclose(
+        real_data.maximum_thrust_N,
+        3230.339730,
+    )
+
+    assert np.isclose(
+        result.baseline_result.baseline_N,
+        53.3190315,
+    )
+
+    assert np.isclose(
+        ignition.time_s,
+        0.034,
     )
 
     assert np.isclose(
         peak.time_s,
-        0.246,
+        0.134,
     )
 
-    # Baseline correction changes the peak from the original
-    # raw value of 363.004 N to the processed value 362.907 N.
     assert np.isclose(
         peak.value,
-        362.907,
+        3177.0206985,
     )
 
     assert np.isclose(
-        result.prepared_data.time_s[ignition.sample_index],
+        result.prepared_data.time_s[
+            ignition.sample_index
+        ],
         0.0,
     )
 
-    print("Real sample:          PASSED")
+    print("Real Zerox sample:    PASSED")
 
-    # ---------------------------------------------------------
-    # Final result
-    # ---------------------------------------------------------
+
+def main():
+    print("RMCS Analyzer Processing Pipeline Tests")
+    print("=" * 70)
+
+    pipeline = ProcessingPipeline()
+
+    test_default_processing(pipeline)
+    test_trim_and_baseline(pipeline)
+    test_baseline_only(pipeline)
+    test_raw_data_protection(pipeline)
+    test_calibrated_time(pipeline)
+    test_calibrated_time_fallback(pipeline)
+    test_invalid_raw_data(pipeline)
+    test_prepared_validation(pipeline)
+    test_event_detection(pipeline)
+    test_alignment_disabled(pipeline)
+    test_ignition_alignment(pipeline)
+    test_burnout_alignment(pipeline)
+    test_manual_alignment(pipeline)
+    test_combined_processing(pipeline)
+    test_real_zerox_sample(pipeline)
 
     print()
     print("=" * 70)

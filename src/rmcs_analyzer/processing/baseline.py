@@ -47,7 +47,7 @@ class BaselineCorrector:
     The original TestData is never modified.
 
     Baseline correction subtracts a calculated resting thrust
-    value from the thrust channel:
+    value from the authoritative thrust channel:
 
         corrected_thrust = original_thrust - baseline
     """
@@ -80,11 +80,14 @@ class BaselineCorrector:
         # ---------------------------------------------------------
         # Determine baseline window
         # ---------------------------------------------------------
+
         start_index = 0
         end_index = test_data.sample_count - 1
 
         if settings.baseline_start_time_s is not None:
-            if not np.isfinite(settings.baseline_start_time_s):
+            if not np.isfinite(
+                settings.baseline_start_time_s
+            ):
                 raise ValueError(
                     "Baseline start time must be finite."
                 )
@@ -98,7 +101,9 @@ class BaselineCorrector:
             )
 
         if settings.baseline_end_time_s is not None:
-            if not np.isfinite(settings.baseline_end_time_s):
+            if not np.isfinite(
+                settings.baseline_end_time_s
+            ):
                 raise ValueError(
                     "Baseline end time must be finite."
                 )
@@ -130,6 +135,7 @@ class BaselineCorrector:
         # ---------------------------------------------------------
         # Calculate baseline
         # ---------------------------------------------------------
+
         baseline = float(
             np.mean(
                 thrust[start_index:end_index + 1]
@@ -139,31 +145,66 @@ class BaselineCorrector:
         # ---------------------------------------------------------
         # Create corrected data without modifying raw data
         # ---------------------------------------------------------
+
         corrected_thrust = thrust.copy() - baseline
 
         corrected_data = TestData(
+            # -----------------------------------------------------
+            # Primary channels
+            # -----------------------------------------------------
+
             time_s=test_data.time_s.copy(),
+
             thrust_N=corrected_thrust,
-            raw_hx711=(
-                test_data.raw_hx711.copy()
-                if test_data.raw_hx711 is not None
+
+            # -----------------------------------------------------
+            # Standardized optional channels
+            # -----------------------------------------------------
+
+            calibrated_time_s=(
+                test_data.calibrated_time_s.copy()
+                if test_data.calibrated_time_s is not None
                 else None
             ),
+
+            raw_thrust_N=(
+                test_data.raw_thrust_N.copy()
+                if test_data.raw_thrust_N is not None
+                else None
+            ),
+
+            prop_loss_kg=(
+                test_data.prop_loss_kg.copy()
+                if test_data.prop_loss_kg is not None
+                else None
+            ),
+
+            pressure_psi=(
+                test_data.pressure_psi.copy()
+                if test_data.pressure_psi is not None
+                else None
+            ),
+
+            # -----------------------------------------------------
+            # Existing processing channels
+            # -----------------------------------------------------
+
             delta=(
                 test_data.delta.copy()
                 if test_data.delta is not None
                 else None
             ),
+
             state=(
                 test_data.state.copy()
                 if test_data.state is not None
                 else None
             ),
-            pressure_kPa=(
-                test_data.pressure_kPa.copy()
-                if test_data.pressure_kPa is not None
-                else None
-            ),
+
+            # -----------------------------------------------------
+            # Metadata
+            # -----------------------------------------------------
+
             metadata=test_data.metadata,
         )
 

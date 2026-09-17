@@ -186,6 +186,16 @@ class DataValidator:
         Notes
         -----
         This method never modifies test_data.
+
+        The primary Time(s) and Thrust (N) channels are required.
+
+        Optional channels are validated when present:
+            - Time Cal (s)
+            - Raw Thrust (N)
+            - Prop Loss (kg)
+            - Pressure (psi)
+            - Delta
+            - State
         """
 
         report = DataValidationReport()
@@ -263,7 +273,7 @@ class DataValidator:
             return report
 
         # -----------------------------------------------------
-        # Validate time channel
+        # Validate primary time channel
         # -----------------------------------------------------
 
         cls._validate_time(
@@ -272,7 +282,7 @@ class DataValidator:
         )
 
         # -----------------------------------------------------
-        # Validate thrust channel
+        # Validate primary thrust channel
         # -----------------------------------------------------
 
         cls._validate_thrust(
@@ -285,8 +295,29 @@ class DataValidator:
         # -----------------------------------------------------
 
         cls._validate_optional_channel(
-            "raw_hx711",
-            test_data.raw_hx711,
+            "calibrated_time_s",
+            test_data.calibrated_time_s,
+            report.sample_count,
+            report,
+        )
+
+        cls._validate_optional_channel(
+            "raw_thrust_N",
+            test_data.raw_thrust_N,
+            report.sample_count,
+            report,
+        )
+
+        cls._validate_optional_channel(
+            "prop_loss_kg",
+            test_data.prop_loss_kg,
+            report.sample_count,
+            report,
+        )
+
+        cls._validate_optional_channel(
+            "pressure_psi",
+            test_data.pressure_psi,
             report.sample_count,
             report,
         )
@@ -301,13 +332,6 @@ class DataValidator:
         cls._validate_optional_channel(
             "state",
             test_data.state,
-            report.sample_count,
-            report,
-        )
-
-        cls._validate_optional_channel(
-            "pressure_kPa",
-            test_data.pressure_kPa,
             report.sample_count,
             report,
         )
@@ -337,7 +361,7 @@ class DataValidator:
         time_s: np.ndarray,
         report: DataValidationReport,
     ):
-        """Validate the time channel."""
+        """Validate the primary Time(s) channel."""
 
         # -----------------------------------------------------
         # Numeric conversion
@@ -497,7 +521,7 @@ class DataValidator:
         thrust_N: np.ndarray,
         report: DataValidationReport,
     ):
-        """Validate the thrust channel."""
+        """Validate the authoritative Thrust (N) channel."""
 
         try:
 

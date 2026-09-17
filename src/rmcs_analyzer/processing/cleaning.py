@@ -67,6 +67,11 @@ class DataCleaner:
 
     Raw TestData is never modified. The cleaner produces a new
     TestData object containing the selected analysis region.
+
+    All available time-series channels are preserved when
+    trimming, including the original acquisition time,
+    calibrated time, thrust channels, propellant-loss data,
+    pressure, delta, and state.
     """
 
     # =========================================================
@@ -244,6 +249,9 @@ class DataCleaner:
         sample range.
 
         The slice is inclusive of both boundaries.
+
+        Every available time-series channel is copied so that
+        downstream processing does not lose optional data.
         """
 
         data_slice = slice(
@@ -252,6 +260,10 @@ class DataCleaner:
         )
 
         return TestData(
+            # -------------------------------------------------
+            # Primary channels
+            # -------------------------------------------------
+
             time_s=np.array(
                 test_data.time_s[
                     data_slice
@@ -266,16 +278,57 @@ class DataCleaner:
                 copy=True,
             ),
 
-            raw_hx711=(
+            # -------------------------------------------------
+            # Standardized optional channels
+            # -------------------------------------------------
+
+            calibrated_time_s=(
                 None
-                if test_data.raw_hx711 is None
+                if test_data.calibrated_time_s is None
                 else np.array(
-                    test_data.raw_hx711[
+                    test_data.calibrated_time_s[
                         data_slice
                     ],
                     copy=True,
                 )
             ),
+
+            raw_thrust_N=(
+                None
+                if test_data.raw_thrust_N is None
+                else np.array(
+                    test_data.raw_thrust_N[
+                        data_slice
+                    ],
+                    copy=True,
+                )
+            ),
+
+            prop_loss_kg=(
+                None
+                if test_data.prop_loss_kg is None
+                else np.array(
+                    test_data.prop_loss_kg[
+                        data_slice
+                    ],
+                    copy=True,
+                )
+            ),
+
+            pressure_psi=(
+                None
+                if test_data.pressure_psi is None
+                else np.array(
+                    test_data.pressure_psi[
+                        data_slice
+                    ],
+                    copy=True,
+                )
+            ),
+
+            # -------------------------------------------------
+            # Existing optional processing channels
+            # -------------------------------------------------
 
             delta=(
                 None
@@ -299,16 +352,9 @@ class DataCleaner:
                 )
             ),
 
-            pressure_kPa=(
-                None
-                if test_data.pressure_kPa is None
-                else np.array(
-                    test_data.pressure_kPa[
-                        data_slice
-                    ],
-                    copy=True,
-                )
-            ),
+            # -------------------------------------------------
+            # Metadata
+            # -------------------------------------------------
 
             metadata=test_data.metadata,
         )
