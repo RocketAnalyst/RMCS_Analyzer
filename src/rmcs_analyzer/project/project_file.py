@@ -19,6 +19,12 @@ from ..data.models import (
     TestMetadata,
 )
 
+from ..processing.event_model import (
+    DetectedEvent,
+    EventSet,
+    EventType,
+)
+
 from .test_model import TestModel
 from .session import TestSession
 
@@ -37,6 +43,12 @@ class ProjectFile:
     The project's saved state is always considered clean when it
     is successfully written. Runtime 'modified' flags are therefore
     not persisted as project data.
+
+    Project files currently remain format version 1 for compatibility
+    with existing RMCS Analyzer projects.
+
+    Legacy projects containing EventResults and unaligned time data
+    are migrated when loaded.
     """
 
     FORMAT_NAME = "RMCS Analyzer Project"
@@ -132,8 +144,8 @@ class ProjectFile:
         """
         Load an RMCS Analyzer project file into a new TestSession.
 
-        A successfully loaded project represents the last saved state,
-        so all loaded tests begin with modified=False.
+        Legacy project files are migrated into the current runtime
+        representation when necessary.
         """
 
         path = Path(filename)
@@ -274,11 +286,8 @@ class ProjectFile:
             "source_file": test.source_file,
         }
 
-        # IMPORTANT:
         # 'modified' is intentionally not stored.
-        #
-        # A project file is a saved snapshot. When it is loaded,
-        # its tests are considered clean until the user changes them.
+        # A project file represents a saved snapshot.
 
         cls._write_json(
             archive,
@@ -495,7 +504,6 @@ class ProjectFile:
                 "",
             ),
 
-            # A loaded project is a clean saved snapshot.
             modified=False,
         )
 
@@ -514,13 +522,174 @@ class ProjectFile:
                 analysis_path,
             )
 
-            test.analysis_results = (
-                cls._deserialize_analysis(
-                    analysis_data
+            (
+                analysis,
+                legacy_project,
+            ) = cls._deserialize_analysis(
+                analysis_data
+            )
+
+            test.analysis_results = analysis
+
+            # -----------------------------------------------------
+            # Migrate legacy projects.
+            #
+            # Older projects stored:
+            #   EventResults
+            #   absolute event times
+            #   unaligned test time
+            #
+            # Current projects use:
+            #   EventSet
+            #   ignition-aligned prepared time
+            #
+            # If this is a legacy project and ignition occurred
+            # after t=0, shift the saved prepared data and event
+            # times so the project opens using the same coordinate
+            # system as current CSV imports.
+            # -----------------------------------------------------
+
+            if legacy_project:
+
+                cls._migrate_legacy_alignment(
+                    test
+                )
+
+        return test
+
+    # =============================================================
+    # LEGACY PROJECT MIGRATION
+    # =============================================================
+
+    @staticmethod
+    def _migrate_legacy_alignment(
+        test: TestModel,
+    ):
+        """
+        Migrate a legacy project from absolute time to
+        ignition-relative time.
+
+        This is intentionally limited to legacy EventResults
+        projects. Current EventSet projects are assumed to already
+        contain the prepared/aligned data saved by the current
+        processing pipeline.
+        """
+
+        analysis = test.analysis_results
+
+        if analysis is None:
+            return
+
+        events = analysis.events
+
+        if not isinstance(
+            events,
+            EventSet,
+        ):
+            return
+
+        ignition = events.ignition
+
+        if ignition is None:
+            return
+
+        ignition_time = float(
+            ignition.time_s
+        )
+
+        if not np.isfinite(
+            ignition_time
+        ):
+            return
+
+        if abs(ignition_time) < 1e-12:
+            return
+
+        data = test.data
+
+        # ---------------------------------------------------------
+        # Shift prepared time axis.
+        # ---------------------------------------------------------
+
+        aligned_time = (
+            data.time_s.copy()
+            - ignition_time
+        )
+
+        test.data = TestData(
+            time_s=aligned_time,
+            thrust_N=data.thrust_N.copy(),
+            raw_hx711=(
+                data.raw_hx711.copy()
+                if data.raw_hx711 is not None
+                else None
+            ),
+            delta=(
+                data.delta.copy()
+                if data.delta is not None
+                else None
+            ),
+            state=(
+                data.state.copy()
+                if data.state is not None
+                else None
+            ),
+            pressure_kPa=(
+                data.pressure_kPa.copy()
+                if data.pressure_kPa is not None
+                else None
+            ),
+            metadata=data.metadata,
+        )
+
+        # ---------------------------------------------------------
+        # Shift event times.
+        # ---------------------------------------------------------
+
+        shifted_events = []
+
+        for event in events.events:
+
+            shifted_events.append(
+                DetectedEvent(
+                    event_type=event.event_type,
+                    time_s=float(
+                        event.time_s
+                        - ignition_time
+                    ),
+                    sample_index=event.sample_index,
+                    value=event.value,
+                    confidence=event.confidence,
+                    label=event.label,
+                    notes=event.notes,
+                    automatically_detected=(
+                        event.automatically_detected
+                    ),
                 )
             )
 
-        return test
+        analysis.events = EventSet(
+            events=shifted_events
+        )
+
+        # ---------------------------------------------------------
+        # Shift absolute peak-event time.
+        #
+        # time_to_peak is already relative to ignition and therefore
+        # must not be changed.
+        # ---------------------------------------------------------
+
+        if (
+            analysis.thrust.peak_thrust_time_s
+            is not None
+        ):
+
+            analysis.thrust.peak_thrust_time_s = (
+                float(
+                    analysis.thrust.peak_thrust_time_s
+                )
+                - ignition_time
+            )
 
     # =============================================================
     # METADATA SERIALIZATION
@@ -634,32 +803,72 @@ class ProjectFile:
     def _serialize_analysis(
         analysis: AnalysisResults,
     ) -> dict[str, Any]:
-        """Convert AnalysisResults into JSON-compatible data."""
+        """
+        Convert AnalysisResults into JSON-compatible data.
 
-        return {
-            "events": {
+        Current projects store EventSet.
+        A compatibility path is retained for legacy EventResults.
+        """
+
+        events = analysis.events
+
+        # ---------------------------------------------------------
+        # Current EventSet representation
+        # ---------------------------------------------------------
+
+        if isinstance(
+            events,
+            EventSet,
+        ):
+
+            events_data = {
+                "format": "event_set",
+                "events": events.to_dict()["events"],
+            }
+
+        # ---------------------------------------------------------
+        # Legacy EventResults representation
+        # ---------------------------------------------------------
+
+        elif isinstance(
+            events,
+            EventResults,
+        ):
+
+            events_data = {
+                "format": "legacy_event_results",
                 "ignition_time_s": (
-                    analysis.events.ignition_time_s
+                    events.ignition_time_s
                 ),
                 "burnout_time_s": (
-                    analysis.events.burnout_time_s
+                    events.burnout_time_s
                 ),
                 "peak_time_s": (
-                    analysis.events.peak_time_s
+                    events.peak_time_s
                 ),
                 "ignition_index": (
-                    analysis.events.ignition_index
+                    events.ignition_index
                 ),
                 "burnout_index": (
-                    analysis.events.burnout_index
+                    events.burnout_index
                 ),
                 "peak_index": (
-                    analysis.events.peak_index
+                    events.peak_index
                 ),
                 "detection_method": (
-                    analysis.events.detection_method
+                    events.detection_method
                 ),
-            },
+            }
+
+        else:
+
+            raise ProjectFileError(
+                "Unsupported event result type while saving project."
+            )
+
+        return {
+            "events": events_data,
+
             "thrust": {
                 "peak_thrust_N": (
                     analysis.thrust.peak_thrust_N
@@ -680,6 +889,7 @@ class ProjectFile:
                     analysis.thrust.time_to_peak_s
                 ),
             },
+
             "statistics": {
                 "sample_count": (
                     analysis.statistics.sample_count
@@ -700,6 +910,7 @@ class ProjectFile:
                     analysis.statistics.baseline_std_N
                 ),
             },
+
             "classification": {
                 "motor_class": (
                     analysis.classification.motor_class
@@ -719,38 +930,83 @@ class ProjectFile:
     @staticmethod
     def _deserialize_analysis(
         data: dict[str, Any],
-    ) -> AnalysisResults:
-        """Convert JSON data back into AnalysisResults."""
+    ):
+        """
+        Convert JSON data back into AnalysisResults.
+
+        Returns:
+            tuple[AnalysisResults, bool]
+
+        The boolean indicates whether the project used the legacy
+        EventResults representation and therefore requires migration.
+        """
 
         events_data = data["events"]
         thrust_data = data["thrust"]
         statistics_data = data["statistics"]
         classification_data = data["classification"]
 
-        events = EventResults(
-            ignition_time_s=events_data.get(
-                "ignition_time_s"
-            ),
-            burnout_time_s=events_data.get(
-                "burnout_time_s"
-            ),
-            peak_time_s=events_data.get(
-                "peak_time_s"
-            ),
-            ignition_index=events_data.get(
-                "ignition_index"
-            ),
-            burnout_index=events_data.get(
-                "burnout_index"
-            ),
-            peak_index=events_data.get(
-                "peak_index"
-            ),
-            detection_method=events_data.get(
-                "detection_method",
-                "",
-            ),
+        # ---------------------------------------------------------
+        # Events
+        # ---------------------------------------------------------
+
+        event_format = events_data.get(
+            "format"
         )
+
+        legacy_project = False
+
+        if (
+            event_format == "event_set"
+            or "events" in events_data
+        ):
+
+            events = EventSet.from_dict(
+                events_data
+            )
+
+        else:
+
+            # -----------------------------------------------------
+            # Legacy EventResults
+            # -----------------------------------------------------
+
+            legacy_project = True
+
+            legacy_events = EventResults(
+                ignition_time_s=events_data.get(
+                    "ignition_time_s"
+                ),
+                burnout_time_s=events_data.get(
+                    "burnout_time_s"
+                ),
+                peak_time_s=events_data.get(
+                    "peak_time_s"
+                ),
+                ignition_index=events_data.get(
+                    "ignition_index"
+                ),
+                burnout_index=events_data.get(
+                    "burnout_index"
+                ),
+                peak_index=events_data.get(
+                    "peak_index"
+                ),
+                detection_method=events_data.get(
+                    "detection_method",
+                    "",
+                ),
+            )
+
+            events = (
+                ProjectFile._legacy_events_to_event_set(
+                    legacy_events
+                )
+            )
+
+        # ---------------------------------------------------------
+        # Thrust
+        # ---------------------------------------------------------
 
         thrust = ThrustResults(
             peak_thrust_N=thrust_data.get(
@@ -772,6 +1028,10 @@ class ProjectFile:
                 "time_to_peak_s"
             ),
         )
+
+        # ---------------------------------------------------------
+        # Statistics
+        # ---------------------------------------------------------
 
         statistics = StatisticalResults(
             sample_count=statistics_data.get(
@@ -798,6 +1058,10 @@ class ProjectFile:
             ),
         )
 
+        # ---------------------------------------------------------
+        # Classification
+        # ---------------------------------------------------------
+
         classification = MotorClassification(
             motor_class=classification_data.get(
                 "motor_class"
@@ -814,12 +1078,81 @@ class ProjectFile:
             ),
         )
 
-        return AnalysisResults(
+        analysis = AnalysisResults(
             events=events,
             thrust=thrust,
             statistics=statistics,
             classification=classification,
         )
+
+        return (
+            analysis,
+            legacy_project,
+        )
+
+    @staticmethod
+    def _legacy_events_to_event_set(
+        events: EventResults,
+    ) -> EventSet:
+        """Convert legacy EventResults into the current EventSet."""
+
+        event_set = EventSet()
+
+        if events.ignition_time_s is not None:
+
+            event_set.add(
+                DetectedEvent(
+                    event_type=EventType.IGNITION,
+                    time_s=float(
+                        events.ignition_time_s
+                    ),
+                    sample_index=events.ignition_index,
+                    label="Ignition",
+                    notes=(
+                        "Migrated from legacy "
+                        "EventResults."
+                    ),
+                    automatically_detected=True,
+                )
+            )
+
+        if events.peak_time_s is not None:
+
+            event_set.add(
+                DetectedEvent(
+                    event_type=EventType.PEAK_THRUST,
+                    time_s=float(
+                        events.peak_time_s
+                    ),
+                    sample_index=events.peak_index,
+                    label="Peak Thrust",
+                    notes=(
+                        "Migrated from legacy "
+                        "EventResults."
+                    ),
+                    automatically_detected=True,
+                )
+            )
+
+        if events.burnout_time_s is not None:
+
+            event_set.add(
+                DetectedEvent(
+                    event_type=EventType.BURNOUT,
+                    time_s=float(
+                        events.burnout_time_s
+                    ),
+                    sample_index=events.burnout_index,
+                    label="Burnout",
+                    notes=(
+                        "Migrated from legacy "
+                        "EventResults."
+                    ),
+                    automatically_detected=True,
+                )
+            )
+
+        return event_set
 
     # =============================================================
     # JSON HELPERS

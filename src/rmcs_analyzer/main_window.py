@@ -10,6 +10,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QPushButton,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -55,11 +57,23 @@ from .ui.results_panel import ResultsPanel
 
 class MainWindow(QMainWindow):
     """
-    Main application window.
+    Main RMCS Analyzer application window.
 
-    Coordinates the UI, test session, CSV importing,
-    project loading/saving, processing, analysis,
-    and display.
+    The main window coordinates:
+        - application UI
+        - test sessions
+        - CSV importing
+        - project loading/saving
+        - processing
+        - analysis
+        - result display
+
+    The UI is organized around the primary analysis workspaces:
+        - Thrust Curve
+        - Data Table
+        - Analysis
+        - Compare
+        - Simulation Overlay
     """
 
     def __init__(self):
@@ -151,7 +165,7 @@ class MainWindow(QMainWindow):
         )
 
         # =========================================================
-        # MAIN CONTENT
+        # MAIN APPLICATION AREA
         # =========================================================
 
         content = QFrame()
@@ -165,14 +179,14 @@ class MainWindow(QMainWindow):
         )
 
         content_layout.setContentsMargins(
-            14,
-            14,
-            14,
-            14,
+            10,
+            10,
+            10,
+            10,
         )
 
         content_layout.setSpacing(
-            14
+            10
         )
 
         # =========================================================
@@ -183,6 +197,14 @@ class MainWindow(QMainWindow):
 
         left_container.setObjectName(
             "panel"
+        )
+
+        left_container.setMinimumWidth(
+            280
+        )
+
+        left_container.setMaximumWidth(
+            320
         )
 
         left_layout = QVBoxLayout(
@@ -197,7 +219,7 @@ class MainWindow(QMainWindow):
         )
 
         left_layout.setSpacing(
-            0
+            8
         )
 
         self.test_info = TestInfoPanel()
@@ -220,7 +242,6 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(
             self.branding,
             0,
-            Qt.AlignmentFlag.AlignBottom,
         )
 
         content_layout.addWidget(
@@ -228,45 +249,229 @@ class MainWindow(QMainWindow):
         )
 
         # =========================================================
-        # CENTER PANEL
+        # CENTER WORKSPACE
         # =========================================================
 
-        center_panel = QFrame()
+        center_container = QFrame()
 
-        center_panel.setObjectName(
+        center_container.setObjectName(
             "panel"
         )
 
         center_layout = QVBoxLayout(
-            center_panel
+            center_container
         )
 
         center_layout.setContentsMargins(
-            16,
-            16,
-            16,
-            16,
+            8,
+            8,
+            8,
+            8,
         )
 
         center_layout.setSpacing(
-            12
+            8
+        )
+
+        # ---------------------------------------------------------
+        # WORKSPACE TABS
+        # ---------------------------------------------------------
+
+        self.workspace_tabs = QTabWidget()
+
+        self.workspace_tabs.setObjectName(
+            "workspaceTabs"
+        )
+
+        self.workspace_tabs.setDocumentMode(
+            True
+        )
+
+        # =========================================================
+        # THRUST CURVE TAB
+        # =========================================================
+
+        thrust_workspace = QWidget()
+
+        thrust_layout = QVBoxLayout(
+            thrust_workspace
+        )
+
+        thrust_layout.setContentsMargins(
+            4,
+            4,
+            4,
+            4,
+        )
+
+        thrust_layout.setSpacing(
+            8
         )
 
         self.thrust_plot = ThrustPlot()
 
         self.playback = PlaybackControls()
 
-        center_layout.addWidget(
+        thrust_layout.addWidget(
             self.thrust_plot,
             1,
         )
 
+        thrust_layout.addWidget(
+            self.playback,
+            0,
+        )
+
+        self.workspace_tabs.addTab(
+            thrust_workspace,
+            "Thrust Curve",
+        )
+
+        # =========================================================
+        # DATA TABLE TAB
+        # =========================================================
+
+        data_table_page = self.create_placeholder_page(
+            "Data Table",
+            (
+                "Sample-level test data will be displayed here."
+                "\n\n"
+                "Planned capabilities:\n"
+                "• Browse recorded samples\n"
+                "• Inspect time and thrust values\n"
+                "• View optional sensor channels\n"
+                "• Review processed data"
+            ),
+        )
+
+        self.workspace_tabs.addTab(
+            data_table_page,
+            "Data Table",
+        )
+
+        # =========================================================
+        # ANALYSIS TAB
+        # =========================================================
+
+        analysis_page = self.create_placeholder_page(
+            "Analysis",
+            (
+                "Detailed engineering analysis will be displayed here."
+                "\n\n"
+                "Planned capabilities:\n"
+                "• Thrust statistics\n"
+                "• Impulse analysis\n"
+                "• Performance metrics\n"
+                "• Motor classification\n"
+                "• C* and Isp analysis"
+            ),
+        )
+
+        self.workspace_tabs.addTab(
+            analysis_page,
+            "Analysis",
+        )
+
+        # =========================================================
+        # COMPARE TAB
+        # =========================================================
+
+        compare_page = self.create_placeholder_page(
+            "Compare",
+            (
+                "Test comparison workspace."
+                "\n\n"
+                "Planned capabilities:\n"
+                "• Select multiple tests\n"
+                "• Overlay thrust curves\n"
+                "• Compare calculated results\n"
+                "• Compare motor performance"
+            ),
+        )
+
+        self.workspace_tabs.addTab(
+            compare_page,
+            "Compare",
+        )
+
+        # =========================================================
+        # SIMULATION OVERLAY TAB
+        # =========================================================
+
+        simulation_page = self.create_placeholder_page(
+            "Simulation Overlay",
+            (
+                "Simulation comparison workspace."
+                "\n\n"
+                "Planned capabilities:\n"
+                "• Load simulation data\n"
+                "• Overlay measured thrust\n"
+                "• Compare OpenMotor/BurnSim results\n"
+                "• Review measured vs. predicted performance"
+            ),
+        )
+
+        self.workspace_tabs.addTab(
+            simulation_page,
+            "Simulation Overlay",
+        )
+
         center_layout.addWidget(
-            self.playback
+            self.workspace_tabs,
+            1,
+        )
+
+        # =========================================================
+        # LOWER SUPPORTING PANES
+        # =========================================================
+
+        lower_panels = QHBoxLayout()
+
+        lower_panels.setSpacing(
+            8
+        )
+
+        # ---------------------------------------------------------
+        # VIDEO OVERLAY
+        # ---------------------------------------------------------
+
+        self.video_panel = self.create_video_placeholder()
+
+        lower_panels.addWidget(
+            self.video_panel,
+            1,
+        )
+
+        # ---------------------------------------------------------
+        # EXPORT
+        # ---------------------------------------------------------
+
+        self.export_panel = self.create_export_placeholder()
+
+        lower_panels.addWidget(
+            self.export_panel,
+            1,
+        )
+
+        # ---------------------------------------------------------
+        # MOTOR CLASSIFICATION
+        # ---------------------------------------------------------
+
+        self.classification_panel = (
+            self.create_classification_panel()
+        )
+
+        lower_panels.addWidget(
+            self.classification_panel,
+            1,
+        )
+
+        center_layout.addLayout(
+            lower_panels
         )
 
         content_layout.addWidget(
-            center_panel,
+            center_container,
             1,
         )
 
@@ -274,12 +479,76 @@ class MainWindow(QMainWindow):
         # RIGHT SIDEBAR
         # =========================================================
 
+        right_container = QFrame()
+
+        right_container.setObjectName(
+            "panel"
+        )
+
+        right_container.setMinimumWidth(
+            285
+        )
+
+        right_container.setMaximumWidth(
+            330
+        )
+
+        right_layout = QVBoxLayout(
+            right_container
+        )
+
+        right_layout.setContentsMargins(
+            8,
+            8,
+            8,
+            8,
+        )
+
+        right_layout.setSpacing(
+            8
+        )
+
+        # ---------------------------------------------------------
+        # KEY RESULTS
+        # ---------------------------------------------------------
+
         self.results = ResultsPanel()
 
         self.results.status.hide()
 
+        right_layout.addWidget(
+            self.results,
+            0,
+        )
+
+        # ---------------------------------------------------------
+        # ADDITIONAL METRICS
+        # ---------------------------------------------------------
+
+        self.additional_metrics_panel = (
+            self.create_additional_metrics_panel()
+        )
+
+        right_layout.addWidget(
+            self.additional_metrics_panel,
+            1,
+        )
+
+        # ---------------------------------------------------------
+        # C* ANALYSIS
+        # ---------------------------------------------------------
+
+        self.cstar_panel = (
+            self.create_cstar_panel()
+        )
+
+        right_layout.addWidget(
+            self.cstar_panel,
+            0,
+        )
+
         content_layout.addWidget(
-            self.results
+            right_container
         )
 
         main_layout.addWidget(
@@ -342,6 +611,523 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(
             footer
         )
+
+    # =============================================================
+    # PLACEHOLDER / SUPPORTING UI
+    # =============================================================
+
+    def create_panel_header(
+        self,
+        title,
+    ):
+        """Create a standard section heading."""
+
+        label = QLabel(
+            title
+        )
+
+        label.setObjectName(
+            "sectionTitle"
+        )
+
+        return label
+
+    def create_placeholder_page(
+        self,
+        title,
+        description,
+    ):
+        """
+        Create a placeholder workspace.
+
+        These pages establish the final application architecture
+        before their underlying functionality is implemented.
+        """
+
+        page = QFrame()
+
+        page.setObjectName(
+            "workspacePlaceholder"
+        )
+
+        layout = QVBoxLayout(
+            page
+        )
+
+        layout.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        title_label = QLabel(
+            title
+        )
+
+        title_label.setObjectName(
+            "graphTitle"
+        )
+
+        title_label.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        description_label = QLabel(
+            description
+        )
+
+        description_label.setObjectName(
+            "graphDescription"
+        )
+
+        description_label.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        description_label.setWordWrap(
+            True
+        )
+
+        layout.addWidget(
+            title_label
+        )
+
+        layout.addWidget(
+            description_label
+        )
+
+        return page
+
+    def create_video_placeholder(self):
+        """Create the future video overlay pane."""
+
+        panel = QFrame()
+
+        panel.setObjectName(
+            "subPanel"
+        )
+
+        layout = QVBoxLayout(
+            panel
+        )
+
+        layout.setContentsMargins(
+            10,
+            8,
+            10,
+            8,
+        )
+
+        layout.setSpacing(
+            6
+        )
+
+        header = self.create_panel_header(
+            "Video Overlay"
+        )
+
+        layout.addWidget(
+            header
+        )
+
+        body = QFrame()
+
+        body_layout = QVBoxLayout(
+            body
+        )
+
+        body_layout.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        status = QLabel(
+            "No video loaded"
+        )
+
+        status.setObjectName(
+            "graphDescription"
+        )
+
+        status.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        button = QPushButton(
+            "Load Video..."
+        )
+
+        button.setEnabled(
+            False
+        )
+
+        body_layout.addWidget(
+            status
+        )
+
+        body_layout.addWidget(
+            button,
+            0,
+            Qt.AlignmentFlag.AlignCenter,
+        )
+
+        layout.addWidget(
+            body,
+            1,
+        )
+
+        return panel
+
+    def create_export_placeholder(self):
+        """Create the future export pane."""
+
+        panel = QFrame()
+
+        panel.setObjectName(
+            "subPanel"
+        )
+
+        layout = QVBoxLayout(
+            panel
+        )
+
+        layout.setContentsMargins(
+            10,
+            8,
+            10,
+            8,
+        )
+
+        layout.setSpacing(
+            5
+        )
+
+        layout.addWidget(
+            self.create_panel_header(
+                "Export"
+            )
+        )
+
+        export_items = (
+            "OpenRocket",
+            "RockSim",
+            "BurnSim",
+            "Analysis CSV",
+            "PDF Report",
+        )
+
+        for item in export_items:
+
+            button = QPushButton(
+                item
+            )
+
+            button.setEnabled(
+                False
+            )
+
+            layout.addWidget(
+                button
+            )
+
+        return panel
+
+    def create_classification_panel(self):
+        """
+        Create the motor classification pane.
+
+        The actual classification result is populated when a test
+        is loaded.
+        """
+
+        panel = QFrame()
+
+        panel.setObjectName(
+            "subPanel"
+        )
+
+        layout = QVBoxLayout(
+            panel
+        )
+
+        layout.setContentsMargins(
+            10,
+            8,
+            10,
+            8,
+        )
+
+        layout.setSpacing(
+            5
+        )
+
+        layout.addWidget(
+            self.create_panel_header(
+                "Motor Classification"
+            )
+        )
+
+        self.classification_class = QLabel(
+            "—"
+        )
+
+        self.classification_class.setObjectName(
+            "metricValue"
+        )
+
+        self.classification_class.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        self.classification_impulse = QLabel(
+            "Measured Impulse: —"
+        )
+
+        self.classification_impulse.setObjectName(
+            "graphDescription"
+        )
+
+        self.classification_impulse.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        self.classification_range = QLabel(
+            "Classification range: —"
+        )
+
+        self.classification_range.setObjectName(
+            "graphDescription"
+        )
+
+        self.classification_range.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        layout.addWidget(
+            self.classification_class
+        )
+
+        layout.addWidget(
+            self.classification_impulse
+        )
+
+        layout.addWidget(
+            self.classification_range
+        )
+
+        return panel
+
+    def create_additional_metrics_panel(self):
+        """Create the additional metrics pane."""
+
+        panel = QFrame()
+
+        panel.setObjectName(
+            "subPanel"
+        )
+
+        layout = QVBoxLayout(
+            panel
+        )
+
+        layout.setContentsMargins(
+            10,
+            8,
+            10,
+            8,
+        )
+
+        layout.setSpacing(
+            5
+        )
+
+        layout.addWidget(
+            self.create_panel_header(
+                "Additional Metrics"
+            )
+        )
+
+        self.metric_initial_thrust = self.create_metric_row(
+            "Initial Thrust",
+            "— N",
+        )
+
+        self.metric_final_thrust = self.create_metric_row(
+            "Final Thrust",
+            "— N",
+        )
+
+        self.metric_rise_rate = self.create_metric_row(
+            "Thrust Rise Rate",
+            "— N/s",
+        )
+
+        self.metric_decay_rate = self.create_metric_row(
+            "Thrust Decay Rate",
+            "— N/s",
+        )
+
+        self.metric_samples = self.create_metric_row(
+            "Samples",
+            "—",
+        )
+
+        self.metric_sample_rate = self.create_metric_row(
+            "Sample Rate",
+            "— SPS",
+        )
+
+        layout.addWidget(
+            self.metric_initial_thrust
+        )
+
+        layout.addWidget(
+            self.metric_final_thrust
+        )
+
+        layout.addWidget(
+            self.metric_rise_rate
+        )
+
+        layout.addWidget(
+            self.metric_decay_rate
+        )
+
+        layout.addWidget(
+            self.metric_samples
+        )
+
+        layout.addWidget(
+            self.metric_sample_rate
+        )
+
+        layout.addStretch()
+
+        return panel
+
+    def create_metric_row(
+        self,
+        name,
+        value,
+    ):
+        """Create a simple metric display row."""
+
+        row = QFrame()
+
+        row.setObjectName(
+            "metricRow"
+        )
+
+        row_layout = QHBoxLayout(
+            row
+        )
+
+        row_layout.setContentsMargins(
+            4,
+            2,
+            4,
+            2,
+        )
+
+        name_label = QLabel(
+            name
+        )
+
+        name_label.setObjectName(
+            "metricName"
+        )
+
+        value_label = QLabel(
+            value
+        )
+
+        value_label.setObjectName(
+            "metricValueSmall"
+        )
+
+        value_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight
+        )
+
+        row_layout.addWidget(
+            name_label
+        )
+
+        row_layout.addStretch()
+
+        row_layout.addWidget(
+            value_label
+        )
+
+        return row
+
+    def create_cstar_panel(self):
+        """Create the future C* analysis pane."""
+
+        panel = QFrame()
+
+        panel.setObjectName(
+            "subPanel"
+        )
+
+        layout = QVBoxLayout(
+            panel
+        )
+
+        layout.setContentsMargins(
+            10,
+            8,
+            10,
+            8,
+        )
+
+        layout.setSpacing(
+            5
+        )
+
+        layout.addWidget(
+            self.create_panel_header(
+                "C* Analysis"
+            )
+        )
+
+        self.cstar_status = QLabel(
+            "C* unavailable"
+        )
+
+        self.cstar_status.setObjectName(
+            "metricValueSmall"
+        )
+
+        self.cstar_status.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        cstar_description = QLabel(
+            "Chamber pressure data and "
+            "nozzle throat area are required "
+            "to calculate characteristic "
+            "velocity (C*)."
+        )
+
+        cstar_description.setObjectName(
+            "graphDescription"
+        )
+
+        cstar_description.setWordWrap(
+            True
+        )
+
+        cstar_description.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        layout.addWidget(
+            self.cstar_status
+        )
+
+        layout.addWidget(
+            cstar_description
+        )
+
+        return panel
 
     # =============================================================
     # SIGNALS
@@ -609,8 +1395,6 @@ class MainWindow(QMainWindow):
 
         processing_settings.alignment.enabled = True
 
-        # The default reference event is already ignition, but
-        # explicitly setting it here makes the GUI behavior clear.
         processing_settings.alignment.reference_event = (
             preliminary_events.ignition.event_type
             if preliminary_events.ignition is not None
@@ -629,9 +1413,7 @@ class MainWindow(QMainWindow):
         )
 
         # ---------------------------------------------------------
-        # The processing pipeline detects events before alignment.
-        # Shift those events into the prepared/aligned time frame
-        # for the GUI and analysis result.
+        # Shift detected events into aligned time.
         # ---------------------------------------------------------
 
         aligned_events = self.align_event_set(
@@ -1192,7 +1974,7 @@ class MainWindow(QMainWindow):
         statistics,
         classification,
     ):
-        """Update the results panel."""
+        """Update the visible analysis results."""
 
         if thrust_results.peak_thrust_N is not None:
 
@@ -1338,6 +2120,85 @@ class MainWindow(QMainWindow):
             self.results.burnout.setText(
                 "—"
             )
+
+        # ---------------------------------------------------------
+        # Additional Metrics
+        # ---------------------------------------------------------
+
+        data = self.session.active_test.data
+
+        if data.sample_count > 0:
+
+            initial_thrust = float(
+                data.thrust_N[0]
+            )
+
+            final_thrust = float(
+                data.thrust_N[-1]
+            )
+
+            self.metric_initial_thrust.findChildren(
+                QLabel
+            )[-1].setText(
+                f"{initial_thrust:.1f} N"
+            )
+
+            self.metric_final_thrust.findChildren(
+                QLabel
+            )[-1].setText(
+                f"{final_thrust:.1f} N"
+            )
+
+            self.metric_samples.findChildren(
+                QLabel
+            )[-1].setText(
+                f"{data.sample_count:,}"
+            )
+
+            self.metric_sample_rate.findChildren(
+                QLabel
+            )[-1].setText(
+                f"{data.sample_rate_hz:.2f} SPS"
+            )
+
+        # ---------------------------------------------------------
+        # Motor Classification Pane
+        # ---------------------------------------------------------
+
+        if classification.motor_class is not None:
+
+            self.classification_class.setText(
+                f"Class {classification.motor_class}"
+            )
+
+        else:
+
+            self.classification_class.setText(
+                "Class —"
+            )
+
+        if thrust_results.total_impulse_Ns is not None:
+
+            self.classification_impulse.setText(
+                (
+                    "Measured Impulse: "
+                    f"{thrust_results.total_impulse_Ns:.2f} N·s"
+                )
+            )
+
+        else:
+
+            self.classification_impulse.setText(
+                "Measured Impulse: —"
+            )
+
+        # ---------------------------------------------------------
+        # C* Pane
+        # ---------------------------------------------------------
+
+        self.cstar_status.setText(
+            "C* unavailable"
+        )
 
     # =============================================================
     # UPDATE STATUS
