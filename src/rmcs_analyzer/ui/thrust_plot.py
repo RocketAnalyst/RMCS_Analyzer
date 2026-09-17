@@ -15,8 +15,21 @@ class ThrustPlot(QFrame):
     Interactive thrust-curve visualization.
 
     This component is responsible only for displaying data.
-    It does not perform motor analysis or read files.
+    It does not modify the underlying test data or perform
+    motor analysis.
+
+    When data is loaded, the initial X-axis view is automatically
+    focused around the apparent motor firing region. The full
+    dataset remains available through normal plot interaction.
     """
+
+    # Amount of surrounding dead time shown around the apparent
+    # motor firing region.
+    AUTO_VIEW_MARGIN_S = 0.5
+
+    # Fraction of peak thrust used to identify the active firing
+    # region for the initial viewport.
+    AUTO_VIEW_THRESHOLD = 0.02
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -164,6 +177,10 @@ class ThrustPlot(QFrame):
         """
         Display a thrust curve.
 
+        The full dataset is plotted. The initial X-axis view is
+        automatically focused around the apparent firing region,
+        while preserving all data for later navigation.
+
         Parameters
         ----------
         time:
@@ -224,13 +241,149 @@ class ThrustPlot(QFrame):
             ignoreBounds=True,
         )
 
+        # ---------------------------------------------------------
+        # Set the Y-axis automatically.
+        # ---------------------------------------------------------
+
         self.plot.enableAutoRange(
-            axis="xy",
+            axis="y",
             enable=True,
+        )
+
+        # ---------------------------------------------------------
+        # Determine the apparent motor firing region.
+        #
+        # This affects only the initial viewport. It does not
+        # modify, trim, or delete any samples.
+        # ---------------------------------------------------------
+
+        self.set_initial_view(
+            time,
+            thrust,
         )
 
         self.stack.setCurrentWidget(
             self.plot
+        )
+
+    def set_initial_view(
+        self,
+        time,
+        thrust,
+    ):
+        """
+        Focus the initial X-axis view around the apparent firing
+        region.
+
+        The firing region is identified using a small percentage
+        of the maximum absolute thrust. If a useful firing region
+        cannot be identified, the full dataset is displayed.
+        """
+
+        finite_mask = (
+            np.isfinite(time)
+            & np.isfinite(thrust)
+        )
+
+        if not np.any(finite_mask):
+            self.plot.enableAutoRange(
+                axis="x",
+                enable=True,
+            )
+            return
+
+        valid_time = time[
+            finite_mask
+        ]
+
+        valid_thrust = thrust[
+            finite_mask
+        ]
+
+        if len(valid_time) < 2:
+            self.plot.enableAutoRange(
+                axis="x",
+                enable=True,
+            )
+            return
+
+        peak_thrust = float(
+            np.max(
+                np.abs(valid_thrust)
+            )
+        )
+
+        if not np.isfinite(peak_thrust) or peak_thrust <= 0:
+            self.plot.enableAutoRange(
+                axis="x",
+                enable=True,
+            )
+            return
+
+        threshold = (
+            peak_thrust
+            * self.AUTO_VIEW_THRESHOLD
+        )
+
+        active_mask = (
+            np.abs(valid_thrust)
+            >= threshold
+        )
+
+        active_indices = np.flatnonzero(
+            active_mask
+        )
+
+        if len(active_indices) == 0:
+            self.plot.enableAutoRange(
+                axis="x",
+                enable=True,
+            )
+            return
+
+        firing_start = float(
+            valid_time[
+                active_indices[0]
+            ]
+        )
+
+        firing_end = float(
+            valid_time[
+                active_indices[-1]
+            ]
+        )
+
+        # Add visual margin without allowing the viewport to extend
+        # beyond the actual recorded time range.
+
+        view_start = max(
+            float(valid_time[0]),
+            firing_start
+            - self.AUTO_VIEW_MARGIN_S,
+        )
+
+        view_end = min(
+            float(valid_time[-1]),
+            firing_end
+            + self.AUTO_VIEW_MARGIN_S,
+        )
+
+        if view_end <= view_start:
+            self.plot.enableAutoRange(
+                axis="x",
+                enable=True,
+            )
+            return
+
+        self.plot.enableAutoRange(
+            axis="x",
+            enable=False,
+        )
+
+        self.plot.setXRange(
+            view_start,
+            view_end,
+            padding=0,
         )
 
     def clear(self):

@@ -30,6 +30,11 @@ from .processing import (
     ProcessingSettings,
 )
 
+from .processing.event_model import (
+    DetectedEvent,
+    EventSet,
+)
+
 from .project import (
     TestSession,
 )
@@ -104,7 +109,6 @@ class MainWindow(QMainWindow):
 
         self.connect_signals()
 
-        # Initial status
         self.header.set_status(
             "READY — No test loaded",
             modified=False,
@@ -489,6 +493,55 @@ class MainWindow(QMainWindow):
         )
 
     # =============================================================
+    # ALIGN EVENT SET
+    # =============================================================
+
+    def align_event_set(
+        self,
+        event_set,
+        offset_s,
+    ):
+        """
+        Create an aligned copy of an EventSet.
+
+        Event detection occurs before time alignment in the
+        processing pipeline. The prepared data, however, uses the
+        aligned time axis.
+
+        This method keeps the event information synchronized with
+        that prepared time axis without modifying the original
+        EventSet.
+        """
+
+        if event_set is None:
+            return None
+
+        aligned_events = []
+
+        for event in event_set.events:
+
+            aligned_events.append(
+                DetectedEvent(
+                    event_type=event.event_type,
+                    time_s=float(
+                        event.time_s + offset_s
+                    ),
+                    sample_index=event.sample_index,
+                    value=event.value,
+                    confidence=event.confidence,
+                    label=event.label,
+                    notes=event.notes,
+                    automatically_detected=(
+                        event.automatically_detected
+                    ),
+                )
+            )
+
+        return EventSet(
+            events=aligned_events
+        )
+
+    # =============================================================
     # PROCESS AND ANALYZE TEST
     # =============================================================
 
@@ -499,11 +552,10 @@ class MainWindow(QMainWindow):
         """
         Process and analyze a TestData object.
 
-        The GUI supplies an automatic pre-ignition baseline
-        when no explicit baseline window has been configured.
+        The GUI establishes an automatic pre-ignition baseline
+        and automatically aligns the prepared time axis to ignition.
 
-        Raw data remains untouched. The processing pipeline
-        produces the prepared dataset used by the analysis engine.
+        Raw data remains untouched.
         """
 
         processing_settings = (
@@ -511,12 +563,7 @@ class MainWindow(QMainWindow):
         )
 
         # ---------------------------------------------------------
-        # Determine an automatic baseline window.
-        #
-        # The generic ProcessingPipeline intentionally leaves
-        # unspecified baseline settings alone. For a normal RMCS
-        # motor test, however, the GUI should establish zero from
-        # the resting data immediately before ignition.
+        # Determine automatic pre-ignition baseline.
         # ---------------------------------------------------------
 
         preliminary_events = (
@@ -557,6 +604,20 @@ class MainWindow(QMainWindow):
                 )
 
         # ---------------------------------------------------------
+        # Automatically align motor tests to ignition.
+        # ---------------------------------------------------------
+
+        processing_settings.alignment.enabled = True
+
+        # The default reference event is already ignition, but
+        # explicitly setting it here makes the GUI behavior clear.
+        processing_settings.alignment.reference_event = (
+            preliminary_events.ignition.event_type
+            if preliminary_events.ignition is not None
+            else processing_settings.alignment.reference_event
+        )
+
+        # ---------------------------------------------------------
         # Run the unified processing pipeline.
         # ---------------------------------------------------------
 
@@ -568,14 +629,24 @@ class MainWindow(QMainWindow):
         )
 
         # ---------------------------------------------------------
-        # Analyze the prepared data using the EventSet produced
-        # by the processing pipeline.
+        # The processing pipeline detects events before alignment.
+        # Shift those events into the prepared/aligned time frame
+        # for the GUI and analysis result.
+        # ---------------------------------------------------------
+
+        aligned_events = self.align_event_set(
+            processing_result.event_set,
+            processing_result.alignment_result.offset_s,
+        )
+
+        # ---------------------------------------------------------
+        # Analyze the prepared data.
         # ---------------------------------------------------------
 
         analysis_result = (
             self.analysis_engine.analyze(
                 processing_result.prepared_data,
-                events=processing_result.event_set,
+                events=aligned_events,
             )
         )
 
@@ -596,10 +667,6 @@ class MainWindow(QMainWindow):
         Load, process, analyze, and add an RMCS CSV test
         to the session.
         """
-
-        # ---------------------------------------------------------
-        # Check whether this test is already loaded
-        # ---------------------------------------------------------
 
         existing_test = (
             self.session.get_test_by_source(
@@ -627,17 +694,9 @@ class MainWindow(QMainWindow):
 
         try:
 
-            # -----------------------------------------------------
-            # Read CSV
-            # -----------------------------------------------------
-
             test_data = self.reader.read(
                 filename
             )
-
-            # -----------------------------------------------------
-            # Process and analyze
-            # -----------------------------------------------------
 
             (
                 processing_result,
@@ -646,27 +705,15 @@ class MainWindow(QMainWindow):
                 test_data
             )
 
-            # -----------------------------------------------------
-            # Create TestModel
-            # -----------------------------------------------------
-
             from .project.test_model import TestModel
 
             test = TestModel(
                 data=processing_result.prepared_data
             )
 
-            # -----------------------------------------------------
-            # Store analysis
-            # -----------------------------------------------------
-
             test.analysis_results = (
                 analysis_result
             )
-
-            # -----------------------------------------------------
-            # Add to session
-            # -----------------------------------------------------
 
             added = self.session.add_test(
                 test
@@ -675,17 +722,9 @@ class MainWindow(QMainWindow):
             if not added:
                 return
 
-            # -----------------------------------------------------
-            # Adding a test to an existing project modifies it
-            # -----------------------------------------------------
-
             if self.project_filename is not None:
 
                 self.project_modified = True
-
-            # -----------------------------------------------------
-            # Add to test list
-            # -----------------------------------------------------
 
             test_index = self.get_test_index(
                 test
@@ -698,10 +737,6 @@ class MainWindow(QMainWindow):
                 test.display_name,
                 test_index,
             )
-
-            # -----------------------------------------------------
-            # Display test
-            # -----------------------------------------------------
 
             self.select_test(
                 test_index
@@ -748,10 +783,6 @@ class MainWindow(QMainWindow):
         Load an RMCS Analyzer project from disk.
         """
 
-        # ---------------------------------------------------------
-        # Protect unsaved changes
-        # ---------------------------------------------------------
-
         if self.has_unsaved_changes():
 
             project_name = Path(
@@ -778,10 +809,6 @@ class MainWindow(QMainWindow):
             ):
 
                 return
-
-        # ---------------------------------------------------------
-        # Load project
-        # ---------------------------------------------------------
 
         try:
 
@@ -815,10 +842,6 @@ class MainWindow(QMainWindow):
 
             return
 
-        # ---------------------------------------------------------
-        # Replace session
-        # ---------------------------------------------------------
-
         self.session = loaded_session
 
         self.project_filename = filename
@@ -828,10 +851,6 @@ class MainWindow(QMainWindow):
         self.current_test = None
 
         self.current_analysis = None
-
-        # ---------------------------------------------------------
-        # Rebuild test list
-        # ---------------------------------------------------------
 
         self.test_files.clear()
 
@@ -843,10 +862,6 @@ class MainWindow(QMainWindow):
                 test.display_name,
                 index,
             )
-
-        # ---------------------------------------------------------
-        # Restore active test
-        # ---------------------------------------------------------
 
         active_test = (
             self.session.active_test
@@ -876,10 +891,6 @@ class MainWindow(QMainWindow):
 
             self.thrust_plot.clear()
 
-        # ---------------------------------------------------------
-        # Window title
-        # ---------------------------------------------------------
-
         project_name = Path(
             filename
         ).name
@@ -887,10 +898,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(
             f"{project_name} — RMCS Analyzer"
         )
-
-        # ---------------------------------------------------------
-        # Status
-        # ---------------------------------------------------------
 
         if active_test is not None:
 
@@ -923,10 +930,6 @@ class MainWindow(QMainWindow):
             )
 
             return
-
-        # ---------------------------------------------------------
-        # First save
-        # ---------------------------------------------------------
 
         if self.project_filename is None:
 
@@ -961,10 +964,6 @@ class MainWindow(QMainWindow):
 
             filename = self.project_filename
 
-        # ---------------------------------------------------------
-        # Save
-        # ---------------------------------------------------------
-
         try:
 
             ProjectFile.save(
@@ -996,20 +995,12 @@ class MainWindow(QMainWindow):
 
             return
 
-        # ---------------------------------------------------------
-        # Save successful
-        # ---------------------------------------------------------
-
         self.project_filename = filename
 
         self.project_modified = False
 
         for test in self.session.tests:
             test.mark_saved()
-
-        # ---------------------------------------------------------
-        # Window title
-        # ---------------------------------------------------------
 
         project_name = Path(
             filename
@@ -1018,10 +1009,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(
             f"{project_name} — RMCS Analyzer"
         )
-
-        # ---------------------------------------------------------
-        # Status
-        # ---------------------------------------------------------
 
         if self.session.active_test is not None:
 
@@ -1085,26 +1072,14 @@ class MainWindow(QMainWindow):
         if test is None:
             return
 
-        # ---------------------------------------------------------
-        # Test information
-        # ---------------------------------------------------------
-
         self.test_info.set_test_model(
             test
         )
-
-        # ---------------------------------------------------------
-        # Plot
-        # ---------------------------------------------------------
 
         self.thrust_plot.set_data(
             test.data.time_s,
             test.data.thrust_N,
         )
-
-        # ---------------------------------------------------------
-        # Results
-        # ---------------------------------------------------------
 
         if test.analysis_results is not None:
 
@@ -1118,10 +1093,6 @@ class MainWindow(QMainWindow):
                 analysis.statistics,
                 analysis.classification,
             )
-
-        # ---------------------------------------------------------
-        # Status
-        # ---------------------------------------------------------
 
         self.update_status(
             test
