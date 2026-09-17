@@ -1,51 +1,114 @@
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
-    QLabel,
     QPushButton,
-    QVBoxLayout,
 )
+
+from .branding import Branding
 
 
 class Header(QFrame):
-    def __init__(self, parent=None):
+    """
+    Application header containing RMCS Analyzer branding
+    and primary application controls.
+    """
+
+    def __init__(
+        self,
+        parent=None,
+    ):
         super().__init__(parent)
 
-        self.setObjectName("header")
-        self.setFixedHeight(70)
+        self.setObjectName(
+            "header"
+        )
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(24, 0, 24, 0)
+        self.setFixedHeight(
+            70
+        )
 
-        title_layout = QVBoxLayout()
-        title_layout.setSpacing(0)
+        layout = QHBoxLayout(
+            self
+        )
 
-        title = QLabel("RMCS Analyzer")
-        title.setObjectName("title")
+        layout.setContentsMargins(
+            18,
+            0,
+            18,
+            0,
+        )
 
-        subtitle = QLabel("Rocket Motor Characterization System")
-        subtitle.setObjectName("subtitle")
+        layout.setSpacing(
+            10
+        )
 
-        title_layout.addWidget(title)
-        title_layout.addWidget(subtitle)
+        # =========================================================
+        # RMCS ANALYZER BRANDING
+        # =========================================================
 
-        layout.addLayout(title_layout)
+        self.branding = Branding(
+            mode="compact"
+        )
+
+        layout.addWidget(
+            self.branding
+        )
+
         layout.addStretch()
 
-        self.open_button = QPushButton("Open Test")
-        self.open_button.setObjectName("headerButton")
+        # =========================================================
+        # APPLICATION CONTROLS
+        # =========================================================
 
-        self.save_button = QPushButton("Save")
-        self.save_button.setObjectName("headerButton")
+        self.open_button = QPushButton(
+            "Open Test"
+        )
 
-        self.export_button = QPushButton("Export")
-        self.export_button.setObjectName("headerButton")
+        self.open_button.setObjectName(
+            "headerButton"
+        )
 
-        self.settings_button = QPushButton("⚙")
-        self.settings_button.setObjectName("settingsButton")
-        self.settings_button.setFixedWidth(42)
+        self.save_button = QPushButton(
+            "Save"
+        )
 
-        layout.addWidget(self.open_button)
-        layout.addWidget(self.save_button)
-        layout.addWidget(self.export_button)
-        layout.addWidget(self.settings_button)
+        self.save_button.setObjectName(
+            "headerButton"
+        )
+
+        self.export_button = QPushButton(
+            "Export"
+        )
+
+        self.export_button.setObjectName(
+            "headerButton"
+        )
+
+        self.settings_button = QPushButton(
+            "⚙"
+        )
+
+        self.settings_button.setObjectName(
+            "settingsButton"
+        )
+
+        self.settings_button.setFixedWidth(
+            42
+        )
+
+        layout.addWidget(
+            self.open_button
+        )
+
+        layout.addWidget(
+            self.save_button
+        )
+
+        layout.addWidget(
+            self.export_button
+        )
+
+        layout.addWidget(
+            self.settings_button
+        )

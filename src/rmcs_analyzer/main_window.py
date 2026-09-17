@@ -1,6 +1,7 @@
 import os
 import sys
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -27,6 +28,7 @@ from .analysis import (
     ThrustAnalyzer,
 )
 
+from .ui.branding import Branding
 from .ui.header import Header
 from .ui.test_info_panel import TestInfoPanel
 from .ui.test_files_panel import TestFilesPanel
@@ -40,7 +42,7 @@ class MainWindow(QMainWindow):
     Main application window.
 
     The main window coordinates the UI components and connects
-    imported test data to the analysis engine.
+    imported test data to the analysis engine and user interface.
     """
 
     def __init__(self):
@@ -60,16 +62,12 @@ class MainWindow(QMainWindow):
             750,
         )
 
-        # =========================================================
-        # DATA / ANALYSIS
-        # =========================================================
-
         self.reader = RMCSCSVReader()
 
         self.event_detector = EventDetector()
         self.thrust_analyzer = ThrustAnalyzer()
         self.statistics_analyzer = StatisticsAnalyzer()
-        self.class_calculator = MotorClassCalculator()
+        self.motor_class_calculator = MotorClassCalculator()
 
         self.current_test = None
         self.current_analysis = None
@@ -100,7 +98,9 @@ class MainWindow(QMainWindow):
             0,
         )
 
-        main_layout.setSpacing(0)
+        main_layout.setSpacing(
+            0
+        )
 
         # =========================================================
         # HEADER
@@ -158,10 +158,17 @@ class MainWindow(QMainWindow):
             0,
         )
 
-        left_layout.setSpacing(0)
+        left_layout.setSpacing(
+            0
+        )
 
         self.test_info = TestInfoPanel()
+
         self.test_files = TestFilesPanel()
+
+        self.branding = Branding(
+            mode="full"
+        )
 
         left_layout.addWidget(
             self.test_info
@@ -170,6 +177,16 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(
             self.test_files,
             1,
+        )
+
+        # ---------------------------------------------------------
+        # Full RMCS Analyzer logo
+        # ---------------------------------------------------------
+
+        left_layout.addWidget(
+            self.branding,
+            0,
+            Qt.AlignmentFlag.AlignBottom,
         )
 
         content_layout.addWidget(
@@ -298,7 +315,7 @@ class MainWindow(QMainWindow):
         )
 
     def open_test(self):
-        """Open, load, and analyze a CSV test file."""
+        """Open, load, analyze, and display a CSV test file."""
 
         filename, _ = QFileDialog.getOpenFileName(
             self,
@@ -315,7 +332,7 @@ class MainWindow(QMainWindow):
 
         try:
             # -----------------------------------------------------
-            # LOAD DATA
+            # Load test data
             # -----------------------------------------------------
 
             test_data = self.reader.read(
@@ -323,7 +340,7 @@ class MainWindow(QMainWindow):
             )
 
             # -----------------------------------------------------
-            # ANALYZE DATA
+            # Run analysis
             # -----------------------------------------------------
 
             events = self.event_detector.detect(
@@ -340,16 +357,20 @@ class MainWindow(QMainWindow):
             )
 
             if thrust_results.total_impulse_Ns is not None:
-                classification = self.class_calculator.classify(
-                    thrust_results.total_impulse_Ns
+                classification = (
+                    self.motor_class_calculator.classify(
+                        thrust_results.total_impulse_Ns
+                    )
                 )
             else:
-                classification = self.class_calculator.classify(
-                    -1
+                classification = (
+                    self.motor_class_calculator.classify(
+                        -1
+                    )
                 )
 
             # -----------------------------------------------------
-            # STORE CURRENT DATA
+            # Store current test and analysis
             # -----------------------------------------------------
 
             self.current_test = test_data
@@ -361,14 +382,56 @@ class MainWindow(QMainWindow):
                 "classification": classification,
             }
 
+            # -----------------------------------------------------
+            # Update test information
+            # -----------------------------------------------------
+
+            self.test_info.set_test_data(
+                test_data
+            )
+
+            # -----------------------------------------------------
+            # Update test files
+            # -----------------------------------------------------
+
+            self.test_files.add_file(
+                os.path.basename(filename)
+            )
+
+            # -----------------------------------------------------
+            # Update thrust plot
+            # -----------------------------------------------------
+
+            self.thrust_plot.set_data(
+                test_data.time_s,
+                test_data.thrust_N,
+            )
+
+            # -----------------------------------------------------
+            # Update analysis results
+            # -----------------------------------------------------
+
+            self.update_results(
+                events,
+                thrust_results,
+                statistics,
+                classification,
+            )
+
+            # -----------------------------------------------------
+            # Update status
+            # -----------------------------------------------------
+
+            self.update_status(
+                test_data
+            )
+
         except CSVReadError as error:
             QMessageBox.critical(
                 self,
                 "Unable to Load Test",
                 str(error),
             )
-
-            return
 
         except Exception as error:
             QMessageBox.critical(
@@ -381,34 +444,127 @@ class MainWindow(QMainWindow):
                 ),
             )
 
-            return
+    def update_results(
+        self,
+        events,
+        thrust_results,
+        statistics,
+        classification,
+    ):
+        """
+        Update the results panel with calculated analysis values.
+        """
 
         # =========================================================
-        # UPDATE GUI
+        # KEY RESULTS
         # =========================================================
 
-        self.test_info.set_test_data(
-            test_data
-        )
+        if thrust_results.peak_thrust_N is not None:
+            self.results.peak_thrust.setText(
+                f"{thrust_results.peak_thrust_N:.2f}"
+            )
+        else:
+            self.results.peak_thrust.setText(
+                "—"
+            )
 
-        self.test_files.add_file(
-            os.path.basename(filename)
-        )
+        if thrust_results.average_thrust_N is not None:
+            self.results.average_thrust.setText(
+                f"{thrust_results.average_thrust_N:.2f}"
+            )
+        else:
+            self.results.average_thrust.setText(
+                "—"
+            )
 
-        self.thrust_plot.set_data(
-            test_data.time_s,
-            test_data.thrust_N,
-        )
+        if thrust_results.total_impulse_Ns is not None:
+            self.results.total_impulse.setText(
+                f"{thrust_results.total_impulse_Ns:.2f}"
+            )
+        else:
+            self.results.total_impulse.setText(
+                "—"
+            )
 
-        self.results.set_results(
-            thrust_results,
-            events,
-            classification,
-        )
+        if thrust_results.burn_time_s is not None:
+            self.results.burn_time.setText(
+                f"{thrust_results.burn_time_s:.2f}"
+            )
+        else:
+            self.results.burn_time.setText(
+                "—"
+            )
 
-        self.update_status(
-            test_data
-        )
+        if thrust_results.time_to_peak_s is not None:
+            self.results.time_to_peak.setText(
+                f"{thrust_results.time_to_peak_s:.2f}"
+            )
+        else:
+            self.results.time_to_peak.setText(
+                "—"
+            )
+
+        if classification.motor_class is not None:
+            self.results.motor_class.setText(
+                classification.motor_class
+            )
+        else:
+            self.results.motor_class.setText(
+                "—"
+            )
+
+        # =========================================================
+        # CALCULATED PERFORMANCE DESIGNATION
+        # =========================================================
+
+        if (
+            classification.motor_class is not None
+            and thrust_results.average_thrust_N is not None
+        ):
+            calculated_designation = (
+                f"{classification.motor_class}"
+                f"{round(thrust_results.average_thrust_N)}"
+            )
+
+            self.results.calculated_designation.setText(
+                calculated_designation
+            )
+
+        else:
+            self.results.calculated_designation.setText(
+                "—"
+            )
+
+        # =========================================================
+        # DETECTED EVENTS
+        # =========================================================
+
+        if events.ignition_time_s is not None:
+            self.results.ignition.setText(
+                f"{events.ignition_time_s:.2f} s"
+            )
+        else:
+            self.results.ignition.setText(
+                "—"
+            )
+
+        if events.peak_time_s is not None:
+            self.results.peak_event.setText(
+                f"{events.peak_time_s:.2f} s"
+            )
+        else:
+            self.results.peak_event.setText(
+                "—"
+            )
+
+        if events.burnout_time_s is not None:
+            self.results.burnout.setText(
+                f"{events.burnout_time_s:.2f} s"
+            )
+        else:
+            self.results.burnout.setText(
+                "—"
+            )
 
     def update_status(
         self,
