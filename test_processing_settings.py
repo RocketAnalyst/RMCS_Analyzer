@@ -1,6 +1,18 @@
-from src.rmcs_analyzer.processing.baseline import BaselineSettings
-from src.rmcs_analyzer.processing.cleaning import CleaningSettings
-from src.rmcs_analyzer.processing.settings import ProcessingSettings
+from src.rmcs_analyzer.processing.alignment import (
+    AlignmentSettings,
+)
+from src.rmcs_analyzer.processing.baseline import (
+    BaselineSettings,
+)
+from src.rmcs_analyzer.processing.cleaning import (
+    CleaningSettings,
+)
+from src.rmcs_analyzer.processing.event_model import (
+    EventType,
+)
+from src.rmcs_analyzer.processing.settings import (
+    ProcessingSettings,
+)
 
 
 def print_header(title):
@@ -21,10 +33,19 @@ def test_default_settings():
     assert settings.baseline.baseline_start_time_s is None
     assert settings.baseline.baseline_end_time_s is None
 
+    assert settings.alignment.enabled is False
+    assert (
+        settings.alignment.reference_event
+        == EventType.IGNITION
+    )
+    assert settings.alignment.manual_reference_time_s is None
+
     print("Cleaning start:       None")
     print("Cleaning end:         None")
     print("Baseline start:       None")
     print("Baseline end:         None")
+    print("Alignment enabled:    False")
+    print("Reference event:      IGNITION")
     print("Defaults:             PASSED")
 
 
@@ -40,6 +61,10 @@ def test_custom_settings():
             baseline_start_time_s=0.0,
             baseline_end_time_s=0.500,
         ),
+        alignment=AlignmentSettings(
+            enabled=True,
+            reference_event=EventType.IGNITION,
+        ),
     )
 
     assert settings.cleaning.start_time_s == 0.586
@@ -48,8 +73,16 @@ def test_custom_settings():
     assert settings.baseline.baseline_start_time_s == 0.0
     assert settings.baseline.baseline_end_time_s == 0.500
 
+    assert settings.alignment.enabled is True
+    assert (
+        settings.alignment.reference_event
+        == EventType.IGNITION
+    )
+
     print("Cleaning:             0.586 → 4.503 s")
     print("Baseline:             0.000 → 0.500 s")
+    print("Alignment:             ENABLED")
+    print("Reference:             IGNITION")
     print("Custom settings:      PASSED")
 
 
@@ -65,6 +98,10 @@ def test_to_dict():
             baseline_start_time_s=0.0,
             baseline_end_time_s=0.500,
         ),
+        alignment=AlignmentSettings(
+            enabled=True,
+            reference_event=EventType.BURNOUT,
+        ),
     )
 
     data = settings.to_dict()
@@ -78,10 +115,16 @@ def test_to_dict():
             "baseline_start_time_s": 0.0,
             "baseline_end_time_s": 0.500,
         },
+        "alignment": {
+            "enabled": True,
+            "reference_event": "burnout",
+            "manual_reference_time_s": None,
+        },
     }
 
     print("Dictionary created:   YES")
     print("JSON-compatible:      YES")
+    print("Alignment included:   YES")
     print("Serialization:        PASSED")
 
 
@@ -97,6 +140,11 @@ def test_from_dict():
             "baseline_start_time_s": 0.0,
             "baseline_end_time_s": 0.500,
         },
+        "alignment": {
+            "enabled": True,
+            "reference_event": "burnout",
+            "manual_reference_time_s": None,
+        },
     }
 
     settings = ProcessingSettings.from_dict(data)
@@ -107,8 +155,15 @@ def test_from_dict():
     assert settings.baseline.baseline_start_time_s == 0.0
     assert settings.baseline.baseline_end_time_s == 0.500
 
+    assert settings.alignment.enabled is True
+    assert (
+        settings.alignment.reference_event
+        == EventType.BURNOUT
+    )
+
     print("Cleaning restored:    YES")
     print("Baseline restored:    YES")
+    print("Alignment restored:   YES")
     print("Deserialization:      PASSED")
 
 
@@ -124,9 +179,14 @@ def test_round_trip():
             baseline_start_time_s=0.125,
             baseline_end_time_s=0.525,
         ),
+        alignment=AlignmentSettings(
+            enabled=True,
+            reference_event=EventType.IGNITION,
+        ),
     )
 
     serialized = original.to_dict()
+
     restored = ProcessingSettings.from_dict(
         serialized
     )
@@ -147,8 +207,17 @@ def test_round_trip():
         original.baseline.baseline_end_time_s
     )
 
+    assert restored.alignment.enabled == (
+        original.alignment.enabled
+    )
+
+    assert restored.alignment.reference_event == (
+        original.alignment.reference_event
+    )
+
     print("Original → dictionary: YES")
     print("Dictionary → object:  YES")
+    print("Alignment preserved:  YES")
     print("Values preserved:     YES")
     print("Round trip:            PASSED")
 
@@ -164,8 +233,15 @@ def test_missing_sections_use_defaults():
     assert settings.baseline.baseline_start_time_s is None
     assert settings.baseline.baseline_end_time_s is None
 
+    assert settings.alignment.enabled is False
+    assert (
+        settings.alignment.reference_event
+        == EventType.IGNITION
+    )
+
     print("Missing cleaning:     DEFAULTED")
     print("Missing baseline:     DEFAULTED")
+    print("Missing alignment:    DEFAULTED")
     print("Default handling:     PASSED")
 
 
@@ -181,6 +257,11 @@ def test_reset():
             baseline_start_time_s=0.0,
             baseline_end_time_s=0.750,
         ),
+        alignment=AlignmentSettings(
+            enabled=True,
+            reference_event=EventType.BURNOUT,
+            manual_reference_time_s=1.25,
+        ),
     )
 
     settings.reset()
@@ -191,8 +272,16 @@ def test_reset():
     assert settings.baseline.baseline_start_time_s is None
     assert settings.baseline.baseline_end_time_s is None
 
+    assert settings.alignment.enabled is False
+    assert (
+        settings.alignment.reference_event
+        == EventType.IGNITION
+    )
+    assert settings.alignment.manual_reference_time_s is None
+
     print("Cleaning reset:      YES")
     print("Baseline reset:      YES")
+    print("Alignment reset:     YES")
     print("Reset:                PASSED")
 
 

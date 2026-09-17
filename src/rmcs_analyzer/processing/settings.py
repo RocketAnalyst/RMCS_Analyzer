@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from .alignment import AlignmentSettings
 from .baseline import BaselineSettings
 from .cleaning import CleaningSettings
 
@@ -13,8 +14,7 @@ class ProcessingSettings:
     ProcessingSettings describes how raw data should be transformed
     into prepared data. It does not contain the data itself.
 
-    The settings are intentionally kept separate from TestData so
-    they can later be stored in an RMCS project file.
+    The settings can be serialized and stored with an RMCS project.
     """
 
     cleaning: CleaningSettings = field(
@@ -25,10 +25,16 @@ class ProcessingSettings:
         default_factory=BaselineSettings
     )
 
+    alignment: AlignmentSettings = field(
+        default_factory=AlignmentSettings
+    )
+
     def reset(self):
         """Reset all processing settings to their defaults."""
+
         self.cleaning.reset()
         self.baseline.reset()
+        self.alignment.reset()
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -37,8 +43,12 @@ class ProcessingSettings:
 
         return {
             "cleaning": {
-                "start_time_s": self.cleaning.start_time_s,
-                "end_time_s": self.cleaning.end_time_s,
+                "start_time_s": (
+                    self.cleaning.start_time_s
+                ),
+                "end_time_s": (
+                    self.cleaning.end_time_s
+                ),
             },
             "baseline": {
                 "baseline_start_time_s": (
@@ -46,6 +56,15 @@ class ProcessingSettings:
                 ),
                 "baseline_end_time_s": (
                     self.baseline.baseline_end_time_s
+                ),
+            },
+            "alignment": {
+                "enabled": self.alignment.enabled,
+                "reference_event": (
+                    self.alignment.reference_event.value
+                ),
+                "manual_reference_time_s": (
+                    self.alignment.manual_reference_time_s
                 ),
             },
         }
@@ -61,8 +80,20 @@ class ProcessingSettings:
         Missing sections or fields use their normal defaults.
         """
 
-        cleaning_data = data.get("cleaning", {})
-        baseline_data = data.get("baseline", {})
+        cleaning_data = data.get(
+            "cleaning",
+            {},
+        )
+
+        baseline_data = data.get(
+            "baseline",
+            {},
+        )
+
+        alignment_data = data.get(
+            "alignment",
+            {},
+        )
 
         cleaning = CleaningSettings(
             start_time_s=cleaning_data.get(
@@ -82,7 +113,12 @@ class ProcessingSettings:
             ),
         )
 
+        alignment = AlignmentSettings.from_dict(
+            alignment_data
+        )
+
         return cls(
             cleaning=cleaning,
             baseline=baseline,
+            alignment=alignment,
         )

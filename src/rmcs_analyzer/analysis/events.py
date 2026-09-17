@@ -1,6 +1,11 @@
 import numpy as np
 
 from ..data.models import TestData
+from ..processing.event_model import (
+    DetectedEvent,
+    EventSet,
+    EventType,
+)
 from .results import EventResults
 
 
@@ -10,6 +15,10 @@ class EventDetector:
 
     RMCS state information is preferred when available.
     A threshold-based fallback is provided for generic data.
+
+    The original EventResults API is preserved for compatibility.
+    A standardized EventSet representation is also available through
+    detect_events().
     """
 
     def __init__(
@@ -24,6 +33,8 @@ class EventDetector:
     ) -> EventResults:
         """
         Detect ignition, burnout, and peak events.
+
+        This preserves the existing EventResults API.
         """
 
         if test_data.sample_count == 0:
@@ -38,6 +49,100 @@ class EventDetector:
 
         return self._detect_from_threshold(
             test_data
+        )
+
+    def detect_events(
+        self,
+        test_data: TestData,
+    ) -> EventSet:
+        """
+        Detect events and return them as standardized EventSet objects.
+
+        This uses the existing detection algorithm and converts its
+        EventResults into the new event model.
+        """
+
+        results = self.detect(test_data)
+
+        event_set = EventSet()
+
+        if results.ignition_time_s is not None:
+            event_set.add(
+                DetectedEvent(
+                    event_type=EventType.IGNITION,
+                    time_s=results.ignition_time_s,
+                    sample_index=results.ignition_index,
+                    value=self._value_at_index(
+                        test_data,
+                        results.ignition_index,
+                    ),
+                    label="Ignition",
+                    notes=(
+                        f"Detection method: "
+                        f"{results.detection_method}"
+                    ),
+                    automatically_detected=True,
+                )
+            )
+
+        if results.burnout_time_s is not None:
+            event_set.add(
+                DetectedEvent(
+                    event_type=EventType.BURNOUT,
+                    time_s=results.burnout_time_s,
+                    sample_index=results.burnout_index,
+                    value=self._value_at_index(
+                        test_data,
+                        results.burnout_index,
+                    ),
+                    label="Burnout",
+                    notes=(
+                        f"Detection method: "
+                        f"{results.detection_method}"
+                    ),
+                    automatically_detected=True,
+                )
+            )
+
+        if results.peak_time_s is not None:
+            event_set.add(
+                DetectedEvent(
+                    event_type=EventType.PEAK_THRUST,
+                    time_s=results.peak_time_s,
+                    sample_index=results.peak_index,
+                    value=self._value_at_index(
+                        test_data,
+                        results.peak_index,
+                    ),
+                    label="Peak Thrust",
+                    notes=(
+                        f"Detection method: "
+                        f"{results.detection_method}"
+                    ),
+                    automatically_detected=True,
+                )
+            )
+
+        return event_set
+
+    @staticmethod
+    def _value_at_index(
+        test_data: TestData,
+        index: int | None,
+    ) -> float | None:
+        """Return thrust at an event index when available."""
+
+        if index is None:
+            return None
+
+        if index < 0:
+            return None
+
+        if index >= test_data.sample_count:
+            return None
+
+        return float(
+            test_data.thrust_N[index]
         )
 
     def _has_rmcs_states(

@@ -1,8 +1,11 @@
 from dataclasses import dataclass, field
 
+from ..analysis.events import EventDetector
 from ..data.models import TestData
+from .alignment import AlignmentResult, TimeAligner
 from .baseline import BaselineCorrector, BaselineResult
 from .cleaning import CleaningResult, DataCleaner
+from .event_model import EventSet
 from .settings import ProcessingSettings
 from .validation import DataValidationReport, DataValidator
 
@@ -10,9 +13,10 @@ from .validation import DataValidationReport, DataValidator
 @dataclass
 class ProcessingResult:
     """
-    Complete result of processing a test dataset.
+    Complete result of the data-processing pipeline.
 
-    The original raw TestData is never modified.
+    The pipeline preserves the original imported data and produces
+    a separate prepared dataset for analysis.
     """
 
     raw_data: TestData
@@ -23,6 +27,8 @@ class ProcessingResult:
 
     cleaning_result: CleaningResult | None = None
     baseline_result: BaselineResult | None = None
+    event_set: EventSet | None = None
+    alignment_result: AlignmentResult | None = None
 
     issues: list[str] = field(default_factory=list)
 
@@ -39,14 +45,14 @@ class ProcessingResult:
         """
         Return True when processing changed the prepared dataset.
 
-        Trimming counts as a modification when the sample count
-        changes. Baseline correction counts as a modification when
-        the calculated baseline is non-zero.
+        Trimming, baseline correction, or time alignment all count
+        as processing modifications.
         """
+
         if self.cleaning_result is not None:
             if (
-                self.raw_data.sample_count
-                != self.prepared_data.sample_count
+                self.cleaning_result.prepared_sample_count
+                != self.cleaning_result.original_sample_count
             ):
                 return True
 
@@ -54,26 +60,32 @@ class ProcessingResult:
             if self.baseline_result.baseline_N != 0.0:
                 return True
 
+        if self.alignment_result is not None:
+            if self.alignment_result.offset_s != 0.0:
+                return True
+
         return False
 
 
 class ProcessingPipeline:
     """
-    Coordinates validation and non-destructive data preparation.
+    Unified processing pipeline.
 
-    Processing flow:
+    Processing order:
 
-        Raw TestData
-            ↓
-        Validate raw data
-            ↓
-        Trim / clean
-            ↓
-        Baseline correction
-            ↓
-        Validate prepared data
-            ↓
-        Prepared TestData
+        Raw
+          ↓
+        Validate
+          ↓
+        Clean / Trim
+          ↓
+        Baseline Correction
+          ↓
+        Detect Events
+          ↓
+        Align Time
+          ↓
+        Validate Prepared Data
     """
 
     def __init__(
@@ -81,13 +93,16 @@ class ProcessingPipeline:
         validator: DataValidator | None = None,
         cleaner: DataCleaner | None = None,
         baseline_corrector: BaselineCorrector | None = None,
+        event_detector: EventDetector | None = None,
+        time_aligner: TimeAligner | None = None,
     ):
         self.validator = validator or DataValidator()
         self.cleaner = cleaner or DataCleaner()
         self.baseline_corrector = (
-            baseline_corrector
-            or BaselineCorrector()
+            baseline_corrector or BaselineCorrector()
         )
+        self.event_detector = event_detector or EventDetector()
+        self.time_aligner = time_aligner or TimeAligner()
 
     def process(
         self,
@@ -95,46 +110,45 @@ class ProcessingPipeline:
         settings: ProcessingSettings | None = None,
     ) -> ProcessingResult:
         """
-        Validate and prepare a TestData object.
+        Process test data according to the supplied settings.
 
-        Processing is performed on copies of the raw data.
-        The original test_data is never modified.
-
-        If settings is omitted, default ProcessingSettings are used.
-
-        Raises:
-            ValueError: If raw data fails validation.
+        Raw imported data is never modified.
         """
 
-        # ---------------------------------------------------------
-        # 1. Use default settings when none are supplied
-        # ---------------------------------------------------------
         if settings is None:
             settings = ProcessingSettings()
 
         # ---------------------------------------------------------
-        # 2. Validate raw data
+        # 1. Validate raw data
         # ---------------------------------------------------------
-        raw_validation = self.validator.validate(test_data)
+
+        raw_validation = self.validator.validate(
+            test_data
+        )
 
         if not raw_validation.valid:
-            messages = [
+            error_messages = [
                 issue.message
                 for issue in raw_validation.issues
                 if issue.severity == "ERROR"
             ]
 
+            detail = "\n".join(
+                f"- {message}" for message in error_messages
+            )
+
+            if not detail:
+                detail = "- Unknown validation error."
+
             raise ValueError(
                 "Raw test data failed validation:\n"
-                + "\n".join(
-                    f"- {message}"
-                    for message in messages
-                )
+                + detail
             )
 
         # ---------------------------------------------------------
-        # 3. Apply trimming / cleaning
+        # 2. Clean / trim
         # ---------------------------------------------------------
+
         cleaning_result = self.cleaner.prepare(
             test_data,
             settings.cleaning,
@@ -143,8 +157,9 @@ class ProcessingPipeline:
         prepared_data = cleaning_result.data
 
         # ---------------------------------------------------------
-        # 4. Apply baseline correction
+        # 3. Baseline correction
         # ---------------------------------------------------------
+
         baseline_result = self.baseline_corrector.correct(
             prepared_data,
             settings.baseline,
@@ -153,8 +168,29 @@ class ProcessingPipeline:
         prepared_data = baseline_result.data
 
         # ---------------------------------------------------------
-        # 5. Validate prepared data
+        # 4. Detect events
         # ---------------------------------------------------------
+
+        event_set = self.event_detector.detect_events(
+            prepared_data
+        )
+
+        # ---------------------------------------------------------
+        # 5. Align time
+        # ---------------------------------------------------------
+
+        alignment_result = self.time_aligner.align(
+            prepared_data,
+            settings.alignment,
+            event_set,
+        )
+
+        prepared_data = alignment_result.data
+
+        # ---------------------------------------------------------
+        # 6. Validate prepared data
+        # ---------------------------------------------------------
+
         prepared_validation = self.validator.validate(
             prepared_data
         )
@@ -164,9 +200,6 @@ class ProcessingPipeline:
             for issue in prepared_validation.issues
         ]
 
-        # ---------------------------------------------------------
-        # 6. Return complete processing result
-        # ---------------------------------------------------------
         return ProcessingResult(
             raw_data=test_data,
             prepared_data=prepared_data,
@@ -174,5 +207,7 @@ class ProcessingPipeline:
             prepared_validation=prepared_validation,
             cleaning_result=cleaning_result,
             baseline_result=baseline_result,
+            event_set=event_set,
+            alignment_result=alignment_result,
             issues=issues,
         )

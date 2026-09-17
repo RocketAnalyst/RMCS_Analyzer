@@ -22,10 +22,12 @@ from .data import (
 )
 
 from .analysis import (
-    EventDetector,
-    MotorClassCalculator,
-    StatisticsAnalyzer,
-    ThrustAnalyzer,
+    AnalysisEngine,
+)
+
+from .processing import (
+    ProcessingPipeline,
+    ProcessingSettings,
 )
 
 from .project import (
@@ -51,7 +53,8 @@ class MainWindow(QMainWindow):
     Main application window.
 
     Coordinates the UI, test session, CSV importing,
-    project loading/saving, analysis, and display.
+    project loading/saving, processing, analysis,
+    and display.
     """
 
     def __init__(self):
@@ -77,10 +80,9 @@ class MainWindow(QMainWindow):
 
         self.reader = RMCSCSVReader()
 
-        self.event_detector = EventDetector()
-        self.thrust_analyzer = ThrustAnalyzer()
-        self.statistics_analyzer = StatisticsAnalyzer()
-        self.motor_class_calculator = MotorClassCalculator()
+        self.processing_pipeline = ProcessingPipeline()
+
+        self.analysis_engine = AnalysisEngine()
 
         self.session = TestSession()
 
@@ -487,6 +489,102 @@ class MainWindow(QMainWindow):
         )
 
     # =============================================================
+    # PROCESS AND ANALYZE TEST
+    # =============================================================
+
+    def process_and_analyze(
+        self,
+        test_data,
+    ):
+        """
+        Process and analyze a TestData object.
+
+        The GUI supplies an automatic pre-ignition baseline
+        when no explicit baseline window has been configured.
+
+        Raw data remains untouched. The processing pipeline
+        produces the prepared dataset used by the analysis engine.
+        """
+
+        processing_settings = (
+            ProcessingSettings()
+        )
+
+        # ---------------------------------------------------------
+        # Determine an automatic baseline window.
+        #
+        # The generic ProcessingPipeline intentionally leaves
+        # unspecified baseline settings alone. For a normal RMCS
+        # motor test, however, the GUI should establish zero from
+        # the resting data immediately before ignition.
+        # ---------------------------------------------------------
+
+        preliminary_events = (
+            self.analysis_engine.event_detector.detect_events(
+                test_data
+            )
+        )
+
+        ignition_event = (
+            preliminary_events.ignition
+        )
+
+        if ignition_event is not None:
+
+            if (
+                ignition_event.sample_index is not None
+                and ignition_event.sample_index > 0
+            ):
+
+                baseline_index = (
+                    ignition_event.sample_index - 1
+                )
+
+                processing_settings.baseline.baseline_end_time_s = (
+                    float(
+                        test_data.time_s[
+                            baseline_index
+                        ]
+                    )
+                )
+
+            else:
+
+                processing_settings.baseline.baseline_end_time_s = (
+                    float(
+                        ignition_event.time_s
+                    )
+                )
+
+        # ---------------------------------------------------------
+        # Run the unified processing pipeline.
+        # ---------------------------------------------------------
+
+        processing_result = (
+            self.processing_pipeline.process(
+                test_data,
+                processing_settings,
+            )
+        )
+
+        # ---------------------------------------------------------
+        # Analyze the prepared data using the EventSet produced
+        # by the processing pipeline.
+        # ---------------------------------------------------------
+
+        analysis_result = (
+            self.analysis_engine.analyze(
+                processing_result.prepared_data,
+                events=processing_result.event_set,
+            )
+        )
+
+        return (
+            processing_result,
+            analysis_result,
+        )
+
+    # =============================================================
     # OPEN CSV TEST
     # =============================================================
 
@@ -495,7 +593,8 @@ class MainWindow(QMainWindow):
         filename,
     ):
         """
-        Load, analyze, and add an RMCS CSV test to the session.
+        Load, process, analyze, and add an RMCS CSV test
+        to the session.
         """
 
         # ---------------------------------------------------------
@@ -537,68 +636,32 @@ class MainWindow(QMainWindow):
             )
 
             # -----------------------------------------------------
+            # Process and analyze
+            # -----------------------------------------------------
+
+            (
+                processing_result,
+                analysis_result,
+            ) = self.process_and_analyze(
+                test_data
+            )
+
+            # -----------------------------------------------------
             # Create TestModel
             # -----------------------------------------------------
 
             from .project.test_model import TestModel
 
             test = TestModel(
-                data=test_data
+                data=processing_result.prepared_data
             )
-
-            # -----------------------------------------------------
-            # Analyze test
-            # -----------------------------------------------------
-
-            events = self.event_detector.detect(
-                test_data
-            )
-
-            thrust_results = (
-                self.thrust_analyzer.analyze(
-                    test_data,
-                    events,
-                )
-            )
-
-            statistics = (
-                self.statistics_analyzer.analyze(
-                    test_data
-                )
-            )
-
-            if (
-                thrust_results.total_impulse_Ns
-                is not None
-            ):
-
-                classification = (
-                    self.motor_class_calculator.classify(
-                        thrust_results.total_impulse_Ns
-                    )
-                )
-
-            else:
-
-                classification = (
-                    self.motor_class_calculator.classify(
-                        -1
-                    )
-                )
 
             # -----------------------------------------------------
             # Store analysis
             # -----------------------------------------------------
 
-            from .analysis.results import AnalysisResults
-
             test.analysis_results = (
-                AnalysisResults(
-                    events=events,
-                    thrust=thrust_results,
-                    statistics=statistics,
-                    classification=classification,
-                )
+                analysis_result
             )
 
             # -----------------------------------------------------
@@ -652,6 +715,14 @@ class MainWindow(QMainWindow):
                 str(error),
             )
 
+        except ValueError as error:
+
+            QMessageBox.critical(
+                self,
+                "Unable to Process Test",
+                str(error),
+            )
+
         except Exception as error:
 
             QMessageBox.critical(
@@ -659,8 +730,8 @@ class MainWindow(QMainWindow):
                 "Unexpected Error",
                 (
                     "An unexpected error occurred "
-                    "while importing or analyzing "
-                    "the test:\n\n"
+                    "while importing, processing, "
+                    "or analyzing the test:\n\n"
                     f"{error}"
                 ),
             )
@@ -956,7 +1027,6 @@ class MainWindow(QMainWindow):
 
             self.update_status(
                 self.session.active_test
-
             )
 
         else:
@@ -1246,10 +1316,18 @@ class MainWindow(QMainWindow):
                 "—"
             )
 
-        if events.ignition_time_s is not None:
+        # ---------------------------------------------------------
+        # Events
+        # ---------------------------------------------------------
+
+        ignition_event = (
+            events.ignition
+        )
+
+        if ignition_event is not None:
 
             self.results.ignition.setText(
-                f"{events.ignition_time_s:.2f} s"
+                f"{ignition_event.time_s:.2f} s"
             )
 
         else:
@@ -1258,10 +1336,14 @@ class MainWindow(QMainWindow):
                 "—"
             )
 
-        if events.peak_time_s is not None:
+        peak_event = (
+            events.peak_thrust
+        )
+
+        if peak_event is not None:
 
             self.results.peak_event.setText(
-                f"{events.peak_time_s:.2f} s"
+                f"{peak_event.time_s:.2f} s"
             )
 
         else:
@@ -1270,10 +1352,14 @@ class MainWindow(QMainWindow):
                 "—"
             )
 
-        if events.burnout_time_s is not None:
+        burnout_event = (
+            events.burnout
+        )
+
+        if burnout_event is not None:
 
             self.results.burnout.setText(
-                f"{events.burnout_time_s:.2f} s"
+                f"{burnout_event.time_s:.2f} s"
             )
 
         else:

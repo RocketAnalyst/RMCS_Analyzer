@@ -1,23 +1,16 @@
+from .analyzer import AnalysisEngine
 from .events import EventDetector
 from .impulse import ThrustAnalyzer
 from .motor_class import MotorClassCalculator
+from .results import AnalysisResults
 from .statistics import StatisticsAnalyzer
-from .results import (
-    AnalysisResults,
-    EventResults,
-    MotorClassification,
-    StatisticalResults,
-    ThrustResults,
-)
+
 
 __all__ = [
-    "AnalysisResults",
+    "AnalysisEngine",
     "EventDetector",
-    "EventResults",
-    "MotorClassCalculator",
-    "MotorClassification",
-    "StatisticsAnalyzer",
-    "StatisticalResults",
     "ThrustAnalyzer",
-    "ThrustResults",
+    "MotorClassCalculator",
+    "AnalysisResults",
+    "StatisticsAnalyzer",
 ]
