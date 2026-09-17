@@ -1,78 +1,99 @@
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QFrame,
     QLabel,
+    QLineEdit,
     QVBoxLayout,
 )
+
+from ..project.validation import MetadataValidator
 
 
 class TestInfoPanel(QFrame):
     """
-    Displays information associated with the currently loaded test.
+    Displays and edits information associated with the
+    currently active test.
+
+    The panel validates editable metadata before notifying the
+    application layer that the metadata has changed.
     """
+
+    metadata_changed = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(
+            16,
+            16,
+            16,
+            16,
+        )
+        layout.setSpacing(10)
 
         title = QLabel("TEST INFORMATION")
         title.setObjectName("sectionTitle")
 
         layout.addWidget(title)
 
-        self.test_number = self.add_info_row(
+        self.test_number = self.add_edit_row(
             layout,
             "Test Number",
-            "—",
+            "",
         )
 
-        self.motor = self.add_info_row(
+        self.motor = self.add_edit_row(
             layout,
             "Motor",
-            "No test loaded",
+            "",
         )
 
-        self.date = self.add_info_row(
+        self.date = self.add_edit_row(
             layout,
-            "Date",
-            "—",
+            "Date (M-D-YYYY)",
+            "",
         )
 
-        self.diameter = self.add_info_row(
+        self.diameter = self.add_edit_row(
             layout,
-            "Diameter",
-            "—",
+            "Diameter (in)",
+            "",
         )
 
-        self.length = self.add_info_row(
+        self.length = self.add_edit_row(
             layout,
-            "Length",
-            "—",
+            "Length (in)",
+            "",
         )
 
-        self.initial_mass = self.add_info_row(
+        self.initial_mass = self.add_edit_row(
             layout,
-            "Initial Mass",
-            "—",
+            "Initial Mass (g)",
+            "",
         )
 
-        self.propellant_mass = self.add_info_row(
+        self.propellant_mass = self.add_edit_row(
             layout,
-            "Propellant Mass",
-            "—",
+            "Propellant Mass (g)",
+            "",
         )
 
         layout.addStretch()
 
-    def add_info_row(
+        self._connect_edit_signals()
+
+    # =============================================================
+    # UI CONSTRUCTION
+    # =============================================================
+
+    def add_edit_row(
         self,
         layout,
         label_text,
         value_text,
     ):
-        """Create and add an information row."""
+        """Create and add an editable information row."""
 
         row = QFrame()
         row.setObjectName("infoRow")
@@ -80,17 +101,18 @@ class TestInfoPanel(QFrame):
         row_layout = QVBoxLayout(row)
         row_layout.setContentsMargins(
             0,
-            4,
+            2,
             0,
-            4,
+            2,
         )
         row_layout.setSpacing(2)
 
         label = QLabel(label_text)
         label.setObjectName("infoLabel")
 
-        value = QLabel(value_text)
-        value.setObjectName("infoValue")
+        value = QLineEdit(value_text)
+        value.setObjectName("infoValueEdit")
+        value.setPlaceholderText("Not specified")
 
         row_layout.addWidget(label)
         row_layout.addWidget(value)
@@ -99,67 +121,345 @@ class TestInfoPanel(QFrame):
 
         return value
 
+    def _connect_edit_signals(self):
+        """
+        Connect editing controls to their validation handlers.
+        """
+
+        self.test_number.editingFinished.connect(
+            self._validate_test_number
+        )
+
+        self.motor.editingFinished.connect(
+            self._validate_text_field
+        )
+
+        self.date.editingFinished.connect(
+            self._validate_test_date
+        )
+
+        self.diameter.editingFinished.connect(
+            self._validate_diameter
+        )
+
+        self.length.editingFinished.connect(
+            self._validate_length
+        )
+
+        self.initial_mass.editingFinished.connect(
+            self._validate_initial_mass
+        )
+
+        self.propellant_mass.editingFinished.connect(
+            self._validate_propellant_mass
+        )
+
+    # =============================================================
+    # VALIDATION
+    # =============================================================
+
+    def _validate_test_number(self):
+        """Validate the test number field."""
+
+        result = MetadataValidator.test_number(
+            self.test_number.text()
+        )
+
+        self._apply_validation(
+            self.test_number,
+            result.valid,
+            result.message,
+        )
+
+        if result.valid:
+            self.metadata_changed.emit()
+
+    def _validate_text_field(self):
+        """Validate a general text field."""
+
+        sender = self.sender()
+
+        if sender is None:
+            return
+
+        result = MetadataValidator.text(
+            sender.text()
+        )
+
+        self._apply_validation(
+            sender,
+            result.valid,
+            result.message,
+        )
+
+        if result.valid:
+            self.metadata_changed.emit()
+
+    def _validate_diameter(self):
+        """Validate motor diameter."""
+
+        result = MetadataValidator.motor_diameter(
+            self.diameter.text()
+        )
+
+        self._apply_validation(
+            self.diameter,
+            result.valid,
+            result.message,
+        )
+
+        if result.valid:
+            self.metadata_changed.emit()
+
+    def _validate_length(self):
+        """Validate motor length."""
+
+        result = MetadataValidator.motor_length(
+            self.length.text()
+        )
+
+        self._apply_validation(
+            self.length,
+            result.valid,
+            result.message,
+        )
+
+        if result.valid:
+            self.metadata_changed.emit()
+
+    def _validate_initial_mass(self):
+        """Validate initial motor mass."""
+
+        result = MetadataValidator.initial_mass(
+            self.initial_mass.text()
+        )
+
+        self._apply_validation(
+            self.initial_mass,
+            result.valid,
+            result.message,
+        )
+
+        if result.valid:
+            self.metadata_changed.emit()
+
+    def _validate_propellant_mass(self):
+        """Validate propellant mass."""
+
+        result = MetadataValidator.propellant_mass(
+            self.propellant_mass.text()
+        )
+
+        self._apply_validation(
+            self.propellant_mass,
+            result.valid,
+            result.message,
+        )
+
+        if result.valid:
+            self.metadata_changed.emit()
+
+    def _apply_validation(
+        self,
+        field,
+        valid,
+        message,
+    ):
+        """
+        Apply the visual validation state to a field.
+        """
+
+        if valid:
+            field.setStyleSheet("")
+            field.setToolTip("")
+
+        else:
+            field.setStyleSheet(
+                """
+                QLineEdit#infoValueEdit {
+                    border: 1px solid #d94a52;
+                    background-color: #2a1518;
+                }
+                """
+            )
+
+            field.setToolTip(
+                message
+            )
+
+    def _validate_test_date(self):
+        """Validate the test date field."""
+
+        result = MetadataValidator.test_date(
+            self.date.text()
+        )
+
+        self._apply_validation(
+            self.date,
+            result.valid,
+            result.message,
+        )
+
+        if result.valid:
+            self.metadata_changed.emit()
+
+    # =============================================================
+    # TEST MODEL DISPLAY
+    # =============================================================
+
+    def set_test_model(self, test):
+        """
+        Populate the panel from a TestModel.
+
+        Loading a test does not trigger metadata validation signals.
+        """
+
+        self._set_field(
+            self.test_number,
+            test.test_number,
+        )
+
+        self._set_field(
+            self.motor,
+            test.motor_designation,
+        )
+
+        self._set_field(
+            self.date,
+            test.test_date,
+        )
+
+        self._set_numeric_field(
+            self.diameter,
+            test.motor_diameter_in,
+        )
+
+        self._set_numeric_field(
+            self.length,
+            test.motor_length_in,
+        )
+
+        self._set_numeric_field(
+            self.initial_mass,
+            test.initial_mass_g,
+        )
+
+        self._set_numeric_field(
+            self.propellant_mass,
+            test.propellant_mass_g,
+        )
+
     def set_test_data(self, test_data):
         """
-        Update the panel from a TestData object.
+        Populate the panel from a TestData object.
+
+        This method is retained for compatibility with existing
+        application code. New code should use set_test_model().
         """
 
         metadata = test_data.metadata
 
-        if metadata.test_number is not None:
-            self.test_number.setText(
+        self._set_field(
+            self.test_number,
+            (
                 str(metadata.test_number)
-            )
-        else:
-            self.test_number.setText("—")
-
-        self.motor.setText(
-            metadata.motor_designation
-            if metadata.motor_designation
-            else "Not specified"
+                if metadata.test_number is not None
+                else ""
+            ),
         )
 
-        self.date.setText(
-            metadata.test_date
-            if metadata.test_date
-            else "—"
+        self._set_field(
+            self.motor,
+            metadata.motor_designation or "",
         )
 
-        if metadata.motor_diameter is not None:
-            self.diameter.setText(
-                f"{metadata.motor_diameter:g}"
-            )
-        else:
-            self.diameter.setText("—")
+        self._set_field(
+            self.date,
+            metadata.test_date or "",
+        )
 
-        if metadata.motor_length is not None:
-            self.length.setText(
-                f"{metadata.motor_length:g}"
-            )
-        else:
-            self.length.setText("—")
+        self._set_numeric_field(
+            self.diameter,
+            metadata.motor_diameter,
+        )
 
-        if metadata.initial_mass is not None:
-            self.initial_mass.setText(
-                f"{metadata.initial_mass:g}"
-            )
-        else:
-            self.initial_mass.setText("—")
+        self._set_numeric_field(
+            self.length,
+            metadata.motor_length,
+        )
 
-        if metadata.propellant_mass is not None:
-            self.propellant_mass.setText(
-                f"{metadata.propellant_mass:g}"
-            )
+        self._set_numeric_field(
+            self.initial_mass,
+            metadata.initial_mass,
+        )
+
+        self._set_numeric_field(
+            self.propellant_mass,
+            metadata.propellant_mass,
+        )
+
+    # =============================================================
+    # FIELD HELPERS
+    # =============================================================
+
+    def _set_field(
+        self,
+        field,
+        value,
+    ):
+        """Set a text field without triggering editing signals."""
+
+        field.blockSignals(True)
+
+        if value is None:
+            field.setText("")
         else:
-            self.propellant_mass.setText("—")
+            field.setText(str(value))
+
+        field.setStyleSheet("")
+        field.setToolTip("")
+
+        field.blockSignals(False)
+
+    def _set_numeric_field(
+        self,
+        field,
+        value,
+    ):
+        """Set a numeric field without triggering editing signals."""
+
+        field.blockSignals(True)
+
+        if value is None:
+            field.setText("")
+        else:
+            field.setText(f"{value:g}")
+
+        field.setStyleSheet("")
+        field.setToolTip("")
+
+        field.blockSignals(False)
+
+    # =============================================================
+    # CLEAR
+    # =============================================================
 
     def clear(self):
         """Reset the panel to its unloaded state."""
 
-        self.test_number.setText("—")
-        self.motor.setText("No test loaded")
-        self.date.setText("—")
-        self.diameter.setText("—")
-        self.length.setText("—")
-        self.initial_mass.setText("—")
-        self.propellant_mass.setText("—")
+        fields = (
+            self.test_number,
+            self.motor,
+            self.date,
+            self.diameter,
+            self.length,
+            self.initial_mass,
+            self.propellant_mass,
+        )
+
+        for field in fields:
+            field.blockSignals(True)
+            field.clear()
+            field.setStyleSheet("")
+            field.setToolTip("")
+            field.blockSignals(False)

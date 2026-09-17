@@ -1,4 +1,5 @@
 APPLICATION_STYLE = """
+
 QMainWindow {
     background-color: #080e14;
 }
@@ -14,13 +15,13 @@ QWidget {
 
 #title {
     color: #f1f5f8;
-    font-size: 23px;
+    font-size: 17pt;
     font-weight: 600;
 }
 
 #subtitle {
     color: #7f94a8;
-    font-size: 12px;
+    font-size: 9pt;
 }
 
 #headerButton {
@@ -29,7 +30,7 @@ QWidget {
     border: 1px solid #314452;
     border-radius: 5px;
     padding: 8px 15px;
-    font-size: 12px;
+    font-size: 9pt;
 }
 
 #headerButton:hover {
@@ -42,12 +43,36 @@ QWidget {
     color: #a9bdcc;
     border: 1px solid #314452;
     border-radius: 5px;
-    font-size: 17px;
+    font-size: 13pt;
 }
 
 #settingsButton:hover {
     background-color: #1e3140;
 }
+
+/* =============================================================
+   HEADER STATUS
+   ============================================================= */
+
+#headerStatus {
+    color: #55d68a;
+    background-color: #10261c;
+    border: 1px solid #27613f;
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-size: 8pt;
+    font-weight: 600;
+}
+
+#headerStatus[modified="true"] {
+    color: #ff6b6b;
+    background-color: #2a1518;
+    border: 1px solid #7a3035;
+}
+
+/* =============================================================
+   CONTENT
+   ============================================================= */
 
 #content {
     background-color: #080e14;
@@ -61,7 +86,7 @@ QWidget {
 
 #sectionTitle {
     color: #a9bac8;
-    font-size: 11px;
+    font-size: 8pt;
     font-weight: 700;
     letter-spacing: 1px;
 }
@@ -72,12 +97,12 @@ QWidget {
 
 #infoLabel {
     color: #687d8d;
-    font-size: 10px;
+    font-size: 8pt;
 }
 
 #infoValue {
     color: #d9e3ea;
-    font-size: 13px;
+    font-size: 10pt;
 }
 
 #fileList {
@@ -86,7 +111,7 @@ QWidget {
     border: 1px solid #202e38;
     border-radius: 5px;
     padding: 4px;
-    font-size: 12px;
+    font-size: 9pt;
 }
 
 #fileList::item {
@@ -107,13 +132,13 @@ QWidget {
 
 #graphTitle {
     color: #8fa4b4;
-    font-size: 19px;
+    font-size: 14pt;
     font-weight: 500;
 }
 
 #graphDescription {
     color: #536977;
-    font-size: 12px;
+    font-size: 9pt;
 }
 
 #playback {
@@ -154,7 +179,7 @@ QWidget {
 
 #timeLabel {
     color: #8296a5;
-    font-size: 12px;
+    font-size: 9pt;
 }
 
 #metricCard {
@@ -165,18 +190,18 @@ QWidget {
 
 #metricName {
     color: #8296a5;
-    font-size: 11px;
+    font-size: 8pt;
 }
 
 #metricValue {
     color: #e1ebf2;
-    font-size: 17px;
+    font-size: 13pt;
     font-weight: 600;
 }
 
 #metricUnit {
     color: #607787;
-    font-size: 10px;
+    font-size: 8pt;
 }
 
 #eventRow {
@@ -186,12 +211,12 @@ QWidget {
 
 #eventName {
     color: #91a4b1;
-    font-size: 11px;
+    font-size: 8pt;
 }
 
 #eventValue {
     color: #c8d5dd;
-    font-size: 11px;
+    font-size: 8pt;
 }
 
 #statusLabel {
@@ -200,7 +225,7 @@ QWidget {
     border: 1px solid #1d4d39;
     border-radius: 5px;
     padding: 8px;
-    font-size: 11px;
+    font-size: 8pt;
 }
 
 #footer {
@@ -210,6 +235,7 @@ QWidget {
 
 #footerLabel {
     color: #4e6473;
-    font-size: 10px;
+    font-size: 8pt;
 }
+
 """

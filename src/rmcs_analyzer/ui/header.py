@@ -1,7 +1,10 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
+    QLabel,
+    QMenu,
     QPushButton,
 )
 
@@ -10,9 +13,13 @@ from .branding import Branding
 
 class Header(QFrame):
     """
-    Application header containing RMCS Analyzer branding
-    and primary application controls.
+    Application header containing RMCS Analyzer branding,
+    application status, import controls, and primary actions.
     """
+
+    import_rmcs_requested = Signal()
+    import_project_requested = Signal()
+    import_other_csv_requested = Signal()
 
     def __init__(
         self,
@@ -36,7 +43,7 @@ class Header(QFrame):
             18,
             0,
             18,
-            0,
+            0
         )
 
         layout.setSpacing(
@@ -58,16 +65,104 @@ class Header(QFrame):
         layout.addStretch()
 
         # =========================================================
-        # APPLICATION CONTROLS
+        # APPLICATION STATUS
         # =========================================================
 
-        self.open_button = QPushButton(
-            "Open Test"
+        self.status = QLabel(
+            "READY — No test loaded"
         )
 
-        self.open_button.setObjectName(
+        self.status.setObjectName(
+            "headerStatus"
+        )
+
+        self.status.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        self.status.setFixedWidth(
+            266
+        )
+
+        self.status.setFixedHeight(
+            34
+        )
+
+        layout.addWidget(
+            self.status
+        )
+
+        # =========================================================
+        # IMPORT MENU
+        # =========================================================
+
+        self.import_button = QPushButton(
+            "Import"
+        )
+
+        self.import_button.setObjectName(
             "headerButton"
         )
+
+        self.import_menu = QMenu(
+            self.import_button
+        )
+
+        # Give the menu an explicit point-sized font.
+        # This prevents Qt from inheriting a pixel-sized font
+        # whose point size may be reported as -1.
+
+        menu_font = QFont(
+            "Segoe UI"
+        )
+
+        menu_font.setPointSize(
+            10
+        )
+
+        self.import_menu.setFont(
+            menu_font
+        )
+
+        self.rmcs_action = (
+            self.import_menu.addAction(
+                "RMCS Test Data (.csv)"
+            )
+        )
+
+        self.project_action = (
+            self.import_menu.addAction(
+                "RMCS Analyzer Project (.rmcs)"
+            )
+        )
+
+        self.import_menu.addSeparator()
+
+        self.other_csv_action = (
+            self.import_menu.addAction(
+                "Other / Non-RMCS CSV"
+            )
+        )
+
+        self.other_csv_action.setEnabled(
+            False
+        )
+
+        self.other_csv_action.setToolTip(
+            "Coming soon — import and map non-RMCS test data."
+        )
+
+        self.import_button.setMenu(
+            self.import_menu
+        )
+
+        layout.addWidget(
+            self.import_button
+        )
+
+        # =========================================================
+        # SAVE
+        # =========================================================
 
         self.save_button = QPushButton(
             "Save"
@@ -77,6 +172,14 @@ class Header(QFrame):
             "headerButton"
         )
 
+        layout.addWidget(
+            self.save_button
+        )
+
+        # =========================================================
+        # EXPORT
+        # =========================================================
+
         self.export_button = QPushButton(
             "Export"
         )
@@ -84,6 +187,14 @@ class Header(QFrame):
         self.export_button.setObjectName(
             "headerButton"
         )
+
+        layout.addWidget(
+            self.export_button
+        )
+
+        # =========================================================
+        # SETTINGS
+        # =========================================================
 
         self.settings_button = QPushButton(
             "⚙"
@@ -98,17 +209,61 @@ class Header(QFrame):
         )
 
         layout.addWidget(
-            self.open_button
-        )
-
-        layout.addWidget(
-            self.save_button
-        )
-
-        layout.addWidget(
-            self.export_button
-        )
-
-        layout.addWidget(
             self.settings_button
         )
+
+        # =========================================================
+        # MENU SIGNALS
+        # =========================================================
+
+        self.rmcs_action.triggered.connect(
+            self.import_rmcs_requested.emit
+        )
+
+        self.project_action.triggered.connect(
+            self.import_project_requested.emit
+        )
+
+        self.other_csv_action.triggered.connect(
+            self.import_other_csv_requested.emit
+        )
+
+        # =========================================================
+        # INITIAL STATUS
+        # =========================================================
+
+        self.set_status(
+            "READY — No test loaded",
+            modified=False
+        )
+
+    def set_status(
+        self,
+        text,
+        modified=False,
+    ):
+        """
+        Update the application status indicator.
+
+        Green indicates the current project is saved and ready.
+        Red indicates the project contains unsaved changes.
+        """
+
+        self.status.setText(
+            text
+        )
+
+        self.status.setProperty(
+            "modified",
+            "true" if modified else "false"
+        )
+
+        self.status.style().unpolish(
+            self.status
+        )
+
+        self.status.style().polish(
+            self.status
+        )
+
+        self.status.update()

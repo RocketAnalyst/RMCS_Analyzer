@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import sys
 
 from PySide6.QtCore import Qt
@@ -28,6 +28,15 @@ from .analysis import (
     ThrustAnalyzer,
 )
 
+from .project import (
+    TestSession,
+)
+
+from .project.project_file import (
+    ProjectFile,
+    ProjectFileError,
+)
+
 from .ui.branding import Branding
 from .ui.header import Header
 from .ui.test_info_panel import TestInfoPanel
@@ -41,8 +50,8 @@ class MainWindow(QMainWindow):
     """
     Main application window.
 
-    The main window coordinates the UI components and connects
-    imported test data to the analysis engine and user interface.
+    Coordinates the UI, test session, CSV importing,
+    project loading/saving, analysis, and display.
     """
 
     def __init__(self):
@@ -62,6 +71,10 @@ class MainWindow(QMainWindow):
             750,
         )
 
+        # =========================================================
+        # DATA AND SESSION SERVICES
+        # =========================================================
+
         self.reader = RMCSCSVReader()
 
         self.event_detector = EventDetector()
@@ -69,8 +82,17 @@ class MainWindow(QMainWindow):
         self.statistics_analyzer = StatisticsAnalyzer()
         self.motor_class_calculator = MotorClassCalculator()
 
+        self.session = TestSession()
+
         self.current_test = None
         self.current_analysis = None
+
+        # =========================================================
+        # PROJECT STATE
+        # =========================================================
+
+        self.project_filename = None
+        self.project_modified = False
 
         self.build_ui()
 
@@ -79,6 +101,16 @@ class MainWindow(QMainWindow):
         )
 
         self.connect_signals()
+
+        # Initial status
+        self.header.set_status(
+            "READY — No test loaded",
+            modified=False,
+        )
+
+    # =============================================================
+    # UI CONSTRUCTION
+    # =============================================================
 
     def build_ui(self):
         central = QWidget()
@@ -179,10 +211,6 @@ class MainWindow(QMainWindow):
             1,
         )
 
-        # ---------------------------------------------------------
-        # Full RMCS Analyzer logo
-        # ---------------------------------------------------------
-
         left_layout.addWidget(
             self.branding,
             0,
@@ -241,6 +269,8 @@ class MainWindow(QMainWindow):
         # =========================================================
 
         self.results = ResultsPanel()
+
+        self.results.status.hide()
 
         content_layout.addWidget(
             self.results
@@ -307,22 +337,99 @@ class MainWindow(QMainWindow):
             footer
         )
 
+    # =============================================================
+    # SIGNALS
+    # =============================================================
+
     def connect_signals(self):
         """Connect GUI signals to application actions."""
 
-        self.header.open_button.clicked.connect(
-            self.open_test
+        self.header.import_rmcs_requested.connect(
+            self.import_rmcs_test
         )
 
-    def open_test(self):
-        """Open, load, analyze, and display a CSV test file."""
+        self.header.import_project_requested.connect(
+            self.open_project_dialog
+        )
+
+        self.header.import_other_csv_requested.connect(
+            self.import_other_csv
+        )
+
+        self.header.save_button.clicked.connect(
+            self.save_project
+        )
+
+        self.test_files.test_selected.connect(
+            self.select_test
+        )
+
+        self.test_info.metadata_changed.connect(
+            self.update_active_test_metadata
+        )
+
+    # =============================================================
+    # SESSION INDEX
+    # =============================================================
+
+    def get_test_index(
+        self,
+        target_test,
+    ):
+        """
+        Return the session index of a TestModel using object identity.
+
+        TestModel contains NumPy arrays, so normal equality comparison
+        must not be used to locate tests in the session.
+        """
+
+        for index, test in enumerate(
+            self.session.tests
+        ):
+
+            if test is target_test:
+                return index
+
+        return None
+
+    # =============================================================
+    # PROJECT STATE
+    # =============================================================
+
+    def has_unsaved_changes(self):
+        """Return True when the current project has unsaved changes."""
+
+        return (
+            self.project_modified
+            or self.session.has_modified_tests
+        )
+
+    def mark_project_modified(self):
+        """Mark the current project as modified."""
+
+        self.project_modified = True
+
+        if self.session.active_test is not None:
+
+            self.update_status(
+                self.session.active_test
+            )
+
+    # =============================================================
+    # IMPORT RMCS TEST DATA
+    # =============================================================
+
+    def import_rmcs_test(self):
+        """
+        Import one RMCS-compatible CSV test file.
+        """
 
         filename, _ = QFileDialog.getOpenFileName(
             self,
-            "Open Test Data",
+            "Import RMCS Test Data",
             "",
             (
-                "CSV Files (*.csv *.CSV);;"
+                "RMCS CSV Test Files (*.csv *.CSV);;"
                 "All Files (*.*)"
             ),
         )
@@ -330,9 +437,99 @@ class MainWindow(QMainWindow):
         if not filename:
             return
 
+        self.open_test(
+            filename
+        )
+
+    # =============================================================
+    # IMPORT OTHER CSV
+    # =============================================================
+
+    def import_other_csv(self):
+        """
+        Placeholder for future non-RMCS CSV import support.
+        """
+
+        QMessageBox.information(
+            self,
+            "Non-RMCS CSV Import",
+            (
+                "Support for importing and mapping "
+                "non-RMCS test data is planned for "
+                "a future version."
+            ),
+        )
+
+    # =============================================================
+    # OPEN PROJECT DIALOG
+    # =============================================================
+
+    def open_project_dialog(self):
+        """
+        Open the file dialog for RMCS Analyzer projects.
+        """
+
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open RMCS Analyzer Project",
+            "",
+            (
+                "RMCS Analyzer Projects (*.rmcs);;"
+                "All Files (*.*)"
+            ),
+        )
+
+        if not filename:
+            return
+
+        self.open_project(
+            filename
+        )
+
+    # =============================================================
+    # OPEN CSV TEST
+    # =============================================================
+
+    def open_test(
+        self,
+        filename,
+    ):
+        """
+        Load, analyze, and add an RMCS CSV test to the session.
+        """
+
+        # ---------------------------------------------------------
+        # Check whether this test is already loaded
+        # ---------------------------------------------------------
+
+        existing_test = (
+            self.session.get_test_by_source(
+                filename
+            )
+        )
+
+        if existing_test is not None:
+
+            index = self.get_test_index(
+                existing_test
+            )
+
+            if index is not None:
+
+                self.test_files.set_current_test(
+                    index
+                )
+
+                self.select_test(
+                    index
+                )
+
+            return
+
         try:
+
             # -----------------------------------------------------
-            # Load test data
+            # Read CSV
             # -----------------------------------------------------
 
             test_data = self.reader.read(
@@ -340,29 +537,49 @@ class MainWindow(QMainWindow):
             )
 
             # -----------------------------------------------------
-            # Run analysis
+            # Create TestModel
+            # -----------------------------------------------------
+
+            from .project.test_model import TestModel
+
+            test = TestModel(
+                data=test_data
+            )
+
+            # -----------------------------------------------------
+            # Analyze test
             # -----------------------------------------------------
 
             events = self.event_detector.detect(
                 test_data
             )
 
-            thrust_results = self.thrust_analyzer.analyze(
-                test_data,
-                events,
+            thrust_results = (
+                self.thrust_analyzer.analyze(
+                    test_data,
+                    events,
+                )
             )
 
-            statistics = self.statistics_analyzer.analyze(
-                test_data
+            statistics = (
+                self.statistics_analyzer.analyze(
+                    test_data
+                )
             )
 
-            if thrust_results.total_impulse_Ns is not None:
+            if (
+                thrust_results.total_impulse_Ns
+                is not None
+            ):
+
                 classification = (
                     self.motor_class_calculator.classify(
                         thrust_results.total_impulse_Ns
                     )
                 )
+
             else:
+
                 classification = (
                     self.motor_class_calculator.classify(
                         -1
@@ -370,79 +587,562 @@ class MainWindow(QMainWindow):
                 )
 
             # -----------------------------------------------------
-            # Store current test and analysis
+            # Store analysis
             # -----------------------------------------------------
 
-            self.current_test = test_data
+            from .analysis.results import AnalysisResults
 
-            self.current_analysis = {
-                "events": events,
-                "thrust": thrust_results,
-                "statistics": statistics,
-                "classification": classification,
-            }
-
-            # -----------------------------------------------------
-            # Update test information
-            # -----------------------------------------------------
-
-            self.test_info.set_test_data(
-                test_data
+            test.analysis_results = (
+                AnalysisResults(
+                    events=events,
+                    thrust=thrust_results,
+                    statistics=statistics,
+                    classification=classification,
+                )
             )
 
             # -----------------------------------------------------
-            # Update test files
+            # Add to session
             # -----------------------------------------------------
+
+            added = self.session.add_test(
+                test
+            )
+
+            if not added:
+                return
+
+            # -----------------------------------------------------
+            # Adding a test to an existing project modifies it
+            # -----------------------------------------------------
+
+            if self.project_filename is not None:
+
+                self.project_modified = True
+
+            # -----------------------------------------------------
+            # Add to test list
+            # -----------------------------------------------------
+
+            test_index = self.get_test_index(
+                test
+            )
+
+            if test_index is None:
+                return
 
             self.test_files.add_file(
-                os.path.basename(filename)
+                test.display_name,
+                test_index,
             )
 
             # -----------------------------------------------------
-            # Update thrust plot
+            # Display test
             # -----------------------------------------------------
 
-            self.thrust_plot.set_data(
-                test_data.time_s,
-                test_data.thrust_N,
-            )
-
-            # -----------------------------------------------------
-            # Update analysis results
-            # -----------------------------------------------------
-
-            self.update_results(
-                events,
-                thrust_results,
-                statistics,
-                classification,
-            )
-
-            # -----------------------------------------------------
-            # Update status
-            # -----------------------------------------------------
-
-            self.update_status(
-                test_data
+            self.select_test(
+                test_index
             )
 
         except CSVReadError as error:
+
             QMessageBox.critical(
                 self,
-                "Unable to Load Test",
+                "Unable to Import Test",
                 str(error),
             )
 
         except Exception as error:
+
             QMessageBox.critical(
                 self,
                 "Unexpected Error",
                 (
                     "An unexpected error occurred "
-                    "while loading or analyzing the test:\n\n"
+                    "while importing or analyzing "
+                    "the test:\n\n"
                     f"{error}"
                 ),
             )
+
+    # =============================================================
+    # OPEN PROJECT
+    # =============================================================
+
+    def open_project(
+        self,
+        filename,
+    ):
+        """
+        Load an RMCS Analyzer project from disk.
+        """
+
+        # ---------------------------------------------------------
+        # Protect unsaved changes
+        # ---------------------------------------------------------
+
+        if self.has_unsaved_changes():
+
+            project_name = Path(
+                filename
+            ).name
+
+            response = QMessageBox.question(
+                self,
+                "Unsaved Changes",
+                (
+                    "The current project contains "
+                    "unsaved changes.\n\n"
+                    f"Open '{project_name}' anyway?"
+                ),
+                (
+                    QMessageBox.StandardButton.Yes
+                    | QMessageBox.StandardButton.No
+                ),
+                QMessageBox.StandardButton.No,
+            )
+
+            if response != (
+                QMessageBox.StandardButton.Yes
+            ):
+
+                return
+
+        # ---------------------------------------------------------
+        # Load project
+        # ---------------------------------------------------------
+
+        try:
+
+            loaded_session = (
+                ProjectFile.load(
+                    filename
+                )
+            )
+
+        except ProjectFileError as error:
+
+            QMessageBox.critical(
+                self,
+                "Unable to Open Project",
+                str(error),
+            )
+
+            return
+
+        except Exception as error:
+
+            QMessageBox.critical(
+                self,
+                "Unexpected Error",
+                (
+                    "An unexpected error occurred "
+                    "while opening the project:\n\n"
+                    f"{error}"
+                ),
+            )
+
+            return
+
+        # ---------------------------------------------------------
+        # Replace session
+        # ---------------------------------------------------------
+
+        self.session = loaded_session
+
+        self.project_filename = filename
+
+        self.project_modified = False
+
+        self.current_test = None
+
+        self.current_analysis = None
+
+        # ---------------------------------------------------------
+        # Rebuild test list
+        # ---------------------------------------------------------
+
+        self.test_files.clear()
+
+        for index, test in enumerate(
+            self.session.tests
+        ):
+
+            self.test_files.add_file(
+                test.display_name,
+                index,
+            )
+
+        # ---------------------------------------------------------
+        # Restore active test
+        # ---------------------------------------------------------
+
+        active_test = (
+            self.session.active_test
+        )
+
+        if active_test is not None:
+
+            active_index = (
+                self.get_test_index(
+                    active_test
+                )
+            )
+
+            if active_index is not None:
+
+                self.test_files.set_current_test(
+                    active_index
+                )
+
+                self.select_test(
+                    active_index
+                )
+
+        else:
+
+            self.test_info.clear()
+
+            self.thrust_plot.clear()
+
+        # ---------------------------------------------------------
+        # Window title
+        # ---------------------------------------------------------
+
+        project_name = Path(
+            filename
+        ).name
+
+        self.setWindowTitle(
+            f"{project_name} — RMCS Analyzer"
+        )
+
+        # ---------------------------------------------------------
+        # Status
+        # ---------------------------------------------------------
+
+        if active_test is not None:
+
+            self.update_status(
+                active_test
+            )
+
+        else:
+
+            self.header.set_status(
+                f"READY — {project_name}",
+                modified=False,
+            )
+
+    # =============================================================
+    # SAVE PROJECT
+    # =============================================================
+
+    def save_project(self):
+        """
+        Save the current TestSession to an RMCS project file.
+        """
+
+        if self.session.test_count == 0:
+
+            QMessageBox.information(
+                self,
+                "Nothing to Save",
+                "There are no test files loaded.",
+            )
+
+            return
+
+        # ---------------------------------------------------------
+        # First save
+        # ---------------------------------------------------------
+
+        if self.project_filename is None:
+
+            filename, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save RMCS Analyzer Project",
+                "",
+                (
+                    "RMCS Analyzer Project (*.rmcs);;"
+                    "All Files (*.*)"
+                ),
+            )
+
+            if not filename:
+                return
+
+            path = Path(
+                filename
+            )
+
+            if path.suffix.lower() != ".rmcs":
+
+                path = path.with_suffix(
+                    ".rmcs"
+                )
+
+            filename = str(
+                path
+            )
+
+        else:
+
+            filename = self.project_filename
+
+        # ---------------------------------------------------------
+        # Save
+        # ---------------------------------------------------------
+
+        try:
+
+            ProjectFile.save(
+                self.session,
+                filename,
+            )
+
+        except ProjectFileError as error:
+
+            QMessageBox.critical(
+                self,
+                "Unable to Save Project",
+                str(error),
+            )
+
+            return
+
+        except Exception as error:
+
+            QMessageBox.critical(
+                self,
+                "Unexpected Error",
+                (
+                    "An unexpected error occurred "
+                    "while saving the project:\n\n"
+                    f"{error}"
+                ),
+            )
+
+            return
+
+        # ---------------------------------------------------------
+        # Save successful
+        # ---------------------------------------------------------
+
+        self.project_filename = filename
+
+        self.project_modified = False
+
+        for test in self.session.tests:
+            test.mark_saved()
+
+        # ---------------------------------------------------------
+        # Window title
+        # ---------------------------------------------------------
+
+        project_name = Path(
+            filename
+        ).name
+
+        self.setWindowTitle(
+            f"{project_name} — RMCS Analyzer"
+        )
+
+        # ---------------------------------------------------------
+        # Status
+        # ---------------------------------------------------------
+
+        if self.session.active_test is not None:
+
+            self.update_status(
+                self.session.active_test
+
+            )
+
+        else:
+
+            self.header.set_status(
+                f"READY — {project_name}",
+                modified=False,
+            )
+
+    # =============================================================
+    # SELECT TEST
+    # =============================================================
+
+    def select_test(
+        self,
+        test_index,
+    ):
+        """
+        Select a test and display it.
+        """
+
+        tests = self.session.tests
+
+        if (
+            test_index < 0
+            or test_index >= len(tests)
+        ):
+            return
+
+        test = tests[
+            test_index
+        ]
+
+        if not self.session.select_test(
+            test
+        ):
+            return
+
+        self.current_test = test
+
+        self.current_analysis = (
+            test.analysis_results
+        )
+
+        self.display_active_test()
+
+    # =============================================================
+    # DISPLAY ACTIVE TEST
+    # =============================================================
+
+    def display_active_test(self):
+        """Update all UI components for the active test."""
+
+        test = self.session.active_test
+
+        if test is None:
+            return
+
+        # ---------------------------------------------------------
+        # Test information
+        # ---------------------------------------------------------
+
+        self.test_info.set_test_model(
+            test
+        )
+
+        # ---------------------------------------------------------
+        # Plot
+        # ---------------------------------------------------------
+
+        self.thrust_plot.set_data(
+            test.data.time_s,
+            test.data.thrust_N,
+        )
+
+        # ---------------------------------------------------------
+        # Results
+        # ---------------------------------------------------------
+
+        if test.analysis_results is not None:
+
+            analysis = (
+                test.analysis_results
+            )
+
+            self.update_results(
+                analysis.events,
+                analysis.thrust,
+                analysis.statistics,
+                analysis.classification,
+            )
+
+        # ---------------------------------------------------------
+        # Status
+        # ---------------------------------------------------------
+
+        self.update_status(
+            test
+        )
+
+    # =============================================================
+    # UPDATE ACTIVE TEST METADATA
+    # =============================================================
+
+    def update_active_test_metadata(self):
+        """
+        Store edited metadata in the active TestModel.
+        """
+
+        test = self.session.active_test
+
+        if test is None:
+            return
+
+        test.test_number = (
+            self.test_info.test_number.text().strip()
+        )
+
+        test.motor_designation = (
+            self.test_info.motor.text().strip()
+        )
+
+        test.test_date = (
+            self.test_info.date.text().strip()
+        )
+
+        test.motor_diameter_in = (
+            self.parse_optional_float(
+                self.test_info.diameter.text()
+            )
+        )
+
+        test.motor_length_in = (
+            self.parse_optional_float(
+                self.test_info.length.text()
+            )
+        )
+
+        test.initial_mass_g = (
+            self.parse_optional_float(
+                self.test_info.initial_mass.text()
+            )
+        )
+
+        test.propellant_mass_g = (
+            self.parse_optional_float(
+                self.test_info.propellant_mass.text()
+            )
+        )
+
+        test.mark_modified()
+
+        self.project_modified = True
+
+        self.update_status(
+            test
+        )
+
+    # =============================================================
+    # PARSE OPTIONAL FLOAT
+    # =============================================================
+
+    def parse_optional_float(
+        self,
+        value,
+    ):
+        """Convert an optional numeric field to float."""
+
+        value = value.strip()
+
+        if not value:
+            return None
+
+        try:
+
+            return float(
+                value
+            )
+
+        except ValueError:
+
+            return None
+
+    # =============================================================
+    # UPDATE RESULTS
+    # =============================================================
 
     def update_results(
         self,
@@ -451,76 +1151,86 @@ class MainWindow(QMainWindow):
         statistics,
         classification,
     ):
-        """
-        Update the results panel with calculated analysis values.
-        """
-
-        # =========================================================
-        # KEY RESULTS
-        # =========================================================
+        """Update the results panel."""
 
         if thrust_results.peak_thrust_N is not None:
+
             self.results.peak_thrust.setText(
                 f"{thrust_results.peak_thrust_N:.2f}"
             )
+
         else:
+
             self.results.peak_thrust.setText(
                 "—"
             )
 
         if thrust_results.average_thrust_N is not None:
+
             self.results.average_thrust.setText(
                 f"{thrust_results.average_thrust_N:.2f}"
             )
+
         else:
+
             self.results.average_thrust.setText(
                 "—"
             )
 
         if thrust_results.total_impulse_Ns is not None:
+
             self.results.total_impulse.setText(
                 f"{thrust_results.total_impulse_Ns:.2f}"
             )
+
         else:
+
             self.results.total_impulse.setText(
                 "—"
             )
 
         if thrust_results.burn_time_s is not None:
+
             self.results.burn_time.setText(
                 f"{thrust_results.burn_time_s:.2f}"
             )
+
         else:
+
             self.results.burn_time.setText(
                 "—"
             )
 
         if thrust_results.time_to_peak_s is not None:
+
             self.results.time_to_peak.setText(
                 f"{thrust_results.time_to_peak_s:.2f}"
             )
+
         else:
+
             self.results.time_to_peak.setText(
                 "—"
             )
 
         if classification.motor_class is not None:
+
             self.results.motor_class.setText(
                 classification.motor_class
             )
+
         else:
+
             self.results.motor_class.setText(
                 "—"
             )
 
-        # =========================================================
-        # CALCULATED PERFORMANCE DESIGNATION
-        # =========================================================
-
         if (
             classification.motor_class is not None
-            and thrust_results.average_thrust_N is not None
+            and thrust_results.average_thrust_N
+            is not None
         ):
+
             calculated_designation = (
                 f"{classification.motor_class}"
                 f"{round(thrust_results.average_thrust_N)}"
@@ -531,54 +1241,75 @@ class MainWindow(QMainWindow):
             )
 
         else:
+
             self.results.calculated_designation.setText(
                 "—"
             )
 
-        # =========================================================
-        # DETECTED EVENTS
-        # =========================================================
-
         if events.ignition_time_s is not None:
+
             self.results.ignition.setText(
                 f"{events.ignition_time_s:.2f} s"
             )
+
         else:
+
             self.results.ignition.setText(
                 "—"
             )
 
         if events.peak_time_s is not None:
+
             self.results.peak_event.setText(
                 f"{events.peak_time_s:.2f} s"
             )
+
         else:
+
             self.results.peak_event.setText(
                 "—"
             )
 
         if events.burnout_time_s is not None:
+
             self.results.burnout.setText(
                 f"{events.burnout_time_s:.2f} s"
             )
+
         else:
+
             self.results.burnout.setText(
                 "—"
             )
 
+    # =============================================================
+    # UPDATE STATUS
+    # =============================================================
+
     def update_status(
         self,
-        test_data,
+        test,
     ):
-        """Update the application status display."""
+        """
+        Update the header status indicator.
 
-        filename = (
-            test_data.metadata.source_file
-        )
+        The project is considered modified when either the active
+        test or another loaded test contains unsaved changes.
+        """
 
-        self.results.status.setText(
-            f"READY — {filename}"
-        )
+        if self.has_unsaved_changes():
+
+            self.header.set_status(
+                f"MODIFIED — {test.filename}",
+                modified=True,
+            )
+
+        else:
+
+            self.header.set_status(
+                f"READY — {test.filename}",
+                modified=False,
+            )
 
 
 def main():
