@@ -2,119 +2,306 @@
 
 **Rocket Motor Characterization System Data Analysis Software**
 
-RMCS Analyzer is a desktop application for analyzing rocket motor test-stand data. It is designed to turn raw thrust measurements into useful motor performance information through an interactive, engineering-focused interface.
+RMCS Analyzer is a standalone Windows desktop application for analyzing rocket motor static-test data. It is designed to turn standardized test-stand measurements into traceable motor-performance results through an engineering-focused interface.
 
-The application is being developed as a standalone Windows desktop application using Python, PySide6, PyQtGraph, NumPy, and Pandas.
+The application is being developed with Python, PySide6, PyQtGraph, NumPy, and Pandas. The long-term goal is a packaged Windows application that can be used without requiring Python or a development environment.
+
+---
+
+## Current Development Status
+
+RMCS Analyzer is currently in active development.
+
+The project has completed the core data-model, processing, persistence, and authoritative performance-analysis foundation. The current development milestone is focused on establishing a reliable analysis engine before expanding the graphical interface and engineering features.
+
+The current architecture is:
+
+```text
+Standardized CSV
+      │
+      ▼
+   CSV Reader
+      │
+      ▼
+    TestData
+      │
+      ▼
+ProcessingPipeline
+      │
+      ├── Raw validation
+      ├── Calibrated-time selection
+      ├── Cleaning / trimming
+      ├── Baseline correction
+      ├── Physical event detection
+      └── Time alignment
+      │
+      ▼
+   Prepared TestData
+      │
+      ▼
+  AnalysisEngine
+      │
+      ├── Performance reduction
+      ├── Statistical analysis
+      └── Motor classification
+      │
+      ▼
+ AnalysisResults
+      │
+      ├── GUI
+      └── Future exports
+```
+
+A major design requirement is that the GUI does not independently calculate authoritative engineering results. Analysis is performed by the analysis layer and exposed through `AnalysisResults`.
 
 ---
 
 ## Current Features
 
-- Import RMCS-compatible CSV test data
-- Display interactive thrust curves
-- Automatic ignition detection
-- Automatic burnout detection
-- Peak thrust detection
-- Peak thrust calculation
-- Average thrust calculation
-- Burn time calculation
+The current codebase supports:
+
+- Standardized RMCS CSV import
+- Test metadata parsing
+- Original acquisition-time preservation
+- Optional calibrated-time handling
+- Data validation
+- Data cleaning and trimming
+- Baseline correction
+- Physical event detection
+- Time alignment
+- Peak thrust analysis
+- 5% standardized burn-time analysis
 - Total impulse calculation
+- Standardized average thrust
+- Initial thrust averaging
 - Motor impulse-class classification
-- Calculated motor performance designation
-- Basic test-data quality statistics
-- RMCS test metadata display
-- Test file tracking within the application
+- Calculated performance designation
+- Basic statistical results
+- Project/session persistence
+- Interactive thrust-curve visualization
+- Test metadata and test-file panels
+- Motor classification display
+- Analysis reference and edge-case validation
+
+The graphical interface is functional in its current foundation, while several workspace areas remain under development.
 
 ---
 
-## Motor Classification and Designation
+## Standardized CSV Format
 
-RMCS Analyzer determines the motor impulse class from measured total impulse.
+RMCS Analyzer uses a defined CSV structure rather than treating arbitrary CSV files as interchangeable input.
 
-The application also calculates a performance designation using:
+The current reference format is **Format Version 1.0**.
 
-- **Measured total impulse** → impulse class
-- **Measured average thrust** → numerical designation
+The official development reference dataset is:
+
+```text
+test_data/Zerox.csv
+```
+
+### Metadata
+
+The CSV contains metadata as `key,value` pairs followed by the measurement table.
+
+The standardized metadata fields include:
+
+```text
+Format Version
+Test Number
+Test Date
+Test Stand
+Test Operator
+Location
+Notes
+Motor Designation
+Motor Type
+Manufacturer
+Builder
+Case Material
+Motor Diameter (in)
+Motor Length (in)
+Initial Mass (g)
+Propellant Mass (g)
+Propellant Type
+Nozzle Throat Diameter (in)
+Nozzle Exit Diameter (in)
+Nozzle Material
+Load Cell
+Load Cell Calibration
+Pressure Sensor
+Pressure Sensor Calibration
+Sample Rate (Hz)
+```
+
+### Measurement columns
+
+The standardized measurement table uses:
+
+```text
+Sample
+Time(s)
+Time Cal (s)
+Raw Thrust (N)
+Prop Loss (kg)
+Thrust (N)
+Pressure (psi)
+```
+
+`Sample`, `Time(s)`, and `Thrust (N)` are required.
+
+The other measurement columns are optional. When present, they are preserved by the data model.
+
+### Authoritative thrust
+
+`Thrust (N)` is the authoritative thrust measurement used by RMCS Analyzer.
+
+The analyzer does **not** reconstruct authoritative thrust from `Raw Thrust (N)` and `Prop Loss (kg)`. Those channels are retained as supporting data when supplied by the test stand.
+
+### Time handling
+
+Original `Time(s)` data is preserved.
+
+When a valid `Time Cal (s)` channel is supplied, it can be used as the analysis timeline while the original acquisition time remains available. When calibrated time is unavailable, the original time is used and the processing pipeline can perform its configured alignment.
+
+---
+
+## Analysis Methodology
+
+The analysis engine separates physical event detection from standardized motor-performance reduction.
+
+This distinction is important because a physical event such as detected burnout is not automatically the same thing as the standardized burn-time definition used for motor statistics.
+
+### Peak thrust
+
+Peak thrust is the maximum finite positive thrust value in the valid analysis curve.
+
+Negative thrust values are not treated as positive thrust by taking their absolute value.
+
+### Standardized burn time
+
+The current standardized performance reduction uses a **5% of peak-thrust threshold**.
+
+The burn interval is determined by:
+
+1. Finding peak positive thrust.
+2. Calculating 5% of peak thrust.
+3. Finding the threshold crossing before peak thrust.
+4. Finding the threshold crossing after peak thrust.
+5. Linearly interpolating crossing times when the threshold falls between samples.
+
+The resulting interval defines the standardized burn time:
+
+```text
+Burn time = 5% end time - 5% start time
+```
+
+This approach follows the methodology documented by ThrustCurve Motor Statistics and the project's current reference-validation work.
+
+### Average thrust
+
+Standardized average thrust is calculated from the impulse within the standardized 5% burn interval divided by the standardized burn time.
+
+The total impulse used for motor classification is treated separately.
+
+### Total impulse
+
+Total impulse is obtained by integrating the valid thrust curve over the full valid test curve rather than truncating the integration to the standardized 5% burn interval.
+
+Negative thrust values are excluded from the positive-thrust impulse calculation.
+
+The exact handling of invalid/non-finite samples and duplicate timestamps is implemented by the performance-reduction layer and covered by regression tests.
+
+### Initial thrust
+
+The current performance reduction also calculates an initial-thrust average over the first **0.5 seconds** beginning at the standardized burn start.
+
+### Motor classification
+
+Motor class is determined from measured total impulse.
+
+The current classification system covers the standard A through O ranges used by the analyzer and also supports fractional low-power designations implemented by the motor-class calculator.
+
+### Performance designation
+
+The calculated designation combines:
+
+```text
+Impulse class + rounded standardized average thrust
+```
 
 For example:
 
 ```text
-Total Impulse:            4906.49 N·s
-Average Thrust:             265.07 N
-Motor Class:                    L
-Calculated Designation:       L265
+N2031
 ```
 
-The calculated designation represents the measured performance of the imported test data. It should not be interpreted as a manufacturer's certified commercial motor designation.
-
-For example, an analyzed test may produce a designation such as `L265`, while the actual motor being tested may have a different manufacturer designation.
+The calculated designation describes the measured test performance. It is not intended to replace or infer a manufacturer's certified commercial-motor designation.
 
 ---
 
-## Analysis Results
+## Reference Validation
 
-The current analysis engine calculates:
+The analysis foundation is validated against both the project's Zerox reference data and an external published thrust-curve reference.
 
-### Thrust Performance
+### Zerox reference
 
-- Peak thrust
-- Average thrust
-- Burn time
-- Time to peak thrust
-- Total impulse
+The current Zerox dataset contains:
 
-### Event Detection
+```text
+661 samples
+Original acquisition duration: 8.538 s
+Calculated acquisition sample rate: 77.301 Hz
+Maximum thrust: 3230.339730 N
+```
 
-- Ignition time
-- Peak thrust time
-- Burnout time
-- Detection method
+The current standardized reduction produces:
 
-### Data Quality
+```text
+5% start:             0.044210 s
+5% end:               7.117326 s
+5% burn time:         7.073116 s
+Total impulse:    14471.744320 N·s
+Normalized impulse: 14367.091390 N·s
+Average thrust:      2031.225247 N
+Initial average:     2635.834021 N
+Impulse class:       N
+Designation:         N2031
+```
 
-- Sample count
-- Sample rate
-- Minimum measured thrust
-- Maximum measured thrust
-- Baseline mean
-- Baseline standard deviation
+These values are regression references for the current implementation.
+
+The Zerox test video displays the label **N2300**. The label is retained
+only as source-video context and is **not** used as an independent
+validation target or as the measured designation produced by the Analyzer.
+
+The current validation work confirms that the CSV and video agree on the
+recorded test duration and peak thrust. The current analyzer reduction of
+the supplied CSV produces N2031 using the documented standardized
+methodology.
+
+### ThrustCurve G73C reference
+
+The project also validates the standardized reduction against a published G73C thrust curve.
+
+The published reference reports approximately:
+
+```text
+Total impulse:       128.64 N·s
+Peak thrust:          96 N
+5% threshold:          4.8 N
+5% burn time:           1.814 s
+Average thrust:        70.90 N
+```
+
+The analyzer's reduction is within the current validation tolerances for those published values.
+
+This reference validation is important because it tests the methodology against an established motor-performance dataset rather than only checking internal consistency.
 
 ---
 
 ## Project Architecture
 
-The application is intentionally divided into separate layers so that data import, analysis, visualization, and future export functionality remain independent.
-
-```text
-CSV File
-   │
-   ▼
-CSV Reader
-   │
-   ▼
-TestData Model
-   │
-   ├──────────────────────┐
-   ▼                      ▼
-Analysis                  GUI
-   │                      │
-   ├── Event Detection    ├── Test Information
-   ├── Thrust Analysis    ├── Test Files
-   ├── Statistics         ├── Thrust Plot
-   └── Classification     └── Results
-   │
-   ▼
-Analysis Results
-   │
-   ▼
-GUI Results / Visualization
-```
-
-This architecture is intended to allow RMCS Analyzer to eventually support data from RMCS as well as compatible data from other test stands.
-
----
-
-## Project Structure
+The source tree is organized by responsibility.
 
 ```text
 RMCS_Analyzer/
@@ -125,100 +312,204 @@ RMCS_Analyzer/
 │   └── rmcs_analyzer/
 │       │
 │       ├── analysis/
-│       │   ├── __init__.py
+│       │   ├── analyzer.py
 │       │   ├── events.py
 │       │   ├── impulse.py
 │       │   ├── motor_class.py
-│       │   ├── results.py
-│       │   └── statistics.py
+│       │   ├── performance.py
+│       │   └── results.py
 │       │
 │       ├── data/
-│       │   ├── __init__.py
 │       │   ├── csv_reader.py
 │       │   └── models.py
 │       │
-│       ├── ui/
-│       │   ├── __init__.py
-│       │   ├── header.py
-│       │   ├── playback_controls.py
-│       │   ├── results_panel.py
-│       │   ├── test_files_panel.py
-│       │   ├── test_info_panel.py
-│       │   └── thrust_plot.py
+│       ├── processing/
+│       │   ├── alignment.py
+│       │   ├── baseline.py
+│       │   ├── cleaning.py
+│       │   ├── event_model.py
+│       │   ├── pipeline.py
+│       │   ├── settings.py
+│       │   └── validation.py
 │       │
-│       ├── __init__.py
-│       ├── main_window.py
-│       └── theme.py
+│       ├── project/
+│       │   ├── project_file.py
+│       │   ├── session.py
+│       │   ├── test_model.py
+│       │   └── validation.py
+│       │
+│       └── ui/
+│           ├── branding.py
+│           ├── header.py
+│           ├── playback_controls.py
+│           ├── results_panel.py
+│           ├── test_files_panel.py
+│           ├── test_info_panel.py
+│           └── thrust_plot.py
 │
 ├── test_data/
-│   └── TEST_008.CSV
+│   └── Zerox.csv
+│
+├── docs/
+│   └── RMCS_ANALYZER_SPEC.md
+│
+├── test_analysis_engine.py
+├── test_performance.py
+├── test_reference_validation.py
+├── test_reference_analysis.py
+├── test_thrustcurve_reference.py
+├── test_performance_edge_cases.py
+├── test_motor_classification.py
 │
 ├── .gitignore
 └── README.md
 ```
 
+The exact source tree may expand as additional subsystems are implemented.
+
 ---
 
-## Data Import
+## Test Suite
 
-The current version supports RMCS-compatible CSV files.
+The project uses standalone Python validation scripts rather than a pytest-based test suite.
 
-The application separates the imported data from the user interface so that additional CSV formats can be supported in the future.
-
-The intended architecture is:
+The current canonical tests are:
 
 ```text
-RMCS CSV
-Generic CSV
-Other Test Stand
-Future Telemetry
-       │
-       ▼
- Import / Mapping
-       │
-       ▼
-    TestData
-       │
-   ┌───┼────┐
-   ▼   ▼    ▼
-  GUI Analysis Export
+test_analysis_engine.py
+test_performance.py
+test_reference_validation.py
+test_reference_analysis.py
+test_thrustcurve_reference.py
+test_performance_edge_cases.py
+test_motor_classification.py
 ```
 
-Future versions are expected to provide configurable CSV column mapping so users can import data from other test stands without modifying the application source code.
+These tests cover:
+
+- Analysis-engine integration
+- Standardized performance reduction
+- Zerox regression values
+- Zerox/video investigation calculations
+- Published G73C reference validation
+- Linear threshold interpolation
+- Irregular timestamps
+- Negative thrust handling
+- Non-finite samples
+- Duplicate timestamps
+- Full-curve versus normalized-interval impulse
+- Motor impulse-class boundaries
+- Motor-class transitions
+- Performance designation
+- Raw-data protection
+- Processing-pipeline integration
+
+The test suite is intended to protect the authoritative analysis layer as the GUI and future features are developed.
 
 ---
 
-## Sample Data
+## Current GUI
 
-The repository includes:
+The desktop interface currently includes the foundation for:
 
-```text
-test_data/TEST_008.CSV
-```
+### Header
 
-as a sample dataset.
+- RMCS Analyzer branding
+- Ready/modified status
+- Import controls
+- Save controls
+- Application settings access
 
-This dataset is a controlled bench-load acceptance test used to validate the RMCS data-processing and analysis pipeline.
+### Workspace
 
-It is included as software test data and **does not represent an actual rocket motor firing**.
+- Thrust Curve
+- Data Table
+- Analysis
+- Compare
+- Simulation Overlay
 
-The sample currently contains:
+### Side panels
 
-- 2,764 samples
-- Approximately 85.27 Hz sample rate
-- Approximately 32.4 seconds of recorded data
-- Measured peak load of approximately 280.40 N
-- Calculated total impulse of approximately 4,906.49 N·s
+- Test Information
+- Test Files
+- Branding
+- Key Results
+- Additional Metrics
+- C* Analysis
 
-The sample is intended to provide a known dataset for development, demonstration, and future regression testing.
+### Visualization
+
+The current thrust-curve view includes:
+
+- Positive motor thrust curve
+- Burnout marker
+- Post-burnout visualization
+- Zero reference line
+- Interactive plotting through PyQtGraph
+
+Several workspace panels are currently placeholders and will be implemented incrementally.
 
 ---
 
-## Current Development Environment
+## Planned Development
 
-RMCS Analyzer is currently developed using:
+Future development is expected to include:
 
-- Python 3
+### Analysis
+
+- Additional engineering statistics
+- Improved event-detection methods
+- Configurable analysis settings
+- More detailed data-quality diagnostics
+- Additional pressure/thrust analysis
+- C* calculation when sufficient mass-flow, pressure, and nozzle data are available
+- Reference-motor comparison
+
+### Data and Projects
+
+- Expanded project management
+- Additional standardized-data validation
+- Test comparison workflows
+- Data provenance and analysis settings persistence
+
+### Visualization
+
+- Advanced thrust-curve interaction
+- Multiple-test overlays
+- Cursor measurements
+- Event editing
+- Expanded analysis views
+- Configurable panels
+
+### Video
+
+- Test-video import
+- Video synchronization
+- Thrust/video overlay
+- Animated playback
+- Synchronized event visualization
+
+### Export
+
+Potential engineering-data interoperability includes:
+
+- RASP `.eng`
+- RockSim `.rse`
+- OpenRocket-compatible data
+- BurnSim-compatible data
+- OpenMotor-compatible workflows
+
+### Packaging
+
+The final application is expected to be distributed as a Windows desktop application using a packaging workflow such as PyInstaller.
+
+---
+
+## Development Environment
+
+Current development uses:
+
+- Python 3.14
 - PySide6
 - PyQtGraph
 - NumPy
@@ -228,130 +519,13 @@ RMCS Analyzer is currently developed using:
 - Git
 - GitHub Desktop
 
-The application is currently run from the development environment.
+The project is currently developed and executed from the local Python environment.
 
-A packaged Windows executable is planned for a later stage so that end users will not need Python installed.
-
----
-
-## Development Status
-
-RMCS Analyzer is currently in early development.
-
-The current milestone establishes the core data pipeline:
-
-```text
-Import CSV
-     ↓
-Parse Test Data
-     ↓
-Detect Events
-     ↓
-Calculate Thrust
-     ↓
-Calculate Total Impulse
-     ↓
-Determine Motor Class
-     ↓
-Calculate Performance Designation
-     ↓
-Display Results
-```
-
-The core pipeline has been validated using `TEST_008.CSV`.
-
----
-
-## Planned Features
-
-The project is expected to grow to include features such as:
-
-### Analysis
-
-- Interactive thrust-curve analysis
-- Event markers
-- Adjustable ignition and burnout points
-- Manual event adjustment
-- More robust event-detection algorithms
-- Additional data-quality diagnostics
-- Baseline correction
-- Signal filtering options
-- Configurable thrust polarity
-- More detailed motor performance statistics
-
-### Motor Information
-
-- User-entered motor designation
-- Manufacturer information
-- Motor type
-- Motor diameter
-- Motor length
-- Initial mass
-- Propellant mass
-- Motor metadata management
-- Comparison of measured performance against entered motor specifications
-
-### Data Import
-
-- Generic CSV import
-- User-defined column mapping
-- Time-column selection
-- Thrust-column selection
-- Unit selection
-- Support for additional test-stand data formats
-
-### Pressure and Performance Analysis
-
-- Chamber-pressure analysis
-- Pressure/thrust correlation
-- C* calculation when sufficient pressure, mass-flow, and nozzle data are available
-- Additional internal-ballistics analysis where appropriate data is available
-
-### Export and Interoperability
-
-- RASP `.eng` export
-- RockSim `.rse` export
-- OpenRocket compatibility
-- BurnSim compatibility
-- OpenMotor interoperability
-- Additional engineering data formats
-
-### Visualization
-
-- Advanced interactive thrust curves
-- Zooming and panning
-- Event markers
-- Cursor measurements
-- Multiple curve overlays
-- Comparison of multiple tests
-- Optional panels
-- Expandable plot area
-- Light and dark themes
-
-### Video Analysis
-
-- Test video import
-- Video synchronization with test data
-- Thrust-curve/video overlays
-- Animated test playback
-- Time synchronization tools
-
-### Application
-
-- Configurable application panels
-- Persistent user settings
-- Test project files
-- Improved test management
-- Packaged Windows installer
-- User documentation
-
-Features listed above are planned and may change as development progresses.
+The virtual environment is intentionally excluded from source control.
 
 ---
 
 ## Design Goals
-
-RMCS Analyzer is being developed with several core goals:
 
 ### Standalone
 
@@ -359,19 +533,23 @@ The finished application should operate as a normal desktop application rather t
 
 ### Modular
 
-Data import, analysis, visualization, and export functionality should remain separated into independent components.
+Data import, processing, analysis, visualization, persistence, and export should remain separated into independent components.
 
-### Extensible
+### Traceable
 
-The application should be able to accept data from RMCS as well as other compatible test stands.
+Calculated values should be traceable to the underlying measurement data and documented analysis methodology.
 
 ### Engineering-Focused
 
-Results should be presented in a way that is useful for analyzing real test data rather than simply displaying raw measurements.
+The application should provide useful engineering information without hiding how the reported values were produced.
 
-### Transparent
+### Extensible
 
-Calculated values should be traceable back to the underlying test data and analysis methods.
+The architecture should support future RMCS firmware output as well as additional standardized-compatible test data.
+
+### Protected Analysis Core
+
+The GUI should consume authoritative analysis results rather than implementing separate calculations that could diverge from the analysis engine.
 
 ---
 
@@ -388,5 +566,3 @@ Users are responsible for validating measurements, calculations, assumptions, an
 ## License
 
 License information will be added as the project develops.
-
-

@@ -16,16 +16,28 @@ class EventDetector:
     RMCS state information is preferred when available.
     A threshold-based fallback is provided for generic data.
 
-    The original EventResults API is preserved for compatibility.
+    The original EventResults API is preserved.
     A standardized EventSet representation is also available through
     detect_events().
+
+    For threshold-based detection, rocket motor thrust is treated as
+    positive thrust. Negative post-burn load-cell values are therefore
+    not interpreted as continued motor thrust.
+
+    Burnout is the first sustained transition below the thrust
+    threshold after ignition/peak, rather than simply the last sample
+    that happens to exceed the threshold.
     """
 
     def __init__(
         self,
         threshold_N: float = 5.0,
+        burnout_hold_time_s: float = 0.10,
     ):
-        self.threshold_N = threshold_N
+        self.threshold_N = float(threshold_N)
+        self.burnout_hold_time_s = float(
+            burnout_hold_time_s
+        )
 
     def detect(
         self,
@@ -225,9 +237,11 @@ class EventDetector:
         if len(burn_thrust) == 0:
             return EventResults()
 
+        # Motor thrust is treated as positive. Do not let a negative
+        # load-cell value become the reported peak.
         local_peak_index = int(
             np.argmax(
-                np.abs(burn_thrust)
+                burn_thrust
             )
         )
 
@@ -263,9 +277,20 @@ class EventDetector:
         test_data: TestData,
     ) -> EventResults:
         """
-        Detect events using a configurable thrust threshold.
+        Detect events using a configurable positive-thrust threshold.
 
-        This is the fallback for non-RMCS CSV data.
+        Ignition:
+            First sample at or above threshold.
+
+        Peak:
+            Maximum positive thrust between ignition and burnout.
+
+        Burnout:
+            First sample after the peak for which thrust remains below
+            threshold for burnout_hold_time_s.
+
+        If the signal never provides a sustained below-threshold
+        region, the final valid sample is used as the burnout boundary.
         """
 
         thrust = np.asarray(
@@ -273,9 +298,27 @@ class EventDetector:
             dtype=float,
         )
 
+        time = np.asarray(
+            test_data.time_s,
+            dtype=float,
+        )
+
+        if len(thrust) == 0:
+            return EventResults()
+
+        finite = np.isfinite(thrust)
+
+        if not np.any(finite):
+            return EventResults(
+                detection_method=(
+                    "Threshold — no event detected"
+                )
+            )
+
+        # Positive thrust is the expected motor-load direction.
         above_threshold = (
-            np.abs(thrust)
-            >= self.threshold_N
+            finite
+            & (thrust >= self.threshold_N)
         )
 
         indices = np.where(
@@ -293,9 +336,51 @@ class EventDetector:
             indices[0]
         )
 
-        # Find the final threshold crossing.
-        burnout_index = int(
-            indices[-1]
+        # Peak is found from the positive thrust signal after ignition.
+        peak_search = np.where(
+            finite
+            & (
+                np.arange(len(thrust))
+                >= ignition_index
+            )
+        )[0]
+
+        if len(peak_search) == 0:
+            return EventResults()
+
+        peak_index = int(
+            peak_search[
+                np.argmax(
+                    thrust[peak_search]
+                )
+            ]
+        )
+
+        # ---------------------------------------------------------
+        # Find sustained post-peak burnout.
+        #
+        # We look for the first below-threshold sample after the
+        # peak whose following samples remain below threshold for
+        # the configured hold time.
+        # ---------------------------------------------------------
+
+        burnout_index = self._find_sustained_burnout(
+            thrust,
+            time,
+            peak_index,
+        )
+
+        if burnout_index is None:
+            # No sustained below-threshold region was observed.
+            # Preserve the old API's useful fallback behavior.
+            burnout_index = int(
+                indices[-1]
+            )
+
+        # The burnout boundary should not precede the peak.
+        burnout_index = max(
+            burnout_index,
+            peak_index,
         )
 
         burn_slice = slice(
@@ -307,32 +392,18 @@ class EventDetector:
             burn_slice
         ]
 
-        local_peak_index = int(
-            np.argmax(
-                np.abs(burn_thrust)
-            )
-        )
-
-        peak_index = (
-            ignition_index
-            + local_peak_index
-        )
+        if len(burn_thrust) == 0:
+            return EventResults()
 
         return EventResults(
             ignition_time_s=float(
-                test_data.time_s[
-                    ignition_index
-                ]
+                time[ignition_index]
             ),
             burnout_time_s=float(
-                test_data.time_s[
-                    burnout_index
-                ]
+                time[burnout_index]
             ),
             peak_time_s=float(
-                test_data.time_s[
-                    peak_index
-                ]
+                time[peak_index]
             ),
             ignition_index=ignition_index,
             burnout_index=burnout_index,
@@ -341,3 +412,73 @@ class EventDetector:
                 "Threshold detection"
             ),
         )
+
+    def _find_sustained_burnout(
+        self,
+        thrust: np.ndarray,
+        time: np.ndarray,
+        peak_index: int,
+    ) -> int | None:
+        """
+        Find the first sustained below-threshold region after peak.
+
+        The returned index is the first sample below threshold in the
+        sustained region, so the reported burnout time corresponds to
+        the beginning of the post-burn transition rather than the end
+        of the recording.
+        """
+
+        if peak_index >= len(thrust) - 1:
+            return None
+
+        if (
+            not np.isfinite(self.burnout_hold_time_s)
+            or self.burnout_hold_time_s <= 0
+        ):
+            hold_time_s = 0.0
+        else:
+            hold_time_s = self.burnout_hold_time_s
+
+        for index in range(
+            peak_index + 1,
+            len(thrust),
+        ):
+
+            if not np.isfinite(thrust[index]):
+                continue
+
+            if thrust[index] >= self.threshold_N:
+                continue
+
+            target_time = (
+                time[index]
+                + hold_time_s
+            )
+
+            end_index = int(
+                np.searchsorted(
+                    time,
+                    target_time,
+                    side="left",
+                )
+            )
+
+            if end_index >= len(thrust):
+                # The recording ends before we can confirm the
+                # requested hold period.
+                continue
+
+            region = thrust[
+                index : end_index + 1
+            ]
+
+            if len(region) == 0:
+                continue
+
+            if np.all(
+                np.isfinite(region)
+                & (region < self.threshold_N)
+            ):
+                return index
+
+        return None

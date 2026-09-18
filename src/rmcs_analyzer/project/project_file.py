@@ -44,15 +44,16 @@ class ProjectFile:
     is successfully written. Runtime 'modified' flags are therefore
     not persisted as project data.
 
-    Project files currently remain format version 1 for compatibility
-    with existing RMCS Analyzer projects.
+    Project files use the current format version while retaining
+    read compatibility with legacy version-1 projects.
 
-    Legacy projects containing EventResults and unaligned time data
-    are migrated when loaded.
+    Legacy projects containing obsolete data-channel names,
+    EventResults, and unaligned time data are migrated when loaded.
     """
 
     FORMAT_NAME = "RMCS Analyzer Project"
-    FORMAT_VERSION = 1
+    FORMAT_VERSION = 2
+    LEGACY_FORMAT_VERSION = 1
     FILE_EXTENSION = ".rmcs"
 
     # =============================================================
@@ -307,10 +308,12 @@ class ProjectFile:
         }
 
         optional_arrays = {
-            "raw_hx711": data.raw_hx711,
+            "calibrated_time_s": data.calibrated_time_s,
+            "raw_thrust_N": data.raw_thrust_N,
+            "prop_loss_kg": data.prop_loss_kg,
+            "pressure_psi": data.pressure_psi,
             "delta": data.delta,
             "state": data.state,
-            "pressure_kPa": data.pressure_kPa,
         }
 
         for name, array in optional_arrays.items():
@@ -429,20 +432,37 @@ class ProjectFile:
                 f"Missing test data: {data_path}"
             ) from error
 
+        # Current projects use standardized channel names.
+        # Version-1 projects may contain the obsolete raw_hx711 and
+        # pressure_kPa arrays. Legacy raw_hx711 cannot safely be
+        # relabeled as raw_thrust_N, so it is intentionally not
+        # migrated into a different physical quantity. Legacy
+        # pressure is converted from kPa to the current PSI unit.
+        if "pressure_psi" in arrays:
+            pressure_psi = arrays["pressure_psi"]
+        elif "pressure_kPa" in arrays:
+            pressure_psi = arrays["pressure_kPa"] * 0.14503773773020923
+        else:
+            pressure_psi = None
+
         test_data = TestData(
             time_s=arrays["time_s"],
             thrust_N=arrays["thrust_N"],
-            raw_hx711=arrays.get(
-                "raw_hx711"
+            calibrated_time_s=arrays.get(
+                "calibrated_time_s"
             ),
+            raw_thrust_N=arrays.get(
+                "raw_thrust_N"
+            ),
+            prop_loss_kg=arrays.get(
+                "prop_loss_kg"
+            ),
+            pressure_psi=pressure_psi,
             delta=arrays.get(
                 "delta"
             ),
             state=arrays.get(
                 "state"
-            ),
-            pressure_kPa=arrays.get(
-                "pressure_kPa"
             ),
             metadata=test_metadata,
         )
@@ -619,9 +639,24 @@ class ProjectFile:
         test.data = TestData(
             time_s=aligned_time,
             thrust_N=data.thrust_N.copy(),
-            raw_hx711=(
-                data.raw_hx711.copy()
-                if data.raw_hx711 is not None
+            calibrated_time_s=(
+                data.calibrated_time_s.copy()
+                if data.calibrated_time_s is not None
+                else None
+            ),
+            raw_thrust_N=(
+                data.raw_thrust_N.copy()
+                if data.raw_thrust_N is not None
+                else None
+            ),
+            prop_loss_kg=(
+                data.prop_loss_kg.copy()
+                if data.prop_loss_kg is not None
+                else None
+            ),
+            pressure_psi=(
+                data.pressure_psi.copy()
+                if data.pressure_psi is not None
                 else None
             ),
             delta=(
@@ -632,11 +667,6 @@ class ProjectFile:
             state=(
                 data.state.copy()
                 if data.state is not None
-                else None
-            ),
-            pressure_kPa=(
-                data.pressure_kPa.copy()
-                if data.pressure_kPa is not None
                 else None
             ),
             metadata=data.metadata,
@@ -710,9 +740,13 @@ class ProjectFile:
             ),
             "tare_raw": metadata.tare_raw,
             "motor_designation": metadata.motor_designation,
+            "motor_type": metadata.motor_type,
             "manufacturer": metadata.manufacturer,
             "builder": metadata.builder,
+            "case_material": metadata.case_material,
             "test_date": metadata.test_date,
+            "test_stand": metadata.test_stand,
+            "test_operator": metadata.test_operator,
             "location": metadata.location,
             "motor_diameter": metadata.motor_diameter,
             "motor_length": metadata.motor_length,
@@ -721,8 +755,15 @@ class ProjectFile:
             "propellant_type": metadata.propellant_type,
             "nozzle_throat": metadata.nozzle_throat,
             "nozzle_exit": metadata.nozzle_exit,
+            "nozzle_material": metadata.nozzle_material,
+            "load_cell": metadata.load_cell,
+            "load_cell_calibration": metadata.load_cell_calibration,
+            "pressure_sensor": metadata.pressure_sensor,
+            "pressure_sensor_calibration": metadata.pressure_sensor_calibration,
+            "sample_rate_hz": metadata.sample_rate_hz,
             "notes": metadata.notes,
         }
+
 
     @staticmethod
     def _deserialize_metadata(
@@ -731,68 +772,40 @@ class ProjectFile:
         """Convert JSON data back into TestMetadata."""
 
         return TestMetadata(
-            source_file=data.get(
-                "source_file",
-                "",
-            ),
-            rmcs_version=data.get(
-                "rmcs_version"
-            ),
-            test_number=data.get(
-                "test_number"
-            ),
+            source_file=data.get("source_file", ""),
+            rmcs_version=data.get("rmcs_version"),
+            test_number=data.get("test_number"),
             calibration_counts_per_newton=data.get(
                 "calibration_counts_per_newton"
             ),
-            tare_raw=data.get(
-                "tare_raw"
+            tare_raw=data.get("tare_raw"),
+            motor_designation=data.get("motor_designation", ""),
+            motor_type=data.get("motor_type", ""),
+            manufacturer=data.get("manufacturer", ""),
+            builder=data.get("builder", ""),
+            case_material=data.get("case_material", ""),
+            test_date=data.get("test_date", ""),
+            test_stand=data.get("test_stand", ""),
+            test_operator=data.get("test_operator", ""),
+            location=data.get("location", ""),
+            motor_diameter=data.get("motor_diameter"),
+            motor_length=data.get("motor_length"),
+            initial_mass=data.get("initial_mass"),
+            propellant_mass=data.get("propellant_mass"),
+            propellant_type=data.get("propellant_type", ""),
+            nozzle_throat=data.get("nozzle_throat"),
+            nozzle_exit=data.get("nozzle_exit"),
+            nozzle_material=data.get("nozzle_material", ""),
+            load_cell=data.get("load_cell", ""),
+            load_cell_calibration=data.get(
+                "load_cell_calibration", ""
             ),
-            motor_designation=data.get(
-                "motor_designation",
-                "",
+            pressure_sensor=data.get("pressure_sensor", ""),
+            pressure_sensor_calibration=data.get(
+                "pressure_sensor_calibration", ""
             ),
-            manufacturer=data.get(
-                "manufacturer",
-                "",
-            ),
-            builder=data.get(
-                "builder",
-                "",
-            ),
-            test_date=data.get(
-                "test_date",
-                "",
-            ),
-            location=data.get(
-                "location",
-                "",
-            ),
-            motor_diameter=data.get(
-                "motor_diameter"
-            ),
-            motor_length=data.get(
-                "motor_length"
-            ),
-            initial_mass=data.get(
-                "initial_mass"
-            ),
-            propellant_mass=data.get(
-                "propellant_mass"
-            ),
-            propellant_type=data.get(
-                "propellant_type",
-                "",
-            ),
-            nozzle_throat=data.get(
-                "nozzle_throat"
-            ),
-            nozzle_exit=data.get(
-                "nozzle_exit"
-            ),
-            notes=data.get(
-                "notes",
-                "",
-            ),
+            sample_rate_hz=data.get("sample_rate_hz"),
+            notes=data.get("notes", ""),
         )
 
     # =============================================================
@@ -1220,7 +1233,10 @@ class ProjectFile:
             "format_version"
         )
 
-        if version != cls.FORMAT_VERSION:
+        if version not in (
+            cls.FORMAT_VERSION,
+            cls.LEGACY_FORMAT_VERSION,
+        ):
 
             raise ProjectFileError(
                 (

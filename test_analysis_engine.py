@@ -16,67 +16,32 @@ def main():
     print("RMCS Analyzer Analysis Engine Tests")
     print("=" * 70)
 
-    # ---------------------------------------------------------
-    # Load real test data
-    # ---------------------------------------------------------
-
-    print_header("Load TEST_010 sample")
+    print_header("Load Zerox reference")
 
     reader = RMCSCSVReader()
+    test_data = reader.read("test_data/Zerox.csv")
 
-    test_data = reader.read(
-        "test_data/TEST_010_SAMPLE_MOTOR.csv"
-    )
+    print(f"Samples:              {test_data.sample_count}")
+    print(f"Duration:             {test_data.duration_s:.3f} s")
+    print(f"Sample rate:          {test_data.sample_rate_hz:.3f} Hz")
 
-    print(
-        f"Samples:              "
-        f"{test_data.sample_count}"
-    )
-
-    print(
-        f"Duration:             "
-        f"{test_data.duration_s:.3f} s"
-    )
-
-    print(
-        f"Sample rate:          "
-        f"{test_data.sample_rate_hz:.3f} Hz"
-    )
-
-    assert test_data.sample_count == 435
+    assert test_data.sample_count == 661
+    assert np.isclose(test_data.duration_s, 8.538)
+    assert np.isclose(test_data.sample_rate_hz, 77.3014757554)
 
     print("Data loading:         PASSED")
-
-    # ---------------------------------------------------------
-    # Run analysis without supplied events
-    # ---------------------------------------------------------
 
     print_header("AnalysisEngine event fallback")
 
     engine = AnalysisEngine()
-
-    analysis = engine.analyze(
-        test_data
-    )
+    analysis = engine.analyze(test_data)
 
     assert analysis is not None
     assert analysis.events is not None
 
-    print(
-        f"Analysis result:      "
-        f"{type(analysis).__name__}"
-    )
-
-    print(
-        f"Events generated:     "
-        f"{type(analysis.events).__name__}"
-    )
-
+    print(f"Analysis result:      {type(analysis).__name__}")
+    print(f"Events generated:     {type(analysis.events).__name__}")
     print("Event fallback:       PASSED")
-
-    # ---------------------------------------------------------
-    # Verify detected events
-    # ---------------------------------------------------------
 
     print_header("Detected events")
 
@@ -86,47 +51,19 @@ def main():
     assert events.burnout is not None
     assert events.peak_thrust is not None
 
-    print(
-        f"Ignition:             "
-        f"{events.ignition.time_s:.3f} s"
-    )
+    print(f"Ignition:             {events.ignition.time_s:.3f} s")
+    print(f"Peak:                 {events.peak_thrust.time_s:.3f} s")
+    print(f"Burnout:              {events.burnout.time_s:.3f} s")
 
-    print(
-        f"Peak:                 "
-        f"{events.peak_thrust.time_s:.3f} s"
-    )
-
-    print(
-        f"Burnout:              "
-        f"{events.burnout.time_s:.3f} s"
-    )
-
-    assert np.isclose(
-        events.ignition.time_s,
-        0.035,
-    )
-
-    assert np.isclose(
-        events.peak_thrust.time_s,
-        0.246,
-    )
-
-    assert np.isclose(
-        events.burnout.time_s,
-        4.890,
-    )
+    assert np.isclose(events.ignition.time_s, 0.215)
+    assert np.isclose(events.peak_thrust.time_s, 0.349)
+    assert np.isclose(events.burnout.time_s, 8.753)
 
     print("Event results:        PASSED")
 
-    # ---------------------------------------------------------
-    # Supply an authoritative EventSet
-    # ---------------------------------------------------------
-
     print_header("Supplied EventSet")
 
-    supplied_events = EventSet(
-        events=list(events.events)
-    )
+    supplied_events = EventSet(events=list(events.events))
 
     supplied_analysis = engine.analyze(
         test_data,
@@ -135,163 +72,119 @@ def main():
 
     assert supplied_analysis.events is supplied_events
 
-    print(
-        f"Supplied events used: "
-        f"{'YES' if supplied_analysis.events is supplied_events else 'NO'}"
-    )
-
-    print(
-        f"Same event count:     "
-        f"{'YES' if len(supplied_analysis.events.events) == len(events.events) else 'NO'}"
-    )
-
-    assert len(
-        supplied_analysis.events.events
-    ) == len(events.events)
-
+    print("Supplied events used: YES")
     print("Event handoff:        PASSED")
 
-    # ---------------------------------------------------------
-    # Thrust results
-    # ---------------------------------------------------------
+    print_header("Legacy Phase 1 results")
 
-    print_header("Thrust results")
+    legacy_thrust = supplied_analysis.thrust
+
+    print(f"Peak thrust:          {legacy_thrust.peak_thrust_N:.3f} N")
+    print(f"Average thrust:       {legacy_thrust.average_thrust_N:.3f} N")
+    print(f"Total impulse:        {legacy_thrust.total_impulse_Ns:.3f} Ns")
+    print(f"Burn time:            {legacy_thrust.burn_time_s:.3f} s")
+
+    assert np.isclose(legacy_thrust.peak_thrust_N, 3230.33973, atol=0.001)
+    assert np.isclose(legacy_thrust.average_thrust_N, 1694.980595, atol=0.001)
+    assert np.isclose(legacy_thrust.total_impulse_Ns, 14471.744320, atol=0.001)
+    assert np.isclose(legacy_thrust.burn_time_s, 8.538, atol=0.001)
+
+    print("Legacy results:      PASSED")
+
+    print_header("Standardized Phase 2 results")
 
     thrust = supplied_analysis.thrust
 
-    assert thrust is not None
-
     print(
-        f"Peak thrust:          "
-        f"{thrust.peak_thrust_N:.3f} N"
+        f"5% burn start:        "
+        f"{thrust.burn_start_5pct_time_s:.6f} s"
     )
-
     print(
-        f"Average thrust:       "
-        f"{thrust.average_thrust_N:.3f} N"
+        f"5% burn end:          "
+        f"{thrust.burn_end_5pct_time_s:.6f} s"
     )
-
     print(
-        f"Total impulse:        "
-        f"{thrust.total_impulse_Ns:.3f} Ns"
+        f"5% burn time:         "
+        f"{thrust.burn_time_5pct_s:.6f} s"
     )
-
     print(
-        f"Burn time:            "
-        f"{thrust.burn_time_s:.3f} s"
+        f"5% average thrust:    "
+        f"{thrust.average_thrust_5pct_N:.6f} N"
     )
-
     print(
-        f"Time to peak:         "
-        f"{thrust.time_to_peak_s:.3f} s"
+        f"Initial thrust:        "
+        f"{thrust.initial_thrust_average_N:.6f} N"
     )
-
-    assert thrust.peak_thrust_N is not None
-    assert thrust.average_thrust_N is not None
-    assert thrust.total_impulse_Ns is not None
-    assert thrust.burn_time_s is not None
-    assert thrust.time_to_peak_s is not None
+    print(
+        f"Valid-curve impulse:   "
+        f"{thrust.total_impulse_valid_curve_Ns:.6f} Ns"
+    )
+    print(f"Impulse class:         {thrust.impulse_class}")
+    print(f"Designation:           {thrust.designation}")
 
     assert np.isclose(
-        thrust.peak_thrust_N,
-        363.004,
-        atol=0.2,
+        thrust.burn_start_5pct_time_s,
+        0.04420975344518875,
+        atol=1e-9,
     )
-
     assert np.isclose(
-        thrust.total_impulse_Ns,
-        1116.58,
-        atol=2.0,
+        thrust.burn_end_5pct_time_s,
+        7.11732555623781,
+        atol=1e-9,
     )
+    assert np.isclose(
+        thrust.burn_time_5pct_s,
+        7.07311580279262,
+        atol=1e-9,
+    )
+    assert np.isclose(
+        thrust.average_thrust_5pct_N,
+        2031.2252465307192,
+        atol=1e-6,
+    )
+    assert np.isclose(
+        thrust.initial_thrust_average_N,
+        2635.8340208356663,
+        atol=1e-6,
+    )
+    assert np.isclose(
+        thrust.total_impulse_valid_curve_Ns,
+        14471.744319591,
+        atol=1e-6,
+    )
+    assert thrust.impulse_class == "N"
+    assert thrust.designation == "N2031"
 
-    print("Thrust analysis:      PASSED")
+    print("Standardized results: PASSED")
 
-    # ---------------------------------------------------------
-    # Statistics
-    # ---------------------------------------------------------
-
-    print_header("Statistics")
+    print_header("Statistics and classification")
 
     statistics = supplied_analysis.statistics
-
-    assert statistics is not None
-
-    print(
-        f"Statistics result:    "
-        f"{type(statistics).__name__}"
-    )
-
-    print("Statistics included:  YES")
-    print("Statistics:           PASSED")
-
-    # ---------------------------------------------------------
-    # Classification
-    # ---------------------------------------------------------
-
-    print_header("Motor classification")
-
     classification = supplied_analysis.classification
 
-    assert classification is not None
+    assert statistics.sample_count == 661
+    assert np.isclose(statistics.maximum_thrust_N, 3230.33973, atol=0.001)
+    assert classification.motor_class == "N"
 
-    print(
-        f"Motor class:          "
-        f"{classification.motor_class}"
-    )
-
-    assert classification.motor_class == "J"
-
+    print(f"Sample count:         {statistics.sample_count}")
+    print(f"Maximum thrust:       {statistics.maximum_thrust_N:.3f} N")
+    print(f"Motor class:          {classification.motor_class}")
+    print("Statistics:           PASSED")
     print("Classification:       PASSED")
-
-    # ---------------------------------------------------------
-    # Combined result
-    # ---------------------------------------------------------
-
-    print_header("Combined AnalysisResults")
-
-    assert supplied_analysis.events is supplied_events
-    assert supplied_analysis.thrust is thrust
-    assert supplied_analysis.statistics is statistics
-    assert supplied_analysis.classification is classification
-
-    print("Events included:      YES")
-    print("Thrust included:      YES")
-    print("Statistics included:  YES")
-    print("Classification:       YES")
-
-    print("Combined result:      PASSED")
-
-    # ---------------------------------------------------------
-    # Raw data protection
-    # ---------------------------------------------------------
 
     print_header("Raw data protection")
 
     original_time = test_data.time_s.copy()
     original_thrust = test_data.thrust_N.copy()
 
-    engine.analyze(
-        test_data,
-        events=supplied_events,
-    )
+    engine.analyze(test_data, events=supplied_events)
 
-    assert np.array_equal(
-        test_data.time_s,
-        original_time,
-    )
-
-    assert np.array_equal(
-        test_data.thrust_N,
-        original_thrust,
-    )
+    assert np.array_equal(test_data.time_s, original_time)
+    assert np.array_equal(test_data.thrust_N, original_thrust)
 
     print("Time unchanged:       YES")
     print("Thrust unchanged:     YES")
     print("Raw data protection:  PASSED")
-
-    # ---------------------------------------------------------
-    # Final result
-    # ---------------------------------------------------------
 
     print()
     print("=" * 70)

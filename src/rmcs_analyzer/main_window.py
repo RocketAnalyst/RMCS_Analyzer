@@ -21,7 +21,10 @@ from .theme import APPLICATION_STYLE
 from .data import (
     CSVReadError,
     RMCSCSVReader,
+    TestData,
 )
+
+import numpy as np
 
 from .analysis import (
     AnalysisEngine,
@@ -1338,10 +1341,14 @@ class MainWindow(QMainWindow):
         """
         Process and analyze a TestData object.
 
-        The GUI establishes an automatic pre-ignition baseline
-        and automatically aligns the prepared time axis to ignition.
+        The GUI establishes an automatic pre-ignition baseline and
+        automatically aligns the prepared time axis to ignition.
 
-        Raw data remains untouched.
+        If the CSV provides Time Cal (s), that timeline is used for
+        event detection and baseline timing so that all time-based
+        processing uses the same analysis timeline as the pipeline.
+
+        Raw imported data remains untouched.
         """
 
         processing_settings = (
@@ -1349,12 +1356,78 @@ class MainWindow(QMainWindow):
         )
 
         # ---------------------------------------------------------
+        # Establish the timeline used for preliminary event
+        # detection.
+        #
+        # Format 1.0 preserves the original acquisition Time(s)
+        # and may also provide Time Cal(s).  The processing pipeline
+        # uses Time Cal(s) when it is valid, so preliminary event
+        # detection must use the same timeline.
+        # ---------------------------------------------------------
+
+        analysis_timeline = test_data.time_s
+
+        calibrated_time = (
+            test_data.calibrated_time_s
+        )
+
+        if (
+            calibrated_time is not None
+            and len(calibrated_time) == test_data.sample_count
+            and np.all(np.isfinite(calibrated_time))
+        ):
+            analysis_timeline = calibrated_time
+
+        preliminary_test_data = test_data
+
+        if analysis_timeline is not test_data.time_s:
+
+            preliminary_test_data = TestData(
+                time_s=np.asarray(
+                    analysis_timeline,
+                    dtype=float,
+                ).copy(),
+                thrust_N=test_data.thrust_N.copy(),
+                calibrated_time_s=(
+                    None
+                    if test_data.calibrated_time_s is None
+                    else test_data.calibrated_time_s.copy()
+                ),
+                raw_thrust_N=(
+                    None
+                    if test_data.raw_thrust_N is None
+                    else test_data.raw_thrust_N.copy()
+                ),
+                prop_loss_kg=(
+                    None
+                    if test_data.prop_loss_kg is None
+                    else test_data.prop_loss_kg.copy()
+                ),
+                pressure_psi=(
+                    None
+                    if test_data.pressure_psi is None
+                    else test_data.pressure_psi.copy()
+                ),
+                delta=(
+                    None
+                    if test_data.delta is None
+                    else test_data.delta.copy()
+                ),
+                state=(
+                    None
+                    if test_data.state is None
+                    else test_data.state.copy()
+                ),
+                metadata=test_data.metadata,
+            )
+
+        # ---------------------------------------------------------
         # Determine automatic pre-ignition baseline.
         # ---------------------------------------------------------
 
         preliminary_events = (
             self.analysis_engine.event_detector.detect_events(
-                test_data
+                preliminary_test_data
             )
         )
 
@@ -1375,7 +1448,7 @@ class MainWindow(QMainWindow):
 
                 processing_settings.baseline.baseline_end_time_s = (
                     float(
-                        test_data.time_s[
+                        analysis_timeline[
                             baseline_index
                         ]
                     )
@@ -1858,9 +1931,20 @@ class MainWindow(QMainWindow):
             test
         )
 
+        burnout_time_s = None
+
+        if test.analysis_results is not None:
+            burnout_event = (
+                test.analysis_results.events.burnout
+            )
+
+            if burnout_event is not None:
+                burnout_time_s = burnout_event.time_s
+
         self.thrust_plot.set_data(
             test.data.time_s,
             test.data.thrust_N,
+            burnout_time_s=burnout_time_s,
         )
 
         if test.analysis_results is not None:

@@ -1,6 +1,6 @@
 import csv
-import os
-from typing import List, Optional, Tuple
+from pathlib import Path
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -8,495 +8,606 @@ from .models import TestData, TestMetadata
 
 
 class CSVReadError(Exception):
-    """Raised when a CSV test file cannot be read."""
-
-    pass
+    """Raised when an RMCS Analyzer CSV cannot be read safely."""
 
 
 class RMCSCSVReader:
     """
-    Reader for RMCS Analyzer CSV Format 1.0.
+    Read standardized RMCS Analyzer CSV files.
 
-    The file contains:
-        1. A two-column metadata section.
-        2. A measurement-data header.
-        3. Time-series measurement data.
+    Format 1.0 supports a required minimum of:
 
-    Required measurement columns:
         Sample
         Time(s)
-        Thrust (N)
 
-    Optional measurement columns:
-        Time Cal (s)
-        Raw Thrust (N)
-        Prop Loss (kg)
-        Pressure (psi)
+    plus at least one thrust channel:
 
-    The reader does not perform processing, baseline correction,
-    event detection, or time alignment. It only converts the CSV
-    into the application's TestData/TestMetadata models.
+        Thrust (N)       preferred/calibrated thrust
+        Raw Thrust (N)   fallback thrust
+
+    Analysis-channel selection is deliberately handled here at the
+    source-normalization boundary:
+
+        Time:
+            Time Cal (s) -> Time(s)
+
+        Thrust:
+            Thrust (N) -> Raw Thrust (N)
+
+    The original source channels are still preserved separately on
+    TestData whenever they are present.
+
+    Optional channels are never required for analysis.
     """
 
     FORMAT_VERSION = "1.0"
 
-    REQUIRED_COLUMNS = {
+    REQUIRED_COLUMNS = (
         "Sample",
         "Time(s)",
-        "Thrust (N)",
-    }
+    )
 
-    OPTIONAL_COLUMNS = {
+    OPTIONAL_COLUMNS = (
         "Time Cal (s)",
         "Raw Thrust (N)",
         "Prop Loss (kg)",
         "Pressure (psi)",
+    )
+
+    # Metadata keys used by Format 1.0.
+    METADATA_FIELDS = {
+        "Format Version": ("format_version", str),
+        "Test Number": ("test_number", int),
+        "Test Date": ("test_date", str),
+        "Test Stand": ("test_stand", str),
+        "Test Operator": ("test_operator", str),
+        "Location": ("location", str),
+        "Notes": ("notes", str),
+        "Motor Designation": ("motor_designation", str),
+        "Motor Type": ("motor_type", str),
+        "Manufacturer": ("manufacturer", str),
+        "Builder": ("builder", str),
+        "Case Material": ("case_material", str),
+        "Motor Diameter (in)": ("motor_diameter", float),
+        "Motor Length (in)": ("motor_length", float),
+        "Initial Mass (g)": ("initial_mass", float),
+        "Propellant Mass (g)": ("propellant_mass", float),
+        "Propellant Type": ("propellant_type", str),
+        "Nozzle Throat Diameter (in)": ("nozzle_throat", float),
+        "Nozzle Exit Diameter (in)": ("nozzle_exit", float),
+        "Nozzle Material": ("nozzle_material", str),
+        "Load Cell": ("load_cell", str),
+        "Load Cell Calibration": ("load_cell_calibration", str),
+        "Pressure Sensor": ("pressure_sensor", str),
+        "Pressure Sensor Calibration": (
+            "pressure_sensor_calibration",
+            str,
+        ),
+        "Sample Rate (Hz)": ("sample_rate_hz", float),
     }
 
-    def read(self, filename: str) -> TestData:
-        """
-        Read an RMCS Analyzer CSV Format 1.0 file.
+    # Legacy metadata names retained for compatibility with older
+    # standardized drafts.
+    LEGACY_METADATA_FIELDS = {
+        "RMCS Version": ("rmcs_version", str),
+        "Calibration Counts Per Newton": (
+            "calibration_counts_per_newton",
+            float,
+        ),
+        "Tare Raw": ("tare_raw", int),
+    }
 
-        Parameters
-        ----------
-        filename:
-            Path to the CSV file.
+    def read(self, filename) -> TestData:
+        """Read and normalize one RMCS Analyzer CSV file."""
 
-        Returns
-        -------
-        TestData
-            Parsed test data and metadata.
+        path = Path(filename)
 
-        Raises
-        ------
-        CSVReadError
-            If the file cannot be read or required data is missing.
-        """
-
-        if not os.path.isfile(filename):
+        if not path.exists():
             raise CSVReadError(
-                f"File does not exist:\n{filename}"
+                f"CSV file does not exist:\n{path}"
+            )
+
+        if not path.is_file():
+            raise CSVReadError(
+                f"CSV path is not a file:\n{path}"
             )
 
         try:
-            with open(
-                filename,
+            with path.open(
                 "r",
-                newline="",
                 encoding="utf-8-sig",
-            ) as file:
-                rows = list(csv.reader(file))
-        except OSError as exc:
+                newline="",
+            ) as handle:
+                rows = list(
+                    csv.reader(handle)
+                )
+        except OSError as error:
             raise CSVReadError(
-                f"Unable to open file:\n{exc}"
-            ) from exc
+                f"Unable to read CSV file:\n{error}"
+            ) from error
+        except csv.Error as error:
+            raise CSVReadError(
+                f"Unable to parse CSV file:\n{error}"
+            ) from error
 
         if not rows:
             raise CSVReadError(
                 "The CSV file is empty."
             )
 
-        metadata = self._read_metadata(
-            rows,
-            filename,
-        )
+        metadata = self._read_metadata(rows)
+        metadata.source_file = str(path)
 
-        header_index = self._find_data_header(rows)
+        data_header_index = self._find_data_header(rows)
 
-        if header_index is None:
+        if data_header_index is None:
             raise CSVReadError(
-                "Could not find the RMCS Analyzer measurement "
-                "header row."
+                "No measurement header was found."
             )
 
-        headers = [
-            column.strip()
-            for column in rows[header_index]
+        header = self._normalize_header(
+            rows[data_header_index]
+        )
+
+        missing_required = [
+            column
+            for column in self.REQUIRED_COLUMNS
+            if column not in header
         ]
 
-        header_map = {
+        if missing_required:
+            raise CSVReadError(
+                "The CSV file is missing required "
+                f"measurement column(s): "
+                f"{', '.join(missing_required)}"
+            )
+
+        column_indices = {
             name: index
-            for index, name in enumerate(headers)
+            for index, name in enumerate(header)
             if name
         }
 
-        missing = (
-            self.REQUIRED_COLUMNS
-            - set(header_map.keys())
+        # A test must have either calibrated/authoritative thrust or
+        # raw thrust available.  Thrust(N) remains preferred.
+        has_thrust_column = (
+            "Thrust (N)" in column_indices
         )
 
-        if missing:
-            missing_text = ", ".join(
-                sorted(missing)
-            )
+        has_raw_thrust_column = (
+            "Raw Thrust (N)" in column_indices
+        )
 
+        if not has_thrust_column and not has_raw_thrust_column:
             raise CSVReadError(
-                "Required columns are missing:\n"
-                f"{missing_text}"
+                "No thrust measurement was found. "
+                "The file must contain either "
+                "'Thrust (N)' or 'Raw Thrust (N)'."
             )
 
-        data_rows = rows[
-            header_index + 1 :
-        ]
-
-        parsed = self._parse_data_rows(
-            data_rows,
-            header_map,
+        (
+            sample_numbers,
+            time_s,
+            calibrated_time_s,
+            raw_thrust_N,
+            prop_loss_kg,
+            thrust_N,
+            pressure_psi,
+        ) = self._parse_data_rows(
+            rows[
+                data_header_index + 1 :
+            ],
+            column_indices,
         )
 
-        if parsed is None:
+        if len(sample_numbers) == 0:
             raise CSVReadError(
                 "No valid measurement data was found."
             )
 
-        (
-            time_s,
-            calibrated_time_s,
-            thrust_N,
-            raw_thrust_N,
-            prop_loss_kg,
-            pressure_psi,
-        ) = parsed
+        if len(time_s) != len(thrust_N):
+            raise CSVReadError(
+                "Time and thrust channels contain "
+                "different numbers of valid samples."
+            )
 
         return TestData(
-            time_s=np.asarray(
-                time_s,
-                dtype=float,
-            ),
-            thrust_N=np.asarray(
-                thrust_N,
-                dtype=float,
-            ),
-            calibrated_time_s=self._to_optional_array(
-                calibrated_time_s
-            ),
-            raw_thrust_N=self._to_optional_array(
-                raw_thrust_N
-            ),
-            prop_loss_kg=self._to_optional_array(
-                prop_loss_kg
-            ),
-            pressure_psi=self._to_optional_array(
-                pressure_psi
-            ),
+            time_s=time_s,
+            thrust_N=thrust_N,
+            calibrated_time_s=calibrated_time_s,
+            raw_thrust_N=raw_thrust_N,
+            prop_loss_kg=prop_loss_kg,
+            pressure_psi=pressure_psi,
             metadata=metadata,
         )
+
+    # =========================================================
+    # METADATA
+    # =========================================================
 
     def _read_metadata(
         self,
         rows: List[List[str]],
-        filename: str,
     ) -> TestMetadata:
-        """
-        Read the standardized metadata section.
+        """Read Format 1.0 metadata rows before the data header."""
 
-        Unknown metadata fields are ignored so that the format
-        can be extended in the future without breaking the reader.
-        """
-
-        metadata = TestMetadata(
-            source_file=os.path.basename(filename)
-        )
+        values: Dict[str, str] = {}
 
         for row in rows:
-            if len(row) < 2:
+            if not row:
                 continue
 
-            key = row[0].strip()
-            value = row[1].strip()
+            key = self._normalize_metadata_key(
+                row[0]
+            )
 
             if not key:
                 continue
 
-            if key == "Format Version":
-                metadata.rmcs_version = value
+            # Stop once the measurement table begins.
+            if self._normalize_column_name(key) == "Sample":
+                break
 
-            elif key == "Test Number":
-                metadata.test_number = self._parse_int(value)
+            if len(row) < 2:
+                value = ""
+            else:
+                value = row[1].strip()
 
-            elif key == "Test Date":
-                metadata.test_date = value
+            if key in self.METADATA_FIELDS:
+                if key == "Format Version" and value == "1":
+                    value = "1.0"
+                values[key] = value
 
-            elif key == "Test Stand":
-                metadata.test_stand = value
+            elif key in self.LEGACY_METADATA_FIELDS:
+                values[key] = value
 
-            elif key == "Test Operator":
-                metadata.test_operator = value
+        metadata = TestMetadata()
 
-            elif key == "Location":
-                metadata.location = value
-
-            elif key == "Notes":
-                metadata.notes = value
-
-            elif key == "Motor Designation":
-                metadata.motor_designation = value
-
-            elif key == "Motor Type":
-                metadata.motor_type = value
-
-            elif key == "Manufacturer":
-                metadata.manufacturer = value
-
-            elif key == "Builder":
-                metadata.builder = value
-
-            elif key == "Case Material":
-                metadata.case_material = value
-
-            elif key == "Motor Diameter (in)":
-                metadata.motor_diameter = self._parse_float(value)
-
-            elif key == "Motor Length (in)":
-                metadata.motor_length = self._parse_float(value)
-
-            elif key == "Initial Mass (g)":
-                metadata.initial_mass = self._parse_float(value)
-
-            elif key == "Propellant Mass (g)":
-                metadata.propellant_mass = self._parse_float(value)
-
-            elif key == "Propellant Type":
-                metadata.propellant_type = value
-
-            elif key == "Nozzle Throat Diameter (in)":
-                metadata.nozzle_throat = self._parse_float(value)
-
-            elif key == "Nozzle Exit Diameter (in)":
-                metadata.nozzle_exit = self._parse_float(value)
-
-            elif key == "Nozzle Material":
-                metadata.nozzle_material = value
-
-            elif key == "Load Cell":
-                metadata.load_cell = value
-
-            elif key == "Load Cell Calibration":
-                metadata.load_cell_calibration = value
-
-            elif key == "Pressure Sensor":
-                metadata.pressure_sensor = value
-
-            elif key == "Pressure Sensor Calibration":
-                metadata.pressure_sensor_calibration = value
-
-            elif key == "Sample Rate (Hz)":
-                metadata.sample_rate_hz = self._parse_float(value)
-
-            # Legacy RMCS metadata is still recognized.
-            elif key == "RMCS Version":
-                metadata.rmcs_version = value
-
-            elif key == "Calibration Counts Per Newton":
-                metadata.calibration_counts_per_newton = (
-                    self._parse_float(value)
-                )
-
-            elif key == "Tare Raw":
-                metadata.tare_raw = self._parse_int(value)
+        # The source filename is filled by the caller-independent
+        # reader once the object exists.
+        self._assign_metadata_values(
+            metadata,
+            values,
+        )
 
         return metadata
+
+    def _assign_metadata_values(
+        self,
+        metadata: TestMetadata,
+        values: Dict[str, str],
+    ):
+        """Convert metadata strings into TestMetadata fields."""
+
+        for key, value in values.items():
+
+            field_info = (
+                self.METADATA_FIELDS.get(key)
+                or self.LEGACY_METADATA_FIELDS.get(key)
+            )
+
+            if field_info is None:
+                continue
+
+            attribute_name, value_type = field_info
+
+            if value == "":
+                converted = None if value_type is not str else ""
+            else:
+                try:
+                    converted = self._convert_metadata_value(
+                        value,
+                        value_type,
+                    )
+                except ValueError:
+                    # Metadata that cannot be converted should not
+                    # prevent otherwise valid test data from loading.
+                    converted = None if value_type is not str else value
+
+            if hasattr(metadata, attribute_name):
+                setattr(
+                    metadata,
+                    attribute_name,
+                    converted,
+                )
+
+    @staticmethod
+    def _convert_metadata_value(
+        value: str,
+        value_type,
+    ):
+        if value_type is str:
+            return value.strip()
+
+        if value_type is int:
+            return int(float(value))
+
+        if value_type is float:
+            return float(value)
+
+        return value
+
+    # =========================================================
+    # DATA HEADER
+    # =========================================================
 
     def _find_data_header(
         self,
         rows: List[List[str]],
     ) -> Optional[int]:
         """
-        Find the standardized measurement header row.
+        Locate the standardized measurement header.
 
-        Blank rows and metadata rows are ignored.
+        The reader intentionally recognizes a header by its required
+        columns rather than relying on a fixed metadata row count.
         """
 
         for index, row in enumerate(rows):
-            normalized = {
-                column.strip()
-                for column in row
-                if column.strip()
-            }
 
-            if self.REQUIRED_COLUMNS.issubset(normalized):
+            normalized = self._normalize_header(
+                row
+            )
+
+            if (
+                "Sample" in normalized
+                and "Time(s)" in normalized
+            ):
                 return index
 
         return None
 
+    # =========================================================
+    # DATA ROWS
+    # =========================================================
+
     def _parse_data_rows(
         self,
         rows: List[List[str]],
-        header_map: dict,
-    ) -> Optional[
-        Tuple[
-            List[float],
-            List[float],
-            List[float],
-            List[float],
-            List[float],
-            List[float],
-        ]
-    ]:
-        """
-        Parse measurement rows.
+        column_indices: Dict[str, int],
+    ):
+        """Parse measurement rows and select the analysis thrust."""
 
-        Optional numeric columns are represented internally by
-        NaN values when the column exists but a particular row
-        contains no value.
+        sample_values = []
+        time_values = []
+        calibrated_time_values = []
+        raw_thrust_values = []
+        prop_loss_values = []
+        thrust_values = []
+        pressure_values = []
 
-        If an optional column is completely absent, the returned
-        list remains empty and is converted to None.
-        """
+        has_calibrated_time = (
+            "Time Cal (s)" in column_indices
+        )
 
-        time_s = []
-        calibrated_time_s = []
-        thrust_N = []
-        raw_thrust_N = []
-        prop_loss_kg = []
-        pressure_psi = []
+        has_raw_thrust = (
+            "Raw Thrust (N)" in column_indices
+        )
+
+        has_prop_loss = (
+            "Prop Loss (kg)" in column_indices
+        )
+
+        has_pressure = (
+            "Pressure (psi)" in column_indices
+        )
+
+        has_calibrated_thrust = (
+            "Thrust (N)" in column_indices
+        )
 
         for row in rows:
+
             if not row:
                 continue
 
-            try:
-                sample = self._get_value(
-                    row,
-                    header_map,
-                    "Sample",
-                )
-
-                time_value = self._get_value(
-                    row,
-                    header_map,
-                    "Time(s)",
-                )
-
-                thrust_value = self._get_value(
-                    row,
-                    header_map,
-                    "Thrust (N)",
-                )
-
-                # Ignore completely blank rows.
-                if (
-                    sample == ""
-                    and time_value == ""
-                    and thrust_value == ""
-                ):
-                    continue
-
-                # Required values must be present.
-                if time_value == "":
-                    continue
-
-                if thrust_value == "":
-                    continue
-
-                # Validate sample number if present.
-                if sample != "":
-                    float(sample)
-
-                time_s.append(
-                    float(time_value)
-                )
-
-                thrust_N.append(
-                    float(thrust_value)
-                )
-
-                calibrated_time_s.append(
-                    self._get_optional_float(
-                        row,
-                        header_map,
-                        "Time Cal (s)",
-                    )
-                )
-
-                raw_thrust_N.append(
-                    self._get_optional_float(
-                        row,
-                        header_map,
-                        "Raw Thrust (N)",
-                    )
-                )
-
-                prop_loss_kg.append(
-                    self._get_optional_float(
-                        row,
-                        header_map,
-                        "Prop Loss (kg)",
-                    )
-                )
-
-                pressure_psi.append(
-                    self._get_optional_float(
-                        row,
-                        header_map,
-                        "Pressure (psi)",
-                    )
-                )
-
-            except (ValueError, TypeError):
-                # Ignore malformed measurement rows rather than
-                # destroying an otherwise usable test file.
+            # Ignore completely blank rows.
+            if not any(
+                cell.strip()
+                for cell in row
+            ):
                 continue
 
-        if not time_s:
-            return None
+            sample_text = self._cell(
+                row,
+                column_indices.get("Sample"),
+            )
 
-        return (
-            time_s,
-            calibrated_time_s,
-            thrust_N,
-            raw_thrust_N,
-            prop_loss_kg,
-            pressure_psi,
+            time_text = self._cell(
+                row,
+                column_indices.get("Time(s)"),
+            )
+
+            # A row without sample/time is not a measurement row.
+            if sample_text == "" or time_text == "":
+                continue
+
+            try:
+                sample = int(
+                    float(sample_text)
+                )
+                time_value = float(
+                    time_text
+                )
+            except ValueError:
+                # Ignore non-data rows following the measurement
+                # header rather than turning them into samples.
+                continue
+
+            calibrated_time = (
+                self._optional_float(
+                    self._cell(
+                        row,
+                        column_indices.get(
+                            "Time Cal (s)"
+                        ),
+                    )
+                )
+                if has_calibrated_time
+                else None
+            )
+
+            raw_thrust = (
+                self._optional_float(
+                    self._cell(
+                        row,
+                        column_indices.get(
+                            "Raw Thrust (N)"
+                        ),
+                    )
+                )
+                if has_raw_thrust
+                else None
+            )
+
+            prop_loss = (
+                self._optional_float(
+                    self._cell(
+                        row,
+                        column_indices.get(
+                            "Prop Loss (kg)"
+                        ),
+                    )
+                )
+                if has_prop_loss
+                else None
+            )
+
+            pressure = (
+                self._optional_float(
+                    self._cell(
+                        row,
+                        column_indices.get(
+                            "Pressure (psi)"
+                        ),
+                    )
+                )
+                if has_pressure
+                else None
+            )
+
+            calibrated_thrust = (
+                self._optional_float(
+                    self._cell(
+                        row,
+                        column_indices.get(
+                            "Thrust (N)"
+                        ),
+                    )
+                )
+                if has_calibrated_thrust
+                else None
+            )
+
+            # -----------------------------------------------------
+            # Thrust selection hierarchy
+            #
+            # 1. Thrust (N), when present and numeric.
+            # 2. Raw Thrust (N), when calibrated thrust is absent
+            #    or blank for this sample.
+            #
+            # This does NOT calculate thrust from propellant loss.
+            # -----------------------------------------------------
+
+            if calibrated_thrust is not None:
+                analysis_thrust = calibrated_thrust
+            elif raw_thrust is not None:
+                analysis_thrust = raw_thrust
+            else:
+                # This sample has no usable thrust measurement.
+                continue
+
+            sample_values.append(sample)
+            time_values.append(time_value)
+            thrust_values.append(analysis_thrust)
+
+            calibrated_time_values.append(
+                calibrated_time
+            )
+            raw_thrust_values.append(
+                raw_thrust
+            )
+            prop_loss_values.append(
+                prop_loss
+            )
+            pressure_values.append(
+                pressure
+            )
+
+        if not time_values:
+            return (
+                np.array([], dtype=int),
+                np.array([], dtype=float),
+                None,
+                None,
+                None,
+                np.array([], dtype=float),
+                None,
+            )
+
+        calibrated_time_array = (
+            self._to_optional_array(
+                calibrated_time_values
+            )
         )
 
+        raw_thrust_array = (
+            self._to_optional_array(
+                raw_thrust_values
+            )
+        )
+
+        prop_loss_array = (
+            self._to_optional_array(
+                prop_loss_values
+            )
+        )
+
+        pressure_array = (
+            self._to_optional_array(
+                pressure_values
+            )
+        )
+
+        return (
+            np.asarray(
+                sample_values,
+                dtype=int,
+            ),
+            np.asarray(
+                time_values,
+                dtype=float,
+            ),
+            calibrated_time_array,
+            raw_thrust_array,
+            prop_loss_array,
+            np.asarray(
+                thrust_values,
+                dtype=float,
+            ),
+            pressure_array,
+        )
+
+    # =========================================================
+    # HELPERS
+    # =========================================================
+
     @staticmethod
-    def _get_value(
+    def _cell(
         row: List[str],
-        header_map: dict,
-        column: str,
+        index: Optional[int],
     ) -> str:
-        """Get a required column value."""
+        if index is None:
+            return ""
 
-        index = header_map[column]
-
-        if index >= len(row):
+        if index < 0 or index >= len(row):
             return ""
 
         return row[index].strip()
 
     @staticmethod
-    def _get_optional_float(
-        row: List[str],
-        header_map: dict,
-        column: str,
-    ) -> float:
-        """
-        Get an optional numeric value.
-
-        Returns NaN when the column is missing or the cell is blank.
-        """
-
-        if column not in header_map:
-            return np.nan
-
-        value = RMCSCSVReader._get_value(
-            row,
-            header_map,
-            column,
-        )
-
-        if value == "":
-            return np.nan
-
-        return float(value)
-
-    @staticmethod
-    def _parse_float(
+    def _optional_float(
         value: str,
     ) -> Optional[float]:
-        """Parse an optional floating-point metadata value."""
-
         if value == "":
             return None
 
@@ -506,42 +617,72 @@ class RMCSCSVReader:
             return None
 
     @staticmethod
-    def _parse_int(
-        value: str,
-    ) -> Optional[int]:
-        """Parse an optional integer metadata value."""
-
-        if value == "":
-            return None
-
-        try:
-            return int(value)
-        except ValueError:
-            return None
-
-    @staticmethod
     def _to_optional_array(
-        values: List[float],
+        values: List[Optional[float]],
     ) -> Optional[np.ndarray]:
         """
-        Convert an optional data column to a NumPy array.
+        Convert an optional channel to an array.
 
-        A completely absent column is represented by None.
-        A present column containing blank cells remains an array
-        containing NaN values.
+        A channel is considered absent when every sample is blank or
+        otherwise unusable. If the channel exists but has missing
+        values, NaN is retained so validation can report the issue.
         """
 
         if not values:
             return None
 
-        # If every value is NaN, the column technically exists but
-        # contains no usable data. Treat it as absent for analysis.
-        array = np.asarray(
-            values,
+        if not any(
+            value is not None
+            for value in values
+        ):
+            return None
+
+        return np.asarray(
+            [
+                np.nan
+                if value is None
+                else float(value)
+                for value in values
+            ],
             dtype=float,
         )
 
-        if np.all(np.isnan(array)):
-            return None
+    @staticmethod
+    def _normalize_column_name(
+        value: str,
+    ) -> str:
+        """
+        Normalize harmless formatting differences in column names.
 
-        return array
+        For example:
+            'Thrust  (N)' -> 'Thrust (N)'
+            ' Time(s) '   -> 'Time(s)'
+        """
+
+        return " ".join(
+            value.strip().split()
+        )
+
+    @classmethod
+    def _normalize_header(
+        cls,
+        row: List[str],
+    ) -> List[str]:
+        return [
+            cls._normalize_column_name(
+                cell
+            )
+            for cell in row
+        ]
+
+    @staticmethod
+    def _normalize_metadata_key(
+        value: str,
+    ) -> str:
+        key = value.strip()
+
+        # Accept older drafts that placed a colon after the key.
+        if key.endswith(":"):
+            key = key[:-1].rstrip()
+
+        return key

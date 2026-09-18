@@ -1,22 +1,24 @@
 from .events import EventDetector
 from .impulse import ThrustAnalyzer
 from .motor_class import MotorClassCalculator
-from .results import AnalysisResults
+from .performance import PerformanceReducer
+from .results import AnalysisResults, EventResults
 from .statistics import StatisticsAnalyzer
-from ..processing.event_model import EventSet
+from ..processing.event_model import EventSet, EventType
 
 
 class AnalysisEngine:
     """
-    Coordinates analysis calculations for prepared test data.
+    Coordinate the complete analysis stack.
 
-    Event detection normally occurs during the processing pipeline.
-    When an EventSet is supplied, it is used as the authoritative
-    event source.
+    The processing pipeline's EventSet is the authoritative event
+    representation. The Phase 2 PerformanceReducer is the authoritative
+    source for standardized motor-performance metrics.
 
-    The existing thrust-analysis subsystem still expects the
-    legacy EventResults interface, so the EventDetector's legacy
-    detect() result is retained internally for compatibility.
+    The legacy ThrustAnalyzer remains available during the transition so
+    existing GUI/persistence consumers continue to receive the original
+    Phase 1 metrics. Standardized values are copied into ThrustResults
+    from PerformanceReducer.
 
     The engine does not modify the supplied TestData.
     """
@@ -27,122 +29,127 @@ class AnalysisEngine:
         thrust_analyzer=None,
         statistics_analyzer=None,
         motor_class_calculator=None,
+        performance_reducer=None,
     ):
-        self.event_detector = (
-            event_detector
-            or EventDetector()
-        )
-
-        self.thrust_analyzer = (
-            thrust_analyzer
-            or ThrustAnalyzer()
-        )
-
+        self.event_detector = event_detector or EventDetector()
+        self.thrust_analyzer = thrust_analyzer or ThrustAnalyzer()
         self.statistics_analyzer = (
-            statistics_analyzer
-            or StatisticsAnalyzer()
+            statistics_analyzer or StatisticsAnalyzer()
         )
-
         self.motor_class_calculator = (
-            motor_class_calculator
-            or MotorClassCalculator()
+            motor_class_calculator or MotorClassCalculator()
+        )
+        self.performance_reducer = (
+            performance_reducer or PerformanceReducer()
         )
 
     def analyze(
         self,
         test_data,
         events: EventSet | None = None,
-    ):
+    ) -> AnalysisResults:
         """
         Analyze prepared test data.
 
-        Args:
-            test_data:
-                Prepared TestData to analyze.
+        If an EventSet is supplied, it is authoritative and is used
+        directly. Otherwise, events are detected once.
 
-            events:
-                Optional EventSet produced by the processing
-                pipeline.
-
-        Returns:
-            AnalysisResults containing events, thrust results,
-            statistics, and motor classification.
+        Legacy Phase 1 thrust results are still generated for compatibility.
+        Standardized Phase 2 performance results are then generated from the
+        same prepared TestData and copied into the result model.
         """
 
-        # ---------------------------------------------------------
-        # Event detection
-        # ---------------------------------------------------------
-
         if events is None:
-            # Generate both representations from the same detection
-            # pass. The EventSet is exposed to the rest of the
-            # application while EventResults remains available to
-            # legacy analysis code.
-            legacy_events = self.event_detector.detect(
-                test_data
-            )
+            events = self.event_detector.detect_events(test_data)
 
-            events = self.event_detector.detect_events(
-                test_data
-            )
-        else:
-            # The supplied EventSet is authoritative.
-            #
-            # The existing ThrustAnalyzer still requires the
-            # legacy EventResults representation. Generate that
-            # compatibility representation here.
-            legacy_events = self.event_detector.detect(
-                test_data
-            )
+        legacy_events = self._event_set_to_legacy(events)
 
-        # ---------------------------------------------------------
-        # Thrust analysis
-        # ---------------------------------------------------------
-
-        thrust_results = (
-            self.thrust_analyzer.analyze(
-                test_data,
-                legacy_events,
-            )
+        thrust_results = self.thrust_analyzer.analyze(
+            test_data,
+            legacy_events,
         )
 
-        # ---------------------------------------------------------
-        # General statistics
-        # ---------------------------------------------------------
+        standardized = self.performance_reducer.reduce(test_data)
 
-        statistics = (
-            self.statistics_analyzer.analyze(
-                test_data
-            )
+        # Keep the existing Phase 1 fields intact while making the
+        # standardized Phase 2 fields authoritative for those metrics.
+        thrust_results.burn_start_5pct_time_s = (
+            standardized.burn_start_5pct_time_s
         )
+        thrust_results.burn_end_5pct_time_s = (
+            standardized.burn_end_5pct_time_s
+        )
+        thrust_results.burn_time_5pct_s = (
+            standardized.burn_time_5pct_s
+        )
+        thrust_results.average_thrust_5pct_N = (
+            standardized.average_thrust_N
+        )
+        thrust_results.initial_thrust_average_N = (
+            standardized.initial_thrust_average_N
+        )
+        thrust_results.initial_thrust_window_s = (
+            standardized.initial_thrust_window_s
+        )
+        thrust_results.total_impulse_valid_curve_Ns = (
+            standardized.total_impulse_Ns
+        )
+        thrust_results.impulse_class = standardized.impulse_class
+        thrust_results.designation = standardized.designation
 
-        # ---------------------------------------------------------
-        # Motor classification
-        # ---------------------------------------------------------
+        statistics = self.statistics_analyzer.analyze(test_data)
 
-        if (
-            thrust_results.total_impulse_Ns
-            is not None
-        ):
-            classification = (
-                self.motor_class_calculator.classify(
-                    thrust_results.total_impulse_Ns
-                )
-            )
-        else:
-            classification = (
-                self.motor_class_calculator.classify(
-                    -1
-                )
-            )
-
-        # ---------------------------------------------------------
-        # Combined analysis result
-        # ---------------------------------------------------------
+        classification = self.motor_class_calculator.classify(
+            standardized.total_impulse_Ns
+            if standardized.total_impulse_Ns is not None
+            else -1
+        )
 
         return AnalysisResults(
             events=events,
             thrust=thrust_results,
             statistics=statistics,
             classification=classification,
+        )
+
+    @staticmethod
+    def _event_set_to_legacy(events: EventSet) -> EventResults:
+        """Convert the authoritative EventSet to the legacy result model."""
+
+        ignition = events.get(EventType.IGNITION)
+        burnout = events.get(EventType.BURNOUT)
+        peak = events.get(EventType.PEAK_THRUST)
+
+        detection_methods = [
+            event.notes.replace("Detection method: ", "", 1)
+            for event in (ignition, burnout, peak)
+            if event is not None and event.notes
+        ]
+
+        detection_method = (
+            detection_methods[0]
+            if detection_methods
+            else ""
+        )
+
+        return EventResults(
+            ignition_time_s=(
+                ignition.time_s if ignition is not None else None
+            ),
+            burnout_time_s=(
+                burnout.time_s if burnout is not None else None
+            ),
+            peak_time_s=(
+                peak.time_s if peak is not None else None
+            ),
+            ignition_index=(
+                ignition.sample_index if ignition is not None else None
+            ),
+            burnout_index=(
+                burnout.sample_index if burnout is not None else None
+            ),
+            peak_index=(
+                peak.sample_index if peak is not None else None
+            ),
+            detection_method=detection_method,
         )

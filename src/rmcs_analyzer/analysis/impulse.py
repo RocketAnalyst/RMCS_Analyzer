@@ -5,14 +5,21 @@ from .results import EventResults, ThrustResults
 
 
 class ThrustAnalyzer:
-    """Calculate thrust and impulse characteristics."""
+    """
+    Calculate thrust and impulse characteristics for a supplied
+    analysis event window.
+
+    This module intentionally preserves the current Phase 1
+    calculation behavior.  The industry-standard performance
+    reduction will replace this calculation in Phase 2.
+    """
 
     def analyze(
         self,
         test_data: TestData,
         events: EventResults,
     ) -> ThrustResults:
-        """Calculate thrust metrics for the detected burn."""
+        """Calculate current thrust metrics within the event window."""
 
         if (
             events.ignition_index is None
@@ -23,63 +30,49 @@ class ThrustAnalyzer:
         start = events.ignition_index
         end = events.burnout_index
 
+        if start < 0 or end >= test_data.sample_count:
+            return ThrustResults()
+
         if end <= start:
             return ThrustResults()
 
-        time = test_data.time_s[
-            start : end + 1
-        ]
+        time = np.asarray(
+            test_data.time_s[start:end + 1],
+            dtype=float,
+        )
+        thrust = np.asarray(
+            test_data.thrust_N[start:end + 1],
+            dtype=float,
+        )
 
-        thrust = test_data.thrust_N[
-            start : end + 1
-        ]
-
-        if len(time) < 2:
+        if len(time) < 2 or len(time) != len(thrust):
             return ThrustResults()
 
-        # Preserve the recorded thrust sign for the curve,
-        # but use magnitude for motor-performance metrics.
-        thrust_magnitude = np.abs(
-            thrust
-        )
+        finite = np.isfinite(time) & np.isfinite(thrust)
 
-        peak_local_index = int(
-            np.argmax(thrust_magnitude)
-        )
+        if np.count_nonzero(finite) < 2:
+            return ThrustResults()
 
-        peak_thrust = float(
-            thrust_magnitude[
-                peak_local_index
-            ]
-        )
+        time = time[finite]
+        thrust = thrust[finite]
 
-        peak_time = float(
-            time[
-                peak_local_index
-            ]
-        )
+        # Negative corrected load-cell readings are not motor thrust.
+        motor_thrust = np.maximum(thrust, 0.0)
 
-        burn_time = float(
-            time[-1] - time[0]
-        )
+        peak_local_index = int(np.argmax(motor_thrust))
+        peak_thrust = float(motor_thrust[peak_local_index])
+        peak_time = float(time[peak_local_index])
+
+        burn_time = float(time[-1] - time[0])
 
         total_impulse = float(
-            np.trapezoid(
-                thrust_magnitude,
-                time,
-            )
+            np.trapezoid(motor_thrust, time)
         )
 
-        if burn_time > 0:
-            average_thrust = (
-                total_impulse
-                / burn_time
-            )
-        else:
-            average_thrust = 0.0
-
-        time_to_peak = (
-            peak_time - time[0]
+        average_thrust = (
+            total_impulse / burn_time
+            if burn_time > 0
+            else 0.0
         )
 
         return ThrustResults(
@@ -88,5 +81,5 @@ class ThrustAnalyzer:
             average_thrust_N=average_thrust,
             burn_time_s=burn_time,
             total_impulse_Ns=total_impulse,
-            time_to_peak_s=time_to_peak,
+            time_to_peak_s=peak_time - time[0],
         )
