@@ -54,6 +54,9 @@ class ThrustPlot(QFrame):
         self.post_burn_curve = None
         self.zero_line = None
         self.burnout_line = None
+        self.burn_start_line = None
+        self.burn_end_line = None
+        self.peak_marker = None
 
     def create_placeholder(self):
         """Create the empty-state display."""
@@ -138,6 +141,10 @@ class ThrustPlot(QFrame):
         time,
         thrust,
         burnout_time_s=None,
+        burn_start_5pct_time_s=None,
+        burn_end_5pct_time_s=None,
+        peak_time_s=None,
+        peak_thrust_N=None,
     ):
         """
         Display a thrust curve.
@@ -189,6 +196,20 @@ class ThrustPlot(QFrame):
             and np.isfinite(burnout_time_s)
             and burnout_time_s >= time[0]
             and burnout_time_s <= time[-1]
+        )
+
+        valid_burn_start = (
+            burn_start_5pct_time_s is not None
+            and np.isfinite(burn_start_5pct_time_s)
+            and burn_start_5pct_time_s >= time[0]
+            and burn_start_5pct_time_s <= time[-1]
+        )
+
+        valid_burn_end = (
+            burn_end_5pct_time_s is not None
+            and np.isfinite(burn_end_5pct_time_s)
+            and burn_end_5pct_time_s >= time[0]
+            and burn_end_5pct_time_s <= time[-1]
         )
 
         # ---------------------------------------------------------
@@ -277,22 +298,84 @@ class ThrustPlot(QFrame):
         )
 
         # ---------------------------------------------------------
-        # Burnout marker
+        # Standardized 5% performance boundaries
+        #
+        # These are analysis boundaries, not data-trimming boundaries.
+        # The complete recorded curve remains visible.
+        # ---------------------------------------------------------
+
+        analysis_pen = pg.mkPen(
+            color="#8fa8b8",
+            width=1,
+            style=Qt.PenStyle.DashLine,
+        )
+
+        if valid_burn_start:
+            self.burn_start_line = pg.InfiniteLine(
+                pos=float(burn_start_5pct_time_s),
+                angle=90,
+                pen=analysis_pen,
+            )
+            self.plot.addItem(
+                self.burn_start_line,
+                ignoreBounds=True,
+            )
+
+        if valid_burn_end:
+            self.burn_end_line = pg.InfiniteLine(
+                pos=float(burn_end_5pct_time_s),
+                angle=90,
+                pen=analysis_pen,
+            )
+            self.plot.addItem(
+                self.burn_end_line,
+                ignoreBounds=True,
+            )
+
+        # ---------------------------------------------------------
+        # Peak thrust marker
+        # ---------------------------------------------------------
+
+        valid_peak = (
+            peak_time_s is not None
+            and peak_thrust_N is not None
+            and np.isfinite(peak_time_s)
+            and np.isfinite(peak_thrust_N)
+            and peak_time_s >= time[0]
+            and peak_time_s <= time[-1]
+        )
+
+        if valid_peak:
+            self.peak_marker = pg.ScatterPlotItem(
+                [float(peak_time_s)],
+                [float(peak_thrust_N)],
+                size=9,
+                pen=pg.mkPen("#38a8ff", width=2),
+                brush=pg.mkBrush("#080e13"),
+            )
+            self.plot.addItem(
+                self.peak_marker,
+                ignoreBounds=True,
+            )
+
+        # ---------------------------------------------------------
+        # Recorded test-end marker
+        #
+        # This is the end of the recorded data/event timeline. It is
+        # deliberately distinct from the standardized 5% burn-end.
         # ---------------------------------------------------------
 
         if valid_burnout:
-            burnout_pen = pg.mkPen(
-                color="#8396a5",
+            test_end_pen = pg.mkPen(
+                color="#687b89",
                 width=1,
-                style=Qt.PenStyle.DashLine,
+                style=Qt.PenStyle.DotLine,
             )
-
             self.burnout_line = pg.InfiniteLine(
                 pos=float(burnout_time_s),
                 angle=90,
-                pen=burnout_pen,
+                pen=test_end_pen,
             )
-
             self.plot.addItem(
                 self.burnout_line,
                 ignoreBounds=True,
@@ -330,6 +413,10 @@ class ThrustPlot(QFrame):
         time,
         thrust,
         burnout_time_s=None,
+        burn_start_5pct_time_s=None,
+        burn_end_5pct_time_s=None,
+        peak_time_s=None,
+        peak_thrust_N=None,
     ):
         """
         Focus the initial X-axis view around the motor firing region.
@@ -471,6 +558,9 @@ class ThrustPlot(QFrame):
         self.post_burn_curve = None
         self.zero_line = None
         self.burnout_line = None
+        self.burn_start_line = None
+        self.burn_end_line = None
+        self.peak_marker = None
 
         self.stack.setCurrentWidget(
             self.placeholder

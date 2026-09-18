@@ -21,10 +21,7 @@ from .theme import APPLICATION_STYLE
 from .data import (
     CSVReadError,
     RMCSCSVReader,
-    TestData,
 )
-
-import numpy as np
 
 from .analysis import (
     AnalysisEngine,
@@ -56,6 +53,7 @@ from .ui.test_files_panel import TestFilesPanel
 from .ui.thrust_plot import ThrustPlot
 from .ui.playback_controls import PlaybackControls
 from .ui.results_panel import ResultsPanel
+from .ui.data_table import DataTable
 
 
 class MainWindow(QMainWindow):
@@ -334,21 +332,10 @@ class MainWindow(QMainWindow):
         # DATA TABLE TAB
         # =========================================================
 
-        data_table_page = self.create_placeholder_page(
-            "Data Table",
-            (
-                "Sample-level test data will be displayed here."
-                "\n\n"
-                "Planned capabilities:\n"
-                "• Browse recorded samples\n"
-                "• Inspect time and thrust values\n"
-                "• View optional sensor channels\n"
-                "• Review processed data"
-            ),
-        )
+        self.data_table = DataTable()
 
         self.workspace_tabs.addTab(
-            data_table_page,
+            self.data_table,
             "Data Table",
         )
 
@@ -1339,144 +1326,18 @@ class MainWindow(QMainWindow):
         test_data,
     ):
         """
-        Process and analyze a TestData object.
+        Process and analyze a TestData object using the default
+        non-destructive processing settings.
 
-        The GUI establishes an automatic pre-ignition baseline and
-        automatically aligns the prepared time axis to ignition.
-
-        If the CSV provides Time Cal (s), that timeline is used for
-        event detection and baseline timing so that all time-based
-        processing uses the same analysis timeline as the pipeline.
+        Imported measurement values are not baseline-corrected or
+        time-aligned unless those processing options are explicitly
+        enabled. A valid source-provided Time Cal (s) timeline is
+        selected by the processing pipeline as the analysis timeline.
 
         Raw imported data remains untouched.
         """
 
-        processing_settings = (
-            ProcessingSettings()
-        )
-
-        # ---------------------------------------------------------
-        # Establish the timeline used for preliminary event
-        # detection.
-        #
-        # Format 1.0 preserves the original acquisition Time(s)
-        # and may also provide Time Cal(s).  The processing pipeline
-        # uses Time Cal(s) when it is valid, so preliminary event
-        # detection must use the same timeline.
-        # ---------------------------------------------------------
-
-        analysis_timeline = test_data.time_s
-
-        calibrated_time = (
-            test_data.calibrated_time_s
-        )
-
-        if (
-            calibrated_time is not None
-            and len(calibrated_time) == test_data.sample_count
-            and np.all(np.isfinite(calibrated_time))
-        ):
-            analysis_timeline = calibrated_time
-
-        preliminary_test_data = test_data
-
-        if analysis_timeline is not test_data.time_s:
-
-            preliminary_test_data = TestData(
-                time_s=np.asarray(
-                    analysis_timeline,
-                    dtype=float,
-                ).copy(),
-                thrust_N=test_data.thrust_N.copy(),
-                calibrated_time_s=(
-                    None
-                    if test_data.calibrated_time_s is None
-                    else test_data.calibrated_time_s.copy()
-                ),
-                raw_thrust_N=(
-                    None
-                    if test_data.raw_thrust_N is None
-                    else test_data.raw_thrust_N.copy()
-                ),
-                prop_loss_kg=(
-                    None
-                    if test_data.prop_loss_kg is None
-                    else test_data.prop_loss_kg.copy()
-                ),
-                pressure_psi=(
-                    None
-                    if test_data.pressure_psi is None
-                    else test_data.pressure_psi.copy()
-                ),
-                delta=(
-                    None
-                    if test_data.delta is None
-                    else test_data.delta.copy()
-                ),
-                state=(
-                    None
-                    if test_data.state is None
-                    else test_data.state.copy()
-                ),
-                metadata=test_data.metadata,
-            )
-
-        # ---------------------------------------------------------
-        # Determine automatic pre-ignition baseline.
-        # ---------------------------------------------------------
-
-        preliminary_events = (
-            self.analysis_engine.event_detector.detect_events(
-                preliminary_test_data
-            )
-        )
-
-        ignition_event = (
-            preliminary_events.ignition
-        )
-
-        if ignition_event is not None:
-
-            if (
-                ignition_event.sample_index is not None
-                and ignition_event.sample_index > 0
-            ):
-
-                baseline_index = (
-                    ignition_event.sample_index - 1
-                )
-
-                processing_settings.baseline.baseline_end_time_s = (
-                    float(
-                        analysis_timeline[
-                            baseline_index
-                        ]
-                    )
-                )
-
-            else:
-
-                processing_settings.baseline.baseline_end_time_s = (
-                    float(
-                        ignition_event.time_s
-                    )
-                )
-
-        # ---------------------------------------------------------
-        # Automatically align motor tests to ignition.
-        # ---------------------------------------------------------
-
-        processing_settings.alignment.enabled = True
-
-        processing_settings.alignment.reference_event = (
-            preliminary_events.ignition.event_type
-            if preliminary_events.ignition is not None
-            else processing_settings.alignment.reference_event
-        )
-
-        # ---------------------------------------------------------
-        # Run the unified processing pipeline.
-        # ---------------------------------------------------------
+        processing_settings = ProcessingSettings()
 
         processing_result = (
             self.processing_pipeline.process(
@@ -1485,23 +1346,15 @@ class MainWindow(QMainWindow):
             )
         )
 
-        # ---------------------------------------------------------
-        # Shift detected events into aligned time.
-        # ---------------------------------------------------------
-
-        aligned_events = self.align_event_set(
-            processing_result.event_set,
-            processing_result.alignment_result.offset_s,
-        )
-
-        # ---------------------------------------------------------
-        # Analyze the prepared data.
-        # ---------------------------------------------------------
+        # The processing pipeline's EventSet is authoritative. Because
+        # default alignment is disabled, these event times remain on the
+        # source-provided analysis timeline.
+        events = processing_result.event_set
 
         analysis_result = (
             self.analysis_engine.analyze(
                 processing_result.prepared_data,
-                events=aligned_events,
+                events=events,
             )
         )
 
@@ -1746,6 +1599,8 @@ class MainWindow(QMainWindow):
 
             self.thrust_plot.clear()
 
+            self.data_table.clear()
+
         project_name = Path(
             filename
         ).name
@@ -1931,20 +1786,48 @@ class MainWindow(QMainWindow):
             test
         )
 
+        self.data_table.set_data(
+            test.data
+        )
+
         burnout_time_s = None
+        burn_start_5pct_time_s = None
+        burn_end_5pct_time_s = None
+        peak_time_s = None
+        peak_thrust_N = None
 
         if test.analysis_results is not None:
-            burnout_event = (
-                test.analysis_results.events.burnout
-            )
+            analysis = test.analysis_results
+
+            burnout_event = analysis.events.burnout
 
             if burnout_event is not None:
                 burnout_time_s = burnout_event.time_s
+
+            burn_start_5pct_time_s = (
+                analysis.thrust.burn_start_5pct_time_s
+            )
+
+            burn_end_5pct_time_s = (
+                analysis.thrust.burn_end_5pct_time_s
+            )
+
+            peak_time_s = (
+                analysis.thrust.peak_thrust_time_s
+            )
+
+            peak_thrust_N = (
+                analysis.thrust.peak_thrust_N
+            )
 
         self.thrust_plot.set_data(
             test.data.time_s,
             test.data.thrust_N,
             burnout_time_s=burnout_time_s,
+            burn_start_5pct_time_s=burn_start_5pct_time_s,
+            burn_end_5pct_time_s=burn_end_5pct_time_s,
+            peak_time_s=peak_time_s,
+            peak_thrust_N=peak_thrust_N,
         )
 
         if test.analysis_results is not None:
@@ -2058,220 +1941,94 @@ class MainWindow(QMainWindow):
         statistics,
         classification,
     ):
-        """Update the visible analysis results."""
+        """Update the visible analysis results from authoritative results."""
 
-        if thrust_results.peak_thrust_N is not None:
-
-            self.results.peak_thrust.setText(
-                f"{thrust_results.peak_thrust_N:.2f}"
-            )
-
-        else:
-
-            self.results.peak_thrust.setText(
-                "—"
-            )
-
-        if thrust_results.average_thrust_N is not None:
-
-            self.results.average_thrust.setText(
-                f"{thrust_results.average_thrust_N:.2f}"
-            )
-
-        else:
-
-            self.results.average_thrust.setText(
-                "—"
-            )
-
-        if thrust_results.total_impulse_Ns is not None:
-
-            self.results.total_impulse.setText(
-                f"{thrust_results.total_impulse_Ns:.2f}"
-            )
-
-        else:
-
-            self.results.total_impulse.setText(
-                "—"
-            )
-
-        if thrust_results.burn_time_s is not None:
-
-            self.results.burn_time.setText(
-                f"{thrust_results.burn_time_s:.2f}"
-            )
-
-        else:
-
-            self.results.burn_time.setText(
-                "—"
-            )
-
-        if thrust_results.time_to_peak_s is not None:
-
-            self.results.time_to_peak.setText(
-                f"{thrust_results.time_to_peak_s:.2f}"
-            )
-
-        else:
-
-            self.results.time_to_peak.setText(
-                "—"
-            )
-
-        if classification.motor_class is not None:
-
-            self.results.motor_class.setText(
-                classification.motor_class
-            )
-
-        else:
-
-            self.results.motor_class.setText(
-                "—"
-            )
-
-        if (
-            classification.motor_class is not None
-            and thrust_results.average_thrust_N
-            is not None
-        ):
-
-            calculated_designation = (
-                f"{classification.motor_class}"
-                f"{round(thrust_results.average_thrust_N)}"
-            )
-
-            self.results.calculated_designation.setText(
-                calculated_designation
-            )
-
-        else:
-
-            self.results.calculated_designation.setText(
-                "—"
-            )
-
-        # ---------------------------------------------------------
-        # Events
-        # ---------------------------------------------------------
-
-        ignition_event = (
-            events.ignition
+        # ResultsPanel is display-only. Authoritative standardized
+        # performance values come directly from AnalysisResults.
+        self.results.set_results(
+            thrust_results,
+            events,
+            classification,
         )
-
-        if ignition_event is not None:
-
-            self.results.ignition.setText(
-                f"{ignition_event.time_s:.2f} s"
-            )
-
-        else:
-
-            self.results.ignition.setText(
-                "—"
-            )
-
-        peak_event = (
-            events.peak_thrust
-        )
-
-        if peak_event is not None:
-
-            self.results.peak_event.setText(
-                f"{peak_event.time_s:.2f} s"
-            )
-
-        else:
-
-            self.results.peak_event.setText(
-                "—"
-            )
-
-        burnout_event = (
-            events.burnout
-        )
-
-        if burnout_event is not None:
-
-            self.results.burnout.setText(
-                f"{burnout_event.time_s:.2f} s"
-            )
-
-        else:
-
-            self.results.burnout.setText(
-                "—"
-            )
 
         # ---------------------------------------------------------
         # Additional Metrics
         # ---------------------------------------------------------
 
+        initial_thrust = thrust_results.initial_thrust_average_N
+        initial_window = thrust_results.initial_thrust_window_s
+
+        if initial_thrust is not None:
+            if initial_window is not None:
+                initial_text = (
+                    f"{initial_thrust:.1f} N"
+                )
+            else:
+                initial_text = f"{initial_thrust:.1f} N"
+        else:
+            initial_text = "—"
+
+        self.metric_initial_thrust.findChildren(
+            QLabel
+        )[-1].setText(
+            initial_text
+        )
+
+        # The minimum thrust is not the final sample and should not be
+        # presented as a final thrust measurement. Display the actual
+        # final prepared sample only as a diagnostic value.
         data = self.session.active_test.data
 
         if data.sample_count > 0:
-
-            initial_thrust = float(
-                data.thrust_N[0]
-            )
-
-            final_thrust = float(
+            final_sample_thrust = float(
                 data.thrust_N[-1]
-            )
-
-            self.metric_initial_thrust.findChildren(
-                QLabel
-            )[-1].setText(
-                f"{initial_thrust:.1f} N"
             )
 
             self.metric_final_thrust.findChildren(
                 QLabel
             )[-1].setText(
-                f"{final_thrust:.1f} N"
+                f"{final_sample_thrust:.1f} N"
             )
-
-            self.metric_samples.findChildren(
+        else:
+            self.metric_final_thrust.findChildren(
                 QLabel
             )[-1].setText(
-                f"{data.sample_count:,}"
+                "—"
             )
 
-            self.metric_sample_rate.findChildren(
-                QLabel
-            )[-1].setText(
-                f"{data.sample_rate_hz:.2f} SPS"
-            )
+        self.metric_samples.findChildren(
+            QLabel
+        )[-1].setText(
+            f"{statistics.sample_count:,}"
+        )
+
+        self.metric_sample_rate.findChildren(
+            QLabel
+        )[-1].setText(
+            f"{statistics.sample_rate_hz:.2f} SPS"
+        )
 
         # ---------------------------------------------------------
         # Motor Classification Pane
         # ---------------------------------------------------------
 
         if classification.motor_class is not None:
-
             self.classification_class.setText(
                 f"Class {classification.motor_class}"
             )
-
         else:
-
             self.classification_class.setText(
                 "Class —"
             )
 
-        if thrust_results.total_impulse_Ns is not None:
-
+        if thrust_results.total_impulse_valid_curve_Ns is not None:
             self.classification_impulse.setText(
                 (
                     "Measured Impulse: "
-                    f"{thrust_results.total_impulse_Ns:.2f} N·s"
+                    f"{thrust_results.total_impulse_valid_curve_Ns:.2f} N·s"
                 )
             )
-
         else:
-
             self.classification_impulse.setText(
                 "Measured Impulse: —"
             )

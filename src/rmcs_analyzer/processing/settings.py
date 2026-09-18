@@ -51,6 +51,7 @@ class ProcessingSettings:
                 ),
             },
             "baseline": {
+                "enabled": self.baseline.enabled,
                 "baseline_start_time_s": (
                     self.baseline.baseline_start_time_s
                 ),
@@ -105,6 +106,10 @@ class ProcessingSettings:
         )
 
         baseline = BaselineSettings(
+            enabled=baseline_data.get(
+                "enabled",
+                False,
+            ),
             baseline_start_time_s=baseline_data.get(
                 "baseline_start_time_s"
             ),

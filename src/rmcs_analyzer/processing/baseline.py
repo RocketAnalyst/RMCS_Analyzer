@@ -17,11 +17,13 @@ class BaselineSettings:
     If neither value is supplied, the entire dataset is used.
     """
 
+    enabled: bool = False
     baseline_start_time_s: Optional[float] = None
     baseline_end_time_s: Optional[float] = None
 
     def reset(self):
         """Reset baseline settings."""
+        self.enabled = False
         self.baseline_start_time_s = None
         self.baseline_end_time_s = None
 
@@ -73,6 +75,53 @@ class BaselineCorrector:
 
         if settings is None:
             settings = BaselineSettings()
+
+        if not settings.enabled:
+            copied_data = TestData(
+                time_s=test_data.time_s.copy(),
+                thrust_N=test_data.thrust_N.copy(),
+                calibrated_time_s=(
+                    None
+                    if test_data.calibrated_time_s is None
+                    else test_data.calibrated_time_s.copy()
+                ),
+                raw_thrust_N=(
+                    None
+                    if test_data.raw_thrust_N is None
+                    else test_data.raw_thrust_N.copy()
+                ),
+                prop_loss_kg=(
+                    None
+                    if test_data.prop_loss_kg is None
+                    else test_data.prop_loss_kg.copy()
+                ),
+                pressure_psi=(
+                    None
+                    if test_data.pressure_psi is None
+                    else test_data.pressure_psi.copy()
+                ),
+                delta=(
+                    None
+                    if test_data.delta is None
+                    else test_data.delta.copy()
+                ),
+                state=(
+                    None
+                    if test_data.state is None
+                    else test_data.state.copy()
+                ),
+                metadata=test_data.metadata,
+            )
+
+            return BaselineResult(
+                data=copied_data,
+                baseline_N=0.0,
+                baseline_start_index=0,
+                baseline_end_index=(
+                    copied_data.sample_count - 1
+                ),
+                sample_count=copied_data.sample_count,
+            )
 
         time = test_data.time_s
         thrust = test_data.thrust_N

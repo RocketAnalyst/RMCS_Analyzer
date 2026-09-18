@@ -195,12 +195,15 @@ class ProcessingPipeline:
         # 4. Baseline correction
         # ---------------------------------------------------------
 
-        baseline_result = self.baseline_corrector.correct(
-            prepared_data,
-            settings.baseline,
-        )
+        if settings.baseline.enabled:
+            baseline_result = self.baseline_corrector.correct(
+                prepared_data,
+                settings.baseline,
+            )
 
-        prepared_data = baseline_result.data
+            prepared_data = baseline_result.data
+        else:
+            baseline_result = None
 
         # ---------------------------------------------------------
         # 5. Detect events

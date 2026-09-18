@@ -9,8 +9,11 @@ from PySide6.QtWidgets import (
 
 class ResultsPanel(QFrame):
     """
-    Displays calculated rocket motor analysis results,
-    detected events, and application status.
+    Displays authoritative rocket motor analysis results,
+    detected physical events, and application status.
+
+    The panel performs display formatting only. Engineering
+    calculations are performed by the analysis engine.
     """
 
     def __init__(self, parent=None):
@@ -29,7 +32,6 @@ class ResultsPanel(QFrame):
 
         title = QLabel("KEY RESULTS")
         title.setObjectName("sectionTitle")
-
         layout.addWidget(title)
 
         self.peak_thrust = self.add_metric(
@@ -89,7 +91,6 @@ class ResultsPanel(QFrame):
 
         events_title = QLabel("DETECTED EVENTS")
         events_title.setObjectName("sectionTitle")
-
         layout.addWidget(events_title)
 
         self.ignition = self.add_event(
@@ -120,17 +121,13 @@ class ResultsPanel(QFrame):
             "READY — No test loaded"
         )
 
-        self.status.setObjectName(
-            "statusLabel"
-        )
+        self.status.setObjectName("statusLabel")
 
         self.status.setAlignment(
             Qt.AlignmentFlag.AlignCenter
         )
 
-        layout.addWidget(
-            self.status
-        )
+        layout.addWidget(self.status)
 
     def add_metric(
         self,
@@ -142,67 +139,50 @@ class ResultsPanel(QFrame):
         """Create and add a metric card."""
 
         card = QFrame()
-        card.setObjectName(
-            "metricCard"
-        )
+        card.setObjectName("metricCard")
 
-        card_layout = QHBoxLayout(
-            card
-        )
+        # Prevent the card from being vertically compressed enough
+        # to clip the metric text.
+        card.setMinimumHeight(52)
+
+        card_layout = QHBoxLayout(card)
 
         card_layout.setContentsMargins(
             12,
-            10,
+            8,
             12,
-            10,
+            8,
         )
 
-        name_label = QLabel(
-            name
-        )
+        card_layout.setSpacing(6)
 
-        name_label.setObjectName(
-            "metricName"
-        )
+        name_label = QLabel(name)
+        name_label.setObjectName("metricName")
+        name_label.setMinimumHeight(20)
 
-        value_label = QLabel(
-            value
-        )
-
-        value_label.setObjectName(
-            "metricValue"
-        )
+        value_label = QLabel(value)
+        value_label.setObjectName("metricValue")
+        value_label.setMinimumHeight(20)
 
         value_label.setAlignment(
-            Qt.AlignmentFlag.AlignRight
+            Qt.AlignmentFlag.AlignRight |
+            Qt.AlignmentFlag.AlignVCenter
         )
 
-        card_layout.addWidget(
-            name_label
-        )
-
+        card_layout.addWidget(name_label)
         card_layout.addStretch()
-
-        card_layout.addWidget(
-            value_label
-        )
+        card_layout.addWidget(value_label)
 
         if unit:
-            unit_label = QLabel(
-                unit
+            unit_label = QLabel(unit)
+            unit_label.setObjectName("metricUnit")
+            unit_label.setMinimumHeight(20)
+            unit_label.setAlignment(
+                Qt.AlignmentFlag.AlignVCenter
             )
+            card_layout.addWidget(unit_label)
 
-            unit_label.setObjectName(
-                "metricUnit"
-            )
-
-            card_layout.addWidget(
-                unit_label
-            )
-
-        layout.addWidget(
-            card
-        )
+        layout.addWidget(card)
 
         return value_label
 
@@ -215,51 +195,35 @@ class ResultsPanel(QFrame):
         """Create and add an event row."""
 
         row = QFrame()
+        row.setObjectName("eventRow")
+        row.setMinimumHeight(30)
 
-        row.setObjectName(
-            "eventRow"
-        )
-
-        row_layout = QHBoxLayout(
-            row
-        )
+        row_layout = QHBoxLayout(row)
 
         row_layout.setContentsMargins(
             8,
-            6,
+            4,
             8,
-            6,
+            4,
         )
 
-        name_label = QLabel(
-            name
+        name_label = QLabel(name)
+        name_label.setObjectName("eventName")
+        name_label.setMinimumHeight(18)
+
+        value_label = QLabel(value)
+        value_label.setObjectName("eventValue")
+        value_label.setMinimumHeight(18)
+        value_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight |
+            Qt.AlignmentFlag.AlignVCenter
         )
 
-        name_label.setObjectName(
-            "eventName"
-        )
-
-        value_label = QLabel(
-            value
-        )
-
-        value_label.setObjectName(
-            "eventValue"
-        )
-
-        row_layout.addWidget(
-            name_label
-        )
-
+        row_layout.addWidget(name_label)
         row_layout.addStretch()
+        row_layout.addWidget(value_label)
 
-        row_layout.addWidget(
-            value_label
-        )
-
-        layout.addWidget(
-            row
-        )
+        layout.addWidget(row)
 
         return value_label
 
@@ -270,107 +234,109 @@ class ResultsPanel(QFrame):
         classification,
     ):
         """
-        Display calculated analysis results.
+        Display authoritative analysis results.
+
+        Key Results come directly from standardized Phase 2
+        ThrustResults fields.
+
+        Detected Events come from the authoritative EventSet.
+
+        No engineering calculations are performed here.
         """
 
         # =========================================================
-        # KEY RESULTS
+        # AUTHORITATIVE KEY RESULTS
         # =========================================================
 
         self.peak_thrust.setText(
-            self._format_value(
-                thrust_results.peak_thrust_N,
-                "N",
+            self._format_number(
+                thrust_results.peak_thrust_N
             )
         )
 
         self.average_thrust.setText(
-            self._format_value(
-                thrust_results.average_thrust_N,
-                "N",
+            self._format_number(
+                thrust_results.average_thrust_5pct_N
             )
         )
 
         self.total_impulse.setText(
-            self._format_value(
-                thrust_results.total_impulse_Ns,
-                "N·s",
+            self._format_number(
+                thrust_results.total_impulse_valid_curve_Ns
             )
         )
 
         self.burn_time.setText(
-            self._format_value(
-                thrust_results.burn_time_s,
-                "s",
+            self._format_number(
+                thrust_results.burn_time_5pct_s
             )
         )
 
         self.time_to_peak.setText(
-            self._format_value(
-                thrust_results.time_to_peak_s,
-                "s",
+            self._format_number(
+                thrust_results.peak_thrust_time_s
             )
         )
-
-        # Motor impulse classification
-        if classification.motor_class:
-            self.motor_class.setText(
-                classification.motor_class
-            )
-        else:
-            self.motor_class.setText(
-                "—"
-            )
-
-        # Calculated designation:
-        # impulse class + rounded measured average thrust.
-        if (
-            classification.motor_class
-            and thrust_results.average_thrust_N
-            is not None
-        ):
-            average_thrust = round(
-                thrust_results.average_thrust_N
-            )
-
-            designation = (
-                f"{classification.motor_class}"
-                f"{average_thrust}"
-            )
-
-            self.calculated_designation.setText(
-                designation
-            )
-
-        else:
-            self.calculated_designation.setText(
-                "—"
-            )
 
         # =========================================================
-        # DETECTED EVENTS
+        # MOTOR CLASS
         # =========================================================
 
-        self.ignition.setText(
-            self._format_value(
-                events.ignition_time_s,
-                "s",
-            )
+        motor_class = (
+            thrust_results.impulse_class
+            or classification.motor_class
         )
 
-        self.peak_event.setText(
-            self._format_value(
-                events.peak_time_s,
-                "s",
-            )
+        self.motor_class.setText(
+            motor_class if motor_class else "—"
         )
 
-        self.burnout.setText(
-            self._format_value(
-                events.burnout_time_s,
-                "s",
-            )
+        # =========================================================
+        # AUTHORITATIVE DESIGNATION
+        # =========================================================
+
+        self.calculated_designation.setText(
+            thrust_results.designation
+            if thrust_results.designation
+            else "—"
         )
+
+        # =========================================================
+        # DETECTED PHYSICAL EVENTS
+        # =========================================================
+
+        ignition_event = events.ignition
+
+        if ignition_event is not None:
+            self.ignition.setText(
+                self._format_number(
+                    ignition_event.time_s
+                ) + " s"
+            )
+        else:
+            self.ignition.setText("—")
+
+        peak_event = events.peak_thrust
+
+        if peak_event is not None:
+            self.peak_event.setText(
+                self._format_number(
+                    peak_event.time_s
+                ) + " s"
+            )
+        else:
+            self.peak_event.setText("—")
+
+        burnout_event = events.burnout
+
+        if burnout_event is not None:
+            self.burnout.setText(
+                self._format_number(
+                    burnout_event.time_s
+                ) + " s"
+            )
+        else:
+            self.burnout.setText("—")
 
     def clear_results(self):
         """Reset displayed analysis results."""
@@ -388,13 +354,10 @@ class ResultsPanel(QFrame):
         self.burnout.setText("—")
 
     @staticmethod
-    def _format_value(
-        value,
-        unit,
-    ):
-        """Format an analysis value for display."""
+    def _format_number(value):
+        """Format a numeric value for display."""
 
         if value is None:
             return "—"
 
-        return f"{value:.2f} {unit}"
+        return f"{value:.2f}"
