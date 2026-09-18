@@ -54,6 +54,7 @@ from .ui.thrust_plot import ThrustPlot
 from .ui.playback_controls import PlaybackControls
 from .ui.results_panel import ResultsPanel
 from .ui.data_table import DataTable
+from .ui.analysis_panel import AnalysisPanel
 
 
 class MainWindow(QMainWindow):
@@ -343,22 +344,10 @@ class MainWindow(QMainWindow):
         # ANALYSIS TAB
         # =========================================================
 
-        analysis_page = self.create_placeholder_page(
-            "Analysis",
-            (
-                "Detailed engineering analysis will be displayed here."
-                "\n\n"
-                "Planned capabilities:\n"
-                "• Thrust statistics\n"
-                "• Impulse analysis\n"
-                "• Performance metrics\n"
-                "• Motor classification\n"
-                "• C* and Isp analysis"
-            ),
-        )
+        self.analysis_panel = AnalysisPanel()
 
         self.workspace_tabs.addTab(
-            analysis_page,
+            self.analysis_panel,
             "Analysis",
         )
 
@@ -1797,6 +1786,7 @@ class MainWindow(QMainWindow):
         peak_thrust_N = None
 
         if test.analysis_results is not None:
+
             analysis = test.analysis_results
 
             burnout_event = analysis.events.burnout
@@ -1841,6 +1831,13 @@ class MainWindow(QMainWindow):
                 analysis.thrust,
                 analysis.statistics,
                 analysis.classification,
+            )
+
+            self.analysis_panel.set_results(
+                analysis.thrust,
+                analysis.statistics,
+                analysis.classification,
+                recorded_duration_s=test.data.duration_s,
             )
 
         self.update_status(

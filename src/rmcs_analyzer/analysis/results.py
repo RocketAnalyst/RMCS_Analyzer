@@ -60,6 +60,9 @@ class ThrustResults:
     # needing another structural change later.
     #
 
+    threshold_percent: float = 5.0
+    threshold_thrust_N: Optional[float] = None
+
     burn_start_5pct_time_s: Optional[float] = None
     burn_end_5pct_time_s: Optional[float] = None
 
@@ -71,6 +74,7 @@ class ThrustResults:
     initial_thrust_window_s: Optional[float] = None
 
     total_impulse_valid_curve_Ns: Optional[float] = None
+    normalized_impulse_Ns: Optional[float] = None
 
     impulse_class: Optional[str] = None
 

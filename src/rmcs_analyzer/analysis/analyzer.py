@@ -73,6 +73,12 @@ class AnalysisEngine:
 
         # Keep the existing Phase 1 fields intact while making the
         # standardized Phase 2 fields authoritative for those metrics.
+        thrust_results.threshold_percent = (
+            standardized.threshold_percent
+        )
+        thrust_results.threshold_thrust_N = (
+            standardized.threshold_thrust_N
+        )
         thrust_results.burn_start_5pct_time_s = (
             standardized.burn_start_5pct_time_s
         )
@@ -93,6 +99,9 @@ class AnalysisEngine:
         )
         thrust_results.total_impulse_valid_curve_Ns = (
             standardized.total_impulse_Ns
+        )
+        thrust_results.normalized_impulse_Ns = (
+            standardized.normalized_impulse_Ns
         )
         thrust_results.impulse_class = standardized.impulse_class
         thrust_results.designation = standardized.designation
