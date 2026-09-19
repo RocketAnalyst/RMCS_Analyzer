@@ -121,6 +121,7 @@ class ThrustPlot(QFrame):
         self.hover_cursor = None
         self.hover_marker = None
         self.hover_readout = None
+        self.playback_cursor = None
 
         self.configure_hover_inspection()
 
@@ -787,6 +788,7 @@ class ThrustPlot(QFrame):
         self.plot.clear()
         self.hover_cursor = None
         self.hover_marker = None
+        self.playback_cursor = None
         self.hide_hover_inspection()
 
         # ---------------------------------------------------------
@@ -1261,11 +1263,73 @@ class ThrustPlot(QFrame):
         self.data_thrust = None
         self.hover_cursor = None
         self.hover_marker = None
+        self.playback_cursor = None
         self.hide_hover_inspection()
 
         self.stack.setCurrentWidget(
             self.placeholder
         )
+
+    def set_playback_position(self, position_s):
+        """Show the shared playback position as a circular marker on the curve."""
+        if self.data_time is None or len(self.data_time) == 0:
+            return
+
+        times = np.asarray(self.data_time, dtype=float)
+        thrust = np.asarray(self.data_thrust, dtype=float)
+        mask = np.isfinite(times) & np.isfinite(thrust)
+        times = times[mask]
+        thrust = thrust[mask]
+
+        if len(times) == 0:
+            return
+
+        if self.playback_cursor is None:
+            self.playback_cursor = pg.ScatterPlotItem(
+                size=12,
+                pen=pg.mkPen("#ffffff", width=2),
+                brush=pg.mkBrush("#39d98a"),
+                symbol="o",
+                pxMode=True,
+            )
+            self.playback_cursor.setZValue(50)
+            self.plot.addItem(self.playback_cursor)
+
+        position = float(position_s)
+
+        # When a video is loaded, its timeline begins before RMCS t=0.
+        # Keep the analyzer marker hidden until the synchronization point.
+        if position < float(times[0]):
+            self.playback_cursor.hide()
+            return
+
+        # Once analysis has ended, hold the marker at the last measured
+        # point while the video continues through its remaining frames.
+        marker_position = min(
+            position,
+            float(times[-1]),
+        )
+
+        if len(times) == 1:
+            thrust_value = float(thrust[0])
+        else:
+            thrust_value = float(
+                np.interp(
+                    marker_position,
+                    times,
+                    thrust,
+                )
+            )
+
+        self.playback_cursor.setData(
+            [marker_position],
+            [thrust_value],
+        )
+        self.playback_cursor.show()
+
+    def hide_playback_position(self):
+        if self.playback_cursor is not None:
+            self.playback_cursor.hide()
 
     def get_plot_widget(self):
         """Return the underlying PlotWidget."""

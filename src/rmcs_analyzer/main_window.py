@@ -1,10 +1,13 @@
 from pathlib import Path
 import sys
 
+import numpy as np
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
+    QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -56,6 +59,9 @@ from .ui.results_panel import ResultsPanel
 from .ui.data_table import DataTable
 from .ui.analysis_panel import AnalysisPanel
 from .ui.motor_classification_panel import MotorClassificationPanel
+from .ui.playback_timeline import PlaybackTimeline
+from .ui.video_panel import VideoPanel
+from .ui.settings_dialog import SettingsDialog
 
 
 class MainWindow(QMainWindow):
@@ -110,6 +116,7 @@ class MainWindow(QMainWindow):
 
         self.current_test = None
         self.current_analysis = None
+        self.playback_timeline = PlaybackTimeline(self)
 
         # =========================================================
         # PROJECT STATE
@@ -418,7 +425,7 @@ class MainWindow(QMainWindow):
         # VIDEO OVERLAY
         # ---------------------------------------------------------
 
-        self.video_panel = self.create_video_placeholder()
+        self.video_panel = VideoPanel()
 
         self.video_panel.setMinimumHeight(205)
         lower_panels.addWidget(
@@ -679,87 +686,6 @@ class MainWindow(QMainWindow):
         )
 
         return page
-
-    def create_video_placeholder(self):
-        """Create the future video overlay pane."""
-
-        panel = QFrame()
-
-        panel.setObjectName(
-            "subPanel"
-        )
-
-        layout = QVBoxLayout(
-            panel
-        )
-
-        layout.setContentsMargins(
-            10,
-            8,
-            10,
-            8,
-        )
-
-        layout.setSpacing(
-            6
-        )
-
-        header = self.create_panel_header(
-            "Video Overlay"
-        )
-
-        layout.addWidget(
-            header
-        )
-
-        body = QFrame()
-        body.setObjectName("videoPreview")
-
-        body_layout = QVBoxLayout(
-            body
-        )
-
-        body_layout.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-
-        status = QLabel(
-            "No video loaded"
-        )
-
-        status.setObjectName(
-            "videoPlaceholder"
-        )
-
-        status.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-
-        button = QPushButton(
-            "Load Video..."
-        )
-        button.setObjectName("loadVideoButton")
-
-        button.setEnabled(
-            False
-        )
-
-        body_layout.addWidget(
-            status
-        )
-
-        body_layout.addWidget(
-            button,
-            0,
-            Qt.AlignmentFlag.AlignCenter,
-        )
-
-        layout.addWidget(
-            body,
-            1,
-        )
-
-        return panel
 
     def create_export_placeholder(self):
         """Create the future export pane."""
@@ -1096,12 +1022,66 @@ class MainWindow(QMainWindow):
             self.save_project
         )
 
+        self.header.settings_button.clicked.connect(
+            self.open_settings
+        )
+
         self.test_files.test_selected.connect(
             self.select_test
         )
 
         self.test_info.metadata_changed.connect(
             self.update_active_test_metadata
+        )
+
+        self.video_panel.video_changed.connect(
+            self.on_video_changed
+        )
+        self.video_panel.video_removed.connect(
+            self.on_video_removed
+        )
+        self.video_panel.sync_offset_changed.connect(
+            self.on_video_sync_changed
+        )
+        self.video_panel.overlay_changed.connect(
+            self.on_video_overlay_changed
+        )
+        self.video_panel.overlay_positions_changed.connect(
+            self.on_video_overlay_positions_changed
+        )
+        self.video_panel.overlay_event_positions_changed.connect(
+            self.on_video_overlay_event_positions_changed
+        )
+        self.video_panel.overlay_configuration_changed.connect(
+            self.on_video_overlay_configuration_changed
+        )
+        self.video_panel.duration_changed.connect(
+            self.on_video_duration_changed
+        )
+
+        self.playback.play_requested.connect(
+            self.playback_timeline.toggle
+        )
+        self.playback.reset_requested.connect(
+            self.playback_timeline.stop
+        )
+        self.playback.seek_requested.connect(
+            self.playback_timeline.set_position
+        )
+        self.playback.scrub_started.connect(
+            self.on_scrub_started
+        )
+        self.playback.scrub_finished.connect(
+            self.on_scrub_finished
+        )
+        self.playback_timeline.position_changed.connect(
+            self.on_playback_position_changed
+        )
+        self.playback_timeline.playing_changed.connect(
+            self.on_playback_state_changed
+        )
+        self.playback_timeline.finished.connect(
+            self.on_playback_finished
         )
 
     # =============================================================
@@ -1513,6 +1493,7 @@ class MainWindow(QMainWindow):
         self.current_test = None
 
         self.current_analysis = None
+        self.playback_timeline.stop()
 
         self.test_files.clear()
 
@@ -1811,9 +1792,301 @@ class MainWindow(QMainWindow):
                 recorded_duration_s=test.data.duration_s,
             )
 
+        duration_s = float(test.data.duration_s) if test.data.sample_count else 0.0
+        self.playback_timeline.pause()
+        self.playback_timeline.set_duration(duration_s)
+        self.playback_timeline.set_position(
+            min(test.video.playback_position_s, duration_s)
+        )
+        self.playback.set_duration(duration_s)
+        self.playback.set_position(self.playback_timeline.position_s)
+
+        self.video_panel.set_video_state(
+            test.video.source_path,
+            sync_offset_s=test.video.sync_offset_s,
+            show_curve=test.video.show_curve_overlay,
+            show_results=test.video.show_results_overlay,
+            show_events=test.video.show_event_markers,
+            curve_x=test.video.curve_overlay_x,
+            curve_y=test.video.curve_overlay_y,
+            results_x=test.video.results_overlay_x,
+            results_y=test.video.results_overlay_y,
+            curve_w=test.video.curve_overlay_w,
+            curve_h=test.video.curve_overlay_h,
+            results_w=test.video.results_overlay_w,
+            results_h=test.video.results_overlay_h,
+            event_positions=test.video.normalized_event_positions(),
+            curve_title=test.video.curve_title,
+            results_title=test.video.results_title,
+            result_fields=test.video.result_fields,
+            event_visibility=test.video.event_visibility,
+            curve_show_grid=test.video.curve_show_grid,
+            curve_show_axes=test.video.curve_show_axes,
+            curve_show_background=test.video.curve_show_background,
+        )
+        self.video_panel.set_timeline_position(
+            self.playback_timeline.position_s
+        )
+        if test.analysis_results is not None:
+            self.video_panel.set_analysis(
+                test.data.time_s,
+                test.data.thrust_N,
+                test.analysis_results.thrust,
+                test.analysis_results.classification,
+                test.analysis_results.events,
+            )
+        self.on_playback_position_changed(
+            self.playback_timeline.position_s
+        )
+
         self.update_status(
             test
         )
+
+    # =============================================================
+    # PLAYBACK / VIDEO
+    # =============================================================
+
+    def on_scrub_started(self, was_playing):
+        """Pause the master timeline while the user drags the slider."""
+        if was_playing:
+            self.playback_timeline.pause()
+
+    def on_scrub_finished(self, was_playing):
+        """Resume playback after a seek when playback was active before scrubbing."""
+        if was_playing:
+            self.playback_timeline.play()
+
+
+    def on_playback_position_changed(self, position_s):
+        """Drive the graph, dynamic metrics, and video from one timeline."""
+        test = self.session.active_test
+        if test is None:
+            return
+
+        test.video.playback_position_s = float(position_s)
+        self.playback.set_position(position_s)
+        self.video_panel.set_timeline_position(position_s)
+
+        # The playback timeline is video time when a video is loaded.
+        # Sync Start is the video timestamp at which RMCS analysis t=0
+        # begins. Without a video, playback time is already analysis time.
+        analysis_position_s = float(position_s)
+        if test.video.has_video:
+            analysis_position_s -= float(test.video.sync_offset_s)
+
+        self.thrust_plot.set_playback_position(
+            analysis_position_s
+        )
+
+        data = test.data
+        value = None
+        if data.sample_count and data.time_s is not None:
+            times = data.time_s
+            thrust = data.thrust_N
+            if len(times) and analysis_position_s >= float(times[0]):
+                index = int(
+                    np.searchsorted(
+                        times,
+                        analysis_position_s,
+                        side="left",
+                    )
+                )
+                if index <= 0:
+                    value = float(thrust[0])
+                elif index >= len(times):
+                    value = float(thrust[-1])
+                else:
+                    t0 = float(times[index - 1])
+                    t1 = float(times[index])
+                    y0 = float(thrust[index - 1])
+                    y1 = float(thrust[index])
+                    if t1 == t0:
+                        value = y1
+                    else:
+                        fraction = (analysis_position_s - t0) / (t1 - t0)
+                        value = y0 + fraction * (y1 - y0)
+
+        self.results.set_current_thrust(value)
+
+    def on_playback_state_changed(self, playing):
+        self.playback.set_playing(playing)
+        self.video_panel.set_playing(playing)
+
+    def on_playback_finished(self):
+        test = self.session.active_test
+        if test is not None:
+            test.video.playback_position_s = self.playback_timeline.position_s
+
+    def on_video_changed(self, filename):
+        test = self.session.active_test
+        if test is None:
+            return
+
+        test.video.source_path = filename
+        test.video.playback_position_s = self.playback_timeline.position_s
+        test.mark_modified()
+        self.project_modified = True
+        self.update_status(test)
+
+    def on_video_removed(self):
+        test = self.session.active_test
+        if test is None:
+            return
+
+        test.video.clear_video()
+        self.video_panel.show_empty_state()
+        duration_s = (
+            float(test.data.duration_s)
+            if test.data.sample_count
+            else 0.0
+        )
+        self.playback_timeline.set_duration(duration_s)
+        self.playback.set_duration(duration_s)
+        test.mark_modified()
+        self.project_modified = True
+        self.update_status(test)
+
+    def on_video_sync_changed(self, offset_s):
+        test = self.session.active_test
+        if test is None:
+            return
+        test.video.sync_offset_s = float(offset_s)
+        test.mark_modified()
+        self.project_modified = True
+        self.on_playback_position_changed(
+            self.playback_timeline.position_s
+        )
+        self.update_status(test)
+
+    def on_video_duration_changed(self, duration_s):
+        """Use the full video duration as the playback timeline when video is loaded."""
+        test = self.session.active_test
+        if test is None:
+            return
+
+        duration = float(duration_s or 0.0)
+
+        if duration > 0.0 and test.video.has_video:
+            self.playback_timeline.set_duration(duration)
+            position = min(
+                test.video.playback_position_s,
+                duration,
+            )
+            self.playback_timeline.set_position(position)
+            self.playback.set_duration(duration)
+            self.playback.set_position(position)
+        elif not test.video.has_video:
+            duration = (
+                float(test.data.duration_s)
+                if test.data.sample_count
+                else 0.0
+            )
+            self.playback_timeline.set_duration(duration)
+            position = min(
+                self.playback_timeline.position_s,
+                duration,
+            )
+            self.playback.set_duration(duration)
+            self.playback.set_position(position)
+
+    def on_video_overlay_changed(self, show_curve, show_results, show_events):
+        test = self.session.active_test
+        if test is None:
+            return
+        test.video.show_curve_overlay = bool(show_curve)
+        test.video.show_results_overlay = bool(show_results)
+        test.video.show_event_markers = bool(show_events)
+        test.mark_modified()
+        self.project_modified = True
+        self.update_status(test)
+
+    def on_video_overlay_positions_changed(
+        self,
+        curve_x, curve_y, results_x, results_y,
+        curve_w, curve_h, results_w, results_h,
+    ):
+        test = self.session.active_test
+        if test is None:
+            return
+        test.video.curve_overlay_x = float(curve_x)
+        test.video.curve_overlay_y = float(curve_y)
+        test.video.results_overlay_x = float(results_x)
+        test.video.results_overlay_y = float(results_y)
+        test.video.curve_overlay_w = float(curve_w)
+        test.video.curve_overlay_h = float(curve_h)
+        test.video.results_overlay_w = float(results_w)
+        test.video.results_overlay_h = float(results_h)
+        test.mark_modified()
+        self.project_modified = True
+        self.update_status(test)
+
+    def on_video_overlay_event_positions_changed(self, positions):
+        test = self.session.active_test
+        if test is None:
+            return
+        safe = {}
+        for key, value in (positions or {}).items():
+            if isinstance(value, (list, tuple)) and len(value) >= 2:
+                safe[key] = [
+                    max(0.0, min(1.0, float(value[0]))),
+                    max(0.0, min(1.0, float(value[1]))),
+                ]
+        test.video.event_overlay_positions = safe
+        test.mark_modified()
+        self.project_modified = True
+        self.update_status(test)
+
+    def on_video_overlay_configuration_changed(self, configuration):
+        test = self.session.active_test
+        if test is None:
+            return
+        test.video.curve_title = configuration.get(
+            "curve_title", "Measured Thrust"
+        )
+        test.video.results_title = configuration.get(
+            "results_title", "Test Results"
+        )
+        test.video.result_fields = list(
+            configuration.get("result_fields", [])
+        )
+        test.video.event_visibility = dict(
+            configuration.get(
+                "event_visibility",
+                {"ignition": True, "peak_thrust": True, "burnout": True},
+            )
+        )
+        test.video.curve_show_grid = bool(
+            configuration.get("curve_show_grid", True)
+        )
+        test.video.curve_show_axes = bool(
+            configuration.get("curve_show_axes", True)
+        )
+        test.video.curve_show_background = bool(
+            configuration.get("curve_show_background", True)
+        )
+        test.mark_modified()
+        self.project_modified = True
+        self.update_status(test)
+
+    def open_settings(self):
+        """Open application settings, beginning with active-test video overlay options."""
+        test = self.session.active_test
+        configuration = (
+            self.video_panel.overlay_configuration()
+            if test is not None
+            else None
+        )
+        dialog = SettingsDialog(
+            video_configuration=configuration,
+            parent=self,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        if test is None:
+            return
+        configuration = dialog.configuration()
+        self.video_panel.apply_overlay_configuration(configuration)
 
     # =============================================================
     # UPDATE ACTIVE TEST METADATA

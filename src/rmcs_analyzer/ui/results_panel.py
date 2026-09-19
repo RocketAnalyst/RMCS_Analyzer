@@ -24,6 +24,7 @@ class ResultsPanel(QFrame):
         title.setObjectName("sectionTitle")
         layout.addWidget(title)
 
+        self.current_thrust = self.add_metric(layout, "●", "Current Thrust", "—", "N")
         self.peak_thrust = self.add_metric(layout, "▲", "Peak Thrust", "—", "N")
         self.average_thrust = self.add_metric(layout, "▥", "Average Thrust", "—", "N")
         self.total_impulse = self.add_metric(layout, "Σ", "Total Impulse", "—", "N·s")
@@ -112,6 +113,7 @@ class ResultsPanel(QFrame):
         return value_label
 
     def set_results(self, thrust_results, events, classification):
+        self.current_thrust.setText("—")
         self.peak_thrust.setText(self._format_number(thrust_results.peak_thrust_N))
         self.average_thrust.setText(self._format_number(thrust_results.average_thrust_5pct_N))
         self.total_impulse.setText(self._format_number(thrust_results.total_impulse_valid_curve_Ns))
@@ -144,12 +146,15 @@ class ResultsPanel(QFrame):
 
     def clear_results(self):
         for widget in (
-            self.peak_thrust, self.average_thrust, self.total_impulse,
+            self.current_thrust, self.peak_thrust, self.average_thrust, self.total_impulse,
             self.burn_time, self.time_to_peak, self.motor_class,
             self.calculated_designation, self.ignition, self.peak_event,
             self.burnout
         ):
             widget.setText("—")
+
+    def set_current_thrust(self, value):
+        self.current_thrust.setText(self._format_number(value))
 
     @staticmethod
     def _format_number(value):

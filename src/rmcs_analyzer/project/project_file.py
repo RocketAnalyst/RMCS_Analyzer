@@ -27,6 +27,7 @@ from ..processing.event_model import (
 
 from .test_model import TestModel
 from .session import TestSession
+from .video_state import VideoState
 
 
 class ProjectFileError(Exception):
@@ -52,8 +53,9 @@ class ProjectFile:
     """
 
     FORMAT_NAME = "RMCS Analyzer Project"
-    FORMAT_VERSION = 2
+    FORMAT_VERSION = 3
     LEGACY_FORMAT_VERSION = 1
+    PRE_VIDEO_FORMAT_VERSION = 2
     FILE_EXTENSION = ".rmcs"
 
     # =============================================================
@@ -285,6 +287,32 @@ class ProjectFile:
             "nozzle_exit_in": test.nozzle_exit_in,
             "notes": test.notes,
             "source_file": test.source_file,
+            "video": {
+                "source_path": test.video.source_path,
+                "sync_offset_s": test.video.sync_offset_s,
+                "show_curve_overlay": test.video.show_curve_overlay,
+                "show_results_overlay": test.video.show_results_overlay,
+                "show_event_markers": test.video.show_event_markers,
+                "playback_position_s": test.video.playback_position_s,
+                "curve_overlay_x": test.video.curve_overlay_x,
+                "curve_overlay_y": test.video.curve_overlay_y,
+                "curve_overlay_w": test.video.curve_overlay_w,
+                "curve_overlay_h": test.video.curve_overlay_h,
+                "results_overlay_x": test.video.results_overlay_x,
+                "results_overlay_y": test.video.results_overlay_y,
+                "results_overlay_w": test.video.results_overlay_w,
+                "results_overlay_h": test.video.results_overlay_h,
+                "events_overlay_x": test.video.events_overlay_x,
+                "events_overlay_y": test.video.events_overlay_y,
+                "event_overlay_positions": test.video.normalized_event_positions(),
+                "event_visibility": dict(test.video.event_visibility),
+                "curve_title": test.video.curve_title,
+                "results_title": test.video.results_title,
+                "result_fields": list(test.video.result_fields),
+                "curve_show_grid": test.video.curve_show_grid,
+                "curve_show_axes": test.video.curve_show_axes,
+                "curve_show_background": test.video.curve_show_background,
+            },
         }
 
         # 'modified' is intentionally not stored.
@@ -522,6 +550,70 @@ class ProjectFile:
             source_file=metadata.get(
                 "source_file",
                 "",
+            ),
+            video=VideoState(
+                source_path=metadata.get("video", {}).get("source_path", ""),
+                sync_offset_s=metadata.get("video", {}).get("sync_offset_s", 0.0),
+                show_curve_overlay=metadata.get("video", {}).get("show_curve_overlay", True),
+                show_results_overlay=metadata.get("video", {}).get("show_results_overlay", True),
+                show_event_markers=metadata.get("video", {}).get("show_event_markers", True),
+                playback_position_s=metadata.get("video", {}).get("playback_position_s", 0.0),
+                curve_overlay_x=metadata.get("video", {}).get("curve_overlay_x", 0.06),
+                curve_overlay_y=metadata.get("video", {}).get("curve_overlay_y", 0.62),
+                curve_overlay_w=metadata.get("video", {}).get("curve_overlay_w", 0.56),
+                curve_overlay_h=metadata.get("video", {}).get("curve_overlay_h", 0.30),
+                results_overlay_x=metadata.get("video", {}).get("results_overlay_x", 0.70),
+                results_overlay_y=metadata.get("video", {}).get("results_overlay_y", 0.06),
+                results_overlay_w=metadata.get("video", {}).get("results_overlay_w", 0.25),
+                results_overlay_h=metadata.get("video", {}).get("results_overlay_h", 0.22),
+                events_overlay_x=metadata.get("video", {}).get("events_overlay_x", 0.06),
+                events_overlay_y=metadata.get("video", {}).get("events_overlay_y", 0.05),
+                event_overlay_positions=metadata.get("video", {}).get(
+                    "event_overlay_positions",
+                    {
+                        "ignition": [0.05, 0.78],
+                        "peak_thrust": [0.18, 0.16],
+                        "burnout": [0.82, 0.78],
+                    },
+                ),
+                event_visibility=metadata.get("video", {}).get(
+                    "event_visibility",
+                    {
+                        "ignition": True,
+                        "peak_thrust": True,
+                        "burnout": True,
+                    },
+                ),
+                curve_title=metadata.get("video", {}).get(
+                    "curve_title",
+                    "Measured Thrust",
+                ),
+                results_title=metadata.get("video", {}).get(
+                    "results_title",
+                    "Test Results",
+                ),
+                result_fields=metadata.get("video", {}).get(
+                    "result_fields",
+                    [
+                        "designation",
+                        "peak_thrust",
+                        "average_thrust",
+                        "total_impulse",
+                        "burn_time",
+                    ],
+                ),
+                curve_show_grid=metadata.get("video", {}).get(
+                    "curve_show_grid",
+                    True,
+                ),
+                curve_show_axes=metadata.get("video", {}).get(
+                    "curve_show_axes",
+                    True,
+                ),
+                curve_show_background=metadata.get("video", {}).get(
+                    "curve_show_background",
+                    True,
+                ),
             ),
 
             modified=False,
@@ -883,24 +975,32 @@ class ProjectFile:
             "events": events_data,
 
             "thrust": {
-                "peak_thrust_N": (
-                    analysis.thrust.peak_thrust_N
-                ),
-                "peak_thrust_time_s": (
-                    analysis.thrust.peak_thrust_time_s
-                ),
-                "average_thrust_N": (
-                    analysis.thrust.average_thrust_N
-                ),
-                "burn_time_s": (
-                    analysis.thrust.burn_time_s
-                ),
-                "total_impulse_Ns": (
-                    analysis.thrust.total_impulse_Ns
-                ),
-                "time_to_peak_s": (
-                    analysis.thrust.time_to_peak_s
-                ),
+                "peak_thrust_N": analysis.thrust.peak_thrust_N,
+                "peak_thrust_time_s": analysis.thrust.peak_thrust_time_s,
+                "average_thrust_N": analysis.thrust.average_thrust_N,
+                "burn_time_s": analysis.thrust.burn_time_s,
+                "total_impulse_Ns": analysis.thrust.total_impulse_Ns,
+                "time_to_peak_s": analysis.thrust.time_to_peak_s,
+                "threshold_percent": analysis.thrust.threshold_percent,
+                "threshold_thrust_N": analysis.thrust.threshold_thrust_N,
+                "burn_start_5pct_time_s": analysis.thrust.burn_start_5pct_time_s,
+                "burn_end_5pct_time_s": analysis.thrust.burn_end_5pct_time_s,
+                "burn_time_5pct_s": analysis.thrust.burn_time_5pct_s,
+                "average_thrust_5pct_N": analysis.thrust.average_thrust_5pct_N,
+                "initial_thrust_average_N": analysis.thrust.initial_thrust_average_N,
+                "initial_thrust_window_s": analysis.thrust.initial_thrust_window_s,
+                "thrust_rise_rate_N_per_s": analysis.thrust.thrust_rise_rate_N_per_s,
+                "thrust_decay_rate_N_per_s": analysis.thrust.thrust_decay_rate_N_per_s,
+                "isp_s": analysis.thrust.isp_s,
+                "isp_status": analysis.thrust.isp_status,
+                "cstar_m_per_s": analysis.thrust.cstar_m_per_s,
+                "cstar_status": analysis.thrust.cstar_status,
+                "average_chamber_pressure_psi": analysis.thrust.average_chamber_pressure_psi,
+                "average_mass_flow_kg_per_s": analysis.thrust.average_mass_flow_kg_per_s,
+                "total_impulse_valid_curve_Ns": analysis.thrust.total_impulse_valid_curve_Ns,
+                "normalized_impulse_Ns": analysis.thrust.normalized_impulse_Ns,
+                "impulse_class": analysis.thrust.impulse_class,
+                "designation": analysis.thrust.designation,
             },
 
             "statistics": {
@@ -1022,24 +1122,32 @@ class ProjectFile:
         # ---------------------------------------------------------
 
         thrust = ThrustResults(
-            peak_thrust_N=thrust_data.get(
-                "peak_thrust_N"
-            ),
-            peak_thrust_time_s=thrust_data.get(
-                "peak_thrust_time_s"
-            ),
-            average_thrust_N=thrust_data.get(
-                "average_thrust_N"
-            ),
-            burn_time_s=thrust_data.get(
-                "burn_time_s"
-            ),
-            total_impulse_Ns=thrust_data.get(
-                "total_impulse_Ns"
-            ),
-            time_to_peak_s=thrust_data.get(
-                "time_to_peak_s"
-            ),
+            peak_thrust_N=thrust_data.get("peak_thrust_N"),
+            peak_thrust_time_s=thrust_data.get("peak_thrust_time_s"),
+            average_thrust_N=thrust_data.get("average_thrust_N"),
+            burn_time_s=thrust_data.get("burn_time_s"),
+            total_impulse_Ns=thrust_data.get("total_impulse_Ns"),
+            time_to_peak_s=thrust_data.get("time_to_peak_s"),
+            threshold_percent=thrust_data.get("threshold_percent", 5.0),
+            threshold_thrust_N=thrust_data.get("threshold_thrust_N"),
+            burn_start_5pct_time_s=thrust_data.get("burn_start_5pct_time_s"),
+            burn_end_5pct_time_s=thrust_data.get("burn_end_5pct_time_s"),
+            burn_time_5pct_s=thrust_data.get("burn_time_5pct_s"),
+            average_thrust_5pct_N=thrust_data.get("average_thrust_5pct_N"),
+            initial_thrust_average_N=thrust_data.get("initial_thrust_average_N"),
+            initial_thrust_window_s=thrust_data.get("initial_thrust_window_s"),
+            thrust_rise_rate_N_per_s=thrust_data.get("thrust_rise_rate_N_per_s"),
+            thrust_decay_rate_N_per_s=thrust_data.get("thrust_decay_rate_N_per_s"),
+            isp_s=thrust_data.get("isp_s"),
+            isp_status=thrust_data.get("isp_status", "unavailable"),
+            cstar_m_per_s=thrust_data.get("cstar_m_per_s"),
+            cstar_status=thrust_data.get("cstar_status", "unavailable"),
+            average_chamber_pressure_psi=thrust_data.get("average_chamber_pressure_psi"),
+            average_mass_flow_kg_per_s=thrust_data.get("average_mass_flow_kg_per_s"),
+            total_impulse_valid_curve_Ns=thrust_data.get("total_impulse_valid_curve_Ns"),
+            normalized_impulse_Ns=thrust_data.get("normalized_impulse_Ns"),
+            impulse_class=thrust_data.get("impulse_class"),
+            designation=thrust_data.get("designation"),
         )
 
         # ---------------------------------------------------------
@@ -1235,6 +1343,7 @@ class ProjectFile:
 
         if version not in (
             cls.FORMAT_VERSION,
+            cls.PRE_VIDEO_FORMAT_VERSION,
             cls.LEGACY_FORMAT_VERSION,
         ):
 

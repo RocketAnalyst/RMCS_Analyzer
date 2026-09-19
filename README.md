@@ -10,14 +10,24 @@ The application is being developed with Python, PySide6, PyQtGraph, NumPy, and P
 
 ## Current Development Status
 
-RMCS Analyzer is currently in active development.
+RMCS Analyzer is in active development.
 
-The project has completed the core data-model, processing, persistence, and authoritative performance-analysis foundation. The authoritative analysis-engine foundation is now validated, including standardized thrust reduction, motor classification, thrust-rate metrics, and the first performance extensions (Isp and C*). Current development is focused on connecting those validated results cleanly to the graphical interface and building the dashboard toward the project visual specification.
+The project has completed the core analysis-engine foundation and the first
+functional video-analysis workflow. The authoritative analysis layer is
+separate from the GUI and is protected by standalone regression/reference
+tests. The current application also supports persistent RMCS projects,
+interactive thrust analysis, synchronized test video playback, and a
+functional configurable video-overlay system.
+
+The current development priority is **functionality before visual polish**.
+The video overlay system is considered functional enough for the current
+milestone; final styling, rendered video export, and transparent overlay
+export are intentionally deferred.
 
 The current architecture is:
 
 ```text
-Standardized CSV
+Standardized CSV / RMCS Project
       │
       ▼
    CSV Reader
@@ -28,18 +38,18 @@ Standardized CSV
       ▼
 ProcessingPipeline
       │
-      ├── Raw validation
-      ├── Calibrated-time selection
+      ├── Validation / preparation
+      ├── Timeline selection
       ├── Cleaning / trimming
       ├── Baseline correction
       ├── Physical event detection
       └── Time alignment
       │
       ▼
-   Prepared TestData
+ Prepared TestData
       │
       ▼
-  AnalysisEngine
+ AnalysisEngine
       │
       ├── Performance reduction
       ├── Statistical analysis
@@ -51,9 +61,22 @@ ProcessingPipeline
       │
       ├── GUI
       └── Future exports
+
+TestModel / TestSession
+      │
+      ├── AnalysisResults
+      ├── Test metadata
+      └── VideoState
+              │
+              ├── Video association
+              ├── Synchronization
+              ├── Playback state
+              └── Overlay configuration
 ```
 
-A major design requirement is that the GUI does not independently calculate authoritative engineering results. Analysis is performed by the analysis layer and exposed through `AnalysisResults`.
+A major design requirement is that the GUI does not independently calculate
+authoritative engineering results. Analysis is performed by the analysis
+layer and exposed through `AnalysisResults`.
 
 ---
 
@@ -422,17 +445,19 @@ The test suite is intended to protect the authoritative analysis layer as the GU
 
 ## Current GUI
 
-The desktop interface currently includes the foundation for:
+The desktop interface currently includes:
 
-### Header
+### Application shell
 
-- RMCS Analyzer branding
-- Ready/modified status
-- Import controls
-- Save controls
-- Application settings access
+- RMCS Analyzer branding and application status
+- Import/open controls
+- Save project controls
+- Application Settings
+- Persistent test/project state
 
-### Workspace
+### Workspaces
+
+The application provides the current workspace structure for:
 
 - Thrust Curve
 - Data Table
@@ -440,29 +465,149 @@ The desktop interface currently includes the foundation for:
 - Compare
 - Simulation Overlay
 
+Some of these workspaces are still being expanded. Their presence in the
+interface does not mean every planned workflow is complete.
+
 ### Side panels
+
+The current dashboard includes areas for:
 
 - Test Information
 - Test Files
-- Branding
 - Key Results
 - Additional Metrics
 - C* Analysis
+- Motor Classification
 
-### Visualization
+### Thrust analysis
 
-The current thrust-curve view includes:
+The current thrust-curve view provides:
 
-- Positive motor thrust curve
+- Interactive PyQtGraph visualization
 - Standardized 5% burn-start and burn-end annotations
 - Peak-thrust annotation
-- Physical ignition and end-of-recording annotations
-- Interactive cursor/time-thrust readout
+- Physical/diagnostic event information
+- Time/thrust cursor readout
 - Post-burnout visualization
 - Zero reference line
-- Interactive plotting through PyQtGraph
+- Authoritative analysis results from the analysis layer
 
-The Analysis workspace now displays authoritative performance and performance-extension results. The Motor Classification area is being developed as a dedicated dashboard component. Compare, Simulation Overlay, video, and export workflows remain under development.
+### Video analysis
+
+A functional video-analysis workflow is now implemented.
+
+When a test has an associated video, RMCS Analyzer supports:
+
+- Per-test video file association
+- Video playback with normal audio/video playback
+- RMCS timeline synchronization
+- Manual Sync Start adjustment
+- Play / pause / reset controls
+- Timeline scrubbing
+- Video pop-out / enlarged viewing
+- Synchronized thrust-curve marker
+- Current-thrust display during playback
+- Results and event synchronization
+- Configurable video overlays
+
+The video timeline is the master timeline when video is loaded. The full
+video duration is preserved.
+
+`Sync Start` means:
+
+> the video timestamp at which RMCS test time `t = 0` begins.
+
+Therefore:
+
+```text
+Before Sync Start
+    → video plays normally
+    → RMCS marker/results are inactive
+
+At Sync Start
+    → RMCS t = 0 begins
+
+During RMCS test
+    → curve marker and synchronized results follow RMCS time
+
+After the RMCS curve ends
+    → marker remains at the final curve point
+    → video continues through its remaining duration
+```
+
+Without a loaded video, the RMCS timeline remains usable on its own.
+
+### Video Overlay System
+
+The current overlay system provides a functional foundation for analysis
+video presentation.
+
+It currently supports:
+
+- Measured-thrust curve overlay
+- Results overlay
+- Individual event overlays/markers
+- Ignition, peak-thrust, and burnout event visibility
+- Draggable/resizable overlay objects
+- Persistent per-test overlay positions
+- Configurable overlay titles
+- Selectable result fields
+- Curve grid visibility
+- Curve axes/scale visibility
+- Curve background visibility
+- Overlay settings through the application Settings dialog
+
+Overlay state is stored with the individual test and persists when switching
+tests and when saving/loading an `.rmcs` project.
+
+The current overlay presentation is intentionally considered a functional
+v1 system rather than final visual polish. Chart styling, typography,
+spacing, event presentation, and other presentation refinements remain
+future work.
+
+### RMCS Project persistence
+
+`.rmcs` is the native project format.
+
+A project stores the working state needed to reopen a test, including:
+
+- Test metadata
+- Imported test data
+- Analysis results
+- Video association/path
+- Video synchronization state
+- Playback position
+- Overlay visibility/configuration
+- Overlay positions and sizes
+- Overlay event positions/visibility
+- Overlay titles and selected result fields
+
+The video file itself is referenced by path rather than embedded in the
+`.rmcs` project.
+
+---
+
+## Current Video / Overlay Design Rules
+
+These rules describe the current implementation and should be preserved as
+the system develops:
+
+1. The RMCS analysis timeline and video timeline are synchronized, but the
+   video itself is not clipped to the RMCS curve.
+2. `Sync Start` identifies the video timestamp corresponding to RMCS `t=0`.
+3. The complete source-video duration remains available.
+4. Before synchronization begins, video playback continues without an RMCS
+   marker or active test metrics.
+5. After the measured curve ends, the video continues while the RMCS marker
+   remains at the final curve point.
+6. Video state belongs to the individual test, not to the global application.
+7. Overlay settings that describe the presentation of a test video are
+   persisted with that test.
+8. Global application settings remain appropriate for global/default
+   configuration; test-specific video state belongs in the `.rmcs` project.
+9. No-video operation remains a supported analyzer workflow.
+10. Final rendered-video export and transparent overlay-video export are not
+    yet implemented.
 
 ---
 
@@ -486,56 +631,67 @@ The mockup is the visual reference for layout and presentation. The authoritativ
 
 ## Planned Development
 
-Future development is expected to include:
+Development is intentionally proceeding in functional milestones.
 
-### Analysis
+### Immediate / next major milestone
 
-- Additional engineering statistics
-- Improved event-detection methods
-- Configurable analysis settings
-- More detailed data-quality diagnostics
+- Complete the **Compare** workflow
+- Compare measured tests without duplicating analysis logic
+- Preserve project/test state while switching between comparisons
+
+### Analysis and data workflow
+
+- Additional pressure-curve analysis
+- Improved event/data-quality workflows
 - Explicit handling of padded pre-ignition and post-burn recording data
-- Additional pressure/thrust analysis
+- More detailed engineering statistics
+- Additional reference-motor comparison
 - Time-resolved C* analysis when the available data supports it
-- Reference-motor comparison
 
-### Data and Projects
+### Simulation
 
-- Expanded project management
-- Additional standardized-data validation
-- Test comparison workflows
-- Data provenance and analysis settings persistence
+- Simulation-curve workflow
+- Measured-vs-simulation comparison
+- Simulation overlay integration when real simulation data is available
 
-### Visualization
-
-- Advanced thrust-curve interaction
-- Multiple-test overlays
-- Cursor measurements
-- Event editing
-- Expanded analysis views
-- Configurable panels
-
-### Video
-
-- Test-video import
-- Video synchronization
-- Thrust/video overlay
-- Animated playback
-- Synchronized event visualization
+The simulation workflow should not be treated as complete until the project
+has real simulation data and a defined import/data model.
 
 ### Export
 
-Potential engineering-data interoperability includes:
+Future export work may include:
 
+- Broader engineering-data export
 - RASP `.eng`
 - RockSim `.rse`
 - OpenRocket-compatible data
-- BurnSim-compatible data
+- BurnSim-compatible workflows
 - OpenMotor-compatible workflows
+
+### Video
+
+After the underlying curve/analysis workflows are mature:
+
+- Final rendered-video export at source resolution
+- Transparent overlay-video export for external video software such as OBS
+  or DaVinci Resolve
+- Additional synchronized analysis presentation features
+
+### Final polish
+
+After core functionality is established:
+
+- Final overlay visual styling
+- Typography and spacing refinement
+- Chart styling
+- Results presentation refinement
+- Event presentation refinement
+- Broader GUI polish
 
 ### Packaging
 
-The final application is expected to be distributed as a Windows desktop application using a packaging workflow such as PyInstaller.
+The final application is expected to be distributed as a Windows desktop
+application using a packaging workflow such as PyInstaller.
 
 ---
 
@@ -563,7 +719,7 @@ The virtual environment is intentionally excluded from source control.
 
 ### Standalone
 
-The finished application should operate as a normal desktop application rather than requiring users to work from a Python terminal.
+The finished application should operate as a normal desktop application rather than requiring users to work from a Python terminal. The current development environment remains Python-based.
 
 ### Modular
 

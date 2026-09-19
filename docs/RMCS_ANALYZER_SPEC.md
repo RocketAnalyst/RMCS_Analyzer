@@ -445,7 +445,197 @@ motor-performance results.
 
 The result model must be independent of the GUI.
 
-## 20. GUI Rules
+
+## 20. Video Analysis and Overlay System
+
+RMCS Analyzer treats test video as an analysis presentation medium rather
+than as a separate media player.
+
+### 20.1 Per-test video state
+
+Each `TestModel` owns a `VideoState`.
+
+The current video state includes:
+
+- Video source path
+- Synchronization start/offset
+- Playback position
+- Curve overlay visibility
+- Results overlay visibility
+- Event-marker visibility
+- Curve overlay position and size
+- Results overlay position and size
+- Events overlay position
+- Individual event positions and visibility
+- Curve title
+- Results title
+- Selected result fields
+- Curve grid visibility
+- Curve axes/scale visibility
+- Curve background visibility
+
+This state is test-specific and must not leak between loaded tests.
+
+### 20.2 Video association
+
+The `.rmcs` project stores the video association as a path.
+
+The source video is not embedded in the project archive.
+
+A future portable-project/package workflow may address external media
+packaging, but that is not part of the current implementation.
+
+### 20.3 Master timeline
+
+When no video is loaded, RMCS playback uses the RMCS/CSV analysis timeline.
+
+When video is loaded, the **video timeline is the master timeline**.
+
+The full source-video duration is preserved.
+
+The video is not clipped or shifted merely because RMCS test time begins
+later in the video.
+
+### 20.4 Sync Start semantics
+
+`Sync Start` is defined as:
+
+> The video timestamp at which RMCS test time `t = 0` begins.
+
+For video time `Tv` and RMCS time `Tr`:
+
+```text
+Tr = Tv - Sync Start
+```
+
+RMCS analysis state is active only when the resulting RMCS time is within
+the test timeline.
+
+The intended behavior is:
+
+```text
+Video time < Sync Start
+    → video plays normally
+    → RMCS marker/results are inactive
+
+Video time = Sync Start
+    → RMCS time = 0
+
+Sync Start < Video time < Sync Start + RMCS duration
+    → RMCS marker/results follow the synchronized analysis timeline
+
+Video time >= Sync Start + RMCS duration
+    → RMCS marker remains at final curve point
+    → video continues to the end of the source video
+```
+
+Changing Sync Start must change synchronization, not clip or truncate the
+video.
+
+### 20.5 Playback
+
+The video and RMCS timeline must remain responsive during normal playback.
+
+The implementation should allow the media player to play continuously and
+should avoid repeatedly seeking the video on every playback tick.
+
+Timeline scrubbing may seek the video when the user changes position.
+
+Playback controls remain part of the core analyzer workflow.
+
+### 20.6 No-video behavior
+
+A video is optional.
+
+The analyzer must remain fully usable without a video. RMCS playback,
+curve-marker movement, and synchronized metrics may operate on the RMCS
+timeline alone.
+
+No video overlay should be presented when no video is associated with the
+active test.
+
+### 20.7 Overlay objects
+
+The current functional overlay system contains:
+
+- Measured-thrust curve overlay
+- Results overlay
+- Individual event markers/objects
+- Ignition event
+- Peak-thrust event
+- Burnout event
+
+Overlay objects are draggable and resizable.
+
+Positions are stored per test using normalized coordinates so that overlay
+placement remains associated with the video presentation rather than with a
+single fixed pixel size.
+
+### 20.8 Overlay configuration
+
+The application Settings dialog currently provides configuration for:
+
+- Curve title
+- Results title
+- Results fields
+- Ignition visibility
+- Peak-thrust visibility
+- Burnout visibility
+- Curve grid
+- Curve axes/scale
+- Curve background
+
+Overlay visibility and configuration are persisted with the test's
+`VideoState`.
+
+### 20.9 Overlay presentation status
+
+The current overlay implementation is a functional v1 system.
+
+The following are intentionally deferred:
+
+- Final chart styling
+- Final typography
+- Final spacing/layout polish
+- Advanced event presentation
+- Final colors/visual language
+- Transparent overlay-video export
+- Final rendered-video export
+
+These are presentation/export milestones and must not be allowed to
+destabilize the underlying synchronization or analysis behavior.
+
+### 20.10 Future overlay curves
+
+The overlay architecture is expected to support additional synchronized
+curves, including:
+
+- Pressure
+- Simulation
+- Measured versus simulation
+
+A simulation workflow should not be implemented as a completed feature
+until real simulation data and its import/model requirements are defined.
+
+### 20.11 Project persistence
+
+The following video/overlay state must survive test switching and
+`.rmcs` save/load:
+
+- Video association
+- Sync Start
+- Playback position
+- Overlay visibility
+- Overlay positions/sizes
+- Event visibility/positions
+- Overlay titles
+- Selected result fields
+- Curve display settings
+
+The project-file format is currently versioned and serializes the video
+state as part of each test.
+
+## 22. GUI Rules
 
 The GUI displays authoritative results produced by the analysis engine.
 
@@ -459,7 +649,7 @@ The thrust plot may visually distinguish motor-performance and
 diagnostic regions and standardized boundaries without modifying
 underlying data.
 
-## 21. Reference Validation
+## 22. Reference Validation
 
 Reference data is a first-class part of the project.
 
@@ -491,7 +681,7 @@ At minimum, reference tests should verify:
 -   Standardized average thrust
 -   Motor class
 
-## 22. Commercial Motor Validation Goal
+## 23. Commercial Motor Validation Goal
 
 A commercial motor test is an important real-world validation case.
 
@@ -508,7 +698,7 @@ Instead:
 5.  Differences should then be investigated as potential measurement,
     motor-variation, test-condition, or reference-data differences.
 
-## 23. Current Zerox Reference
+## 24. Current Zerox Reference
 
 The current Zerox CSV is the project's primary development and regression
 dataset.
@@ -564,7 +754,7 @@ diameter; those auxiliary inputs may be estimated or user-supplied. The
 software must preserve that distinction rather than presenting assumed
 geometry as measured hardware data.
 
-## 24. Architecture Cleanup Principles
+## 25. Architecture Cleanup Principles
 
 The codebase must favor clear responsibilities over historical
 compatibility.
@@ -587,7 +777,7 @@ GUI presentation
 Export
 ```
 
-## 25. Development Rules
+## 26. Development Rules
 
 1.  Work on one subsystem at a time.
 2.  Do not make unrelated changes in the same step.
@@ -603,7 +793,7 @@ Export
 9.  Document significant engineering decisions.
 10. Commit stable milestones to Git.
 
-## 26. Definition of Done for the Analysis Engine
+## 27. Definition of Done for the Analysis Engine
 
 The current analysis-engine milestone is complete when:
 
@@ -628,7 +818,7 @@ The analysis engine remains open to additional validation as more
 published thrust curves and properly characterized commercial tests become
 available.
 
-## 27. Sources and Methodology References
+## 28. Sources and Methodology References
 
 **ThrustCurve.org --- Motor Statistics**\
 https://www.thrustcurve.org/info/motorstats.html
@@ -644,7 +834,7 @@ validation/reference data, with the distinction that a published or
 certification result may represent representative or averaged
 performance rather than a single firing.
 
-## 28. GUI Visual Direction
+## 29. GUI Visual Direction
 
 The GUI is being developed against a project visual reference established
 during the design process. The reference is authoritative for presentation
@@ -667,40 +857,49 @@ a different layout or styling direction. Annotations and controls should
 remain readable at the default window size and should not obscure the
 engineering curve or each other.
 
-## 29. Current Project Direction
+## 30. Current Project Direction
 
-The project has completed the core analysis-engine validation milestone.
+The core analysis-engine validation milestone is complete, and the project
+has moved into functional GUI and workflow development.
 
-``` text
-1. Audit current project
+The current development sequence is:
+
+```text
+1. Core analysis-engine validation
         ↓
-2. Clean and simplify codebase
+2. Connect authoritative results to the GUI
         ↓
-3. Verify application/tests
+3. Build functional dashboard workspaces
         ↓
-4. Lock specification and analysis baseline into Git
+4. Functional video playback / synchronization / overlay
         ↓
-5. Connect validated results to GUI
+5. Compare workflow
         ↓
-6. Complete dashboard presentation and motor-classification UI
+6. Pressure-curve and broader analysis workflows
         ↓
-7. Build Data Table / Analysis / Compare / Simulation workspaces
+7. Simulation workflow when real simulation data is available
         ↓
-8. Expand exports and video workflows
+8. Broader data/export workflows
         ↓
-9. Add deeper data-quality, trimming, and advanced performance analysis
+9. Rendered-video and transparent-overlay export
         ↓
-10. Continue reference and commercial-motor validation
+10. Final GUI and overlay visual polish
+        ↓
+11. Continued reference and commercial-motor validation
 ```
 
-The current authoritative analysis implementation is protected by the
-canonical standalone regression suite.
+The current project is intentionally prioritizing usable functionality over
+final visual polish.
 
-Before the next major analytical methodology change, new reference data
-or documented methodology should be added to the validation suite.
+The functional video/overlay milestone is now established. The next major
+functional milestone is **Compare**.
 
-The GUI may now consume the validated `AnalysisResults` model. It must not
-reimplement authoritative calculations.
+The analysis engine remains authoritative. New GUI workflows must consume
+the existing result model rather than duplicating engineering calculations.
 
-This document is the project's source of truth for the intended analysis
+Before any major analytical methodology change, new reference data or
+documented methodology should be added to the validation suite.
+
+This document remains the project's source of truth for analysis
+methodology, architecture, current functional behavior, and development
 direction.

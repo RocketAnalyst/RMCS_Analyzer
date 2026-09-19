@@ -1,0 +1,85 @@
+# =========================================================
+# Python
+# =========================================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+# =========================================================
+# Virtual Environment
+# =========================================================
+
+.venv/
+venv/
+env/
+
+# =========================================================
+# IDE / Editor
+# =========================================================
+
+.vscode/
+.idea/
+
+# =========================================================
+# OS Files
+# =========================================================
+
+.DS_Store
+Thumbs.db
+
+# =========================================================
+# Python Packaging
+# =========================================================
+
+*.egg-info/
+dist/
+build/
+
+# =========================================================
+# Testing / Coverage
+# =========================================================
+
+.pytest_cache/
+.coverage
+htmlcov/
+
+# =========================================================
+# Temporary Files
+# =========================================================
+
+*.tmp
+*.temp
+*.log
+
+# =========================================================
+# Temporary Development Test Scripts
+# =========================================================
+
+test_analysis.py
+test_csv_reader.py
+# =========================================================
+# Generated / Local Media
+# =========================================================
+
+# Local test recordings and generated video exports should not be committed.
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+
+# Generated analysis/export output
+exports/
+output/
+*.rse
+*.eng
+
+# Local RMCS project files are working data, not source code.
+# Keep this commented unless the project later decides to ignore all
+# project files globally:
+# *.rmcs
+
+# Documentation is intentionally tracked:
+# README.md
+# docs/

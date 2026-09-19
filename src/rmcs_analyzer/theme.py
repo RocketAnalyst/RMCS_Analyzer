@@ -272,6 +272,33 @@ QFrame#header {
     border: 1px solid #203440;
     border-radius: 5px;
 }
+#videoStatus {
+    color: #6f8797;
+    font-size: 7pt;
+}
+#videoOption {
+    color: #8fa5b4;
+    font-size: 7pt;
+}
+#videoSyncSpin {
+    background-color: #0d1922;
+    color: #b7c8d2;
+    border: 1px solid #29404e;
+    border-radius: 4px;
+    padding: 2px 5px;
+    font-size: 7pt;
+}
+#videoRemoveButton {
+    background-color: #101e28;
+    color: #8fa5b4;
+    border: 1px solid #29404e;
+    border-radius: 4px;
+    padding: 2px 7px;
+}
+#videoRemoveButton:hover {
+    border-color: #c95d5d;
+    color: #f0b0b0;
+}
 #videoPlaceholder {
     color: #5f7584;
     font-size: 8pt;
@@ -460,6 +487,86 @@ QFrame#header {
     border-radius: 5px;
     padding: 5px 8px;
     font-size: 8pt;
+}
+
+# -------------------------------------------------------------
+# SETTINGS
+# -------------------------------------------------------------
+QDialog {
+    background-color: #0a121a;
+    color: #dbe7ef;
+}
+QTabWidget#settingsTabs::pane {
+    background-color: #0b151e;
+    border: 1px solid #1d303e;
+    border-radius: 5px;
+}
+QTabWidget#settingsTabs QTabBar::tab {
+    background-color: #0d151d;
+    color: #718798;
+    border: 1px solid #1b303e;
+    padding: 8px 16px;
+}
+QTabWidget#settingsTabs QTabBar::tab:selected {
+    background-color: #0d6fbd;
+    color: #ffffff;
+}
+#settingsIntro {
+    color: #7f96a5;
+    font-size: 9pt;
+}
+QGroupBox {
+    color: #cbd9e2;
+    border: 1px solid #243a48;
+    border-radius: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+    color: #9fb3c0;
+}
+QLineEdit, QComboBox, QListWidget {
+    background-color: #0d1922;
+    color: #dce7ee;
+    border: 1px solid #29404e;
+    border-radius: 4px;
+    padding: 5px 7px;
+}
+QListWidget::item {
+    padding: 5px 4px;
+}
+QListWidget::item:hover {
+    background-color: #112532;
+}
+QCheckBox {
+    color: #aebfca;
+}
+#videoPopoutButton {
+    background-color: #101e28;
+    color: #8fa5b4;
+    border: 1px solid #29404e;
+    border-radius: 5px;
+    padding: 6px 10px;
+}
+#videoPopoutButton:hover {
+    background-color: #152b3a;
+    border-color: #218bd8;
+    color: #eef7fc;
+}
+#videoSyncStepButton {
+    background-color: #101e28;
+    color: #9eb2be;
+    border: 1px solid #29404e;
+    border-radius: 4px;
+    padding: 0;
+}
+#videoSyncStepButton:hover {
+    background-color: #183040;
+    border-color: #218bd8;
+    color: #ffffff;
 }
 
 QPushButton:disabled {

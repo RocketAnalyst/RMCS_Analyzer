@@ -4,6 +4,8 @@ from typing import Optional
 from ..analysis.results import AnalysisResults
 from ..data.models import TestData
 
+from .video_state import VideoState
+
 
 @dataclass
 class TestModel:
@@ -51,6 +53,12 @@ class TestModel:
     # =============================================================
 
     analysis_results: Optional[AnalysisResults] = None
+
+    # =============================================================
+    # VIDEO / OVERLAY
+    # =============================================================
+
+    video: VideoState = field(default_factory=VideoState)
 
     # =============================================================
     # FILE INFORMATION
