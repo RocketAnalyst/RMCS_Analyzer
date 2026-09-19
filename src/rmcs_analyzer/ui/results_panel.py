@@ -29,7 +29,7 @@ class ResultsPanel(QFrame):
         self.total_impulse = self.add_metric(layout, "Σ", "Total Impulse", "—", "N·s")
         self.burn_time = self.add_metric(layout, "◷", "Burn Time", "—", "s")
         self.time_to_peak = self.add_metric(layout, "△", "Time to Peak", "—", "s")
-        self.motor_class = self.add_metric(layout, "▣", "Motor Class (NAR)", "—", "")
+        self.motor_class = self.add_metric(layout, "▣", "Motor Class", "—", "")
         self.calculated_designation = self.add_metric(
             layout, "", "Calculated Designation", "—", ""
         )

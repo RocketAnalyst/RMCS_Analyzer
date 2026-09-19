@@ -4,7 +4,7 @@ from ..analysis.motor_class import MotorClassCalculator
 
 
 class MotorClassificationPanel(QFrame):
-    """NAR impulse-class carousel for the dashboard."""
+    """Motor impulse-class carousel for the dashboard."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -16,7 +16,7 @@ class MotorClassificationPanel(QFrame):
         layout.setContentsMargins(12, 10, 12, 9)
         layout.setSpacing(7)
 
-        title = QLabel("Motor Classification (NAR)")
+        title = QLabel("Motor Classification")
         title.setObjectName("motorClassificationTitle")
         layout.addWidget(title)
 
@@ -49,8 +49,7 @@ class MotorClassificationPanel(QFrame):
         layout.addWidget(self.range_label)
 
         self.note_label = QLabel(
-            "Classification based on measured total impulse<br>"
-            "per NAR high-power motor classification system."
+            "Classification based on measured total impulse."
         )
         self.note_label.setObjectName("motorClassificationNote")
         self.note_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
