@@ -289,17 +289,10 @@ class Branding(QFrame):
             title_row
         )
 
-        subtitle = QLabel(
-            "Rocket Motor Characterization System"
-        )
-
-        subtitle.setObjectName(
-            "subtitle"
-        )
-
-        text_layout.addWidget(
-            subtitle
-        )
+        # The application descriptor is rendered in the center of the
+        # header to match the dashboard reference. Keep the compact
+        # brand focused on the product name and version.
+        
 
         layout.addLayout(
             text_layout

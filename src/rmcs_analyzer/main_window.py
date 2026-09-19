@@ -55,6 +55,7 @@ from .ui.playback_controls import PlaybackControls
 from .ui.results_panel import ResultsPanel
 from .ui.data_table import DataTable
 from .ui.analysis_panel import AnalysisPanel
+from .ui.motor_classification_panel import MotorClassificationPanel
 
 
 class MainWindow(QMainWindow):
@@ -86,13 +87,13 @@ class MainWindow(QMainWindow):
         )
 
         self.resize(
-            1500,
-            950,
+            1536,
+            1024,
         )
 
         self.setMinimumSize(
-            1200,
-            750,
+            1280,
+            800,
         )
 
         # =========================================================
@@ -198,7 +199,7 @@ class MainWindow(QMainWindow):
         left_container = QFrame()
 
         left_container.setObjectName(
-            "panel"
+            "sidebarContainer"
         )
 
         left_container.setMinimumWidth(
@@ -225,12 +226,15 @@ class MainWindow(QMainWindow):
         )
 
         self.test_info = TestInfoPanel()
+        self.test_info.setObjectName("sideCard")
 
         self.test_files = TestFilesPanel()
+        self.test_files.setObjectName("sideCard")
 
         self.branding = Branding(
             mode="full"
         )
+        self.branding.setObjectName("brandingCard")
 
         left_layout.addWidget(
             self.test_info
@@ -257,7 +261,7 @@ class MainWindow(QMainWindow):
         center_container = QFrame()
 
         center_container.setObjectName(
-            "panel"
+            "workspaceContainer"
         )
 
         center_layout = QVBoxLayout(
@@ -416,9 +420,10 @@ class MainWindow(QMainWindow):
 
         self.video_panel = self.create_video_placeholder()
 
+        self.video_panel.setMinimumHeight(205)
         lower_panels.addWidget(
             self.video_panel,
-            1,
+            3,
         )
 
         # ---------------------------------------------------------
@@ -427,22 +432,22 @@ class MainWindow(QMainWindow):
 
         self.export_panel = self.create_export_placeholder()
 
+        self.export_panel.setMinimumHeight(205)
         lower_panels.addWidget(
             self.export_panel,
-            1,
+            2,
         )
 
         # ---------------------------------------------------------
         # MOTOR CLASSIFICATION
         # ---------------------------------------------------------
 
-        self.classification_panel = (
-            self.create_classification_panel()
-        )
+        self.classification_panel = MotorClassificationPanel()
 
+        self.classification_panel.setMinimumHeight(205)
         lower_panels.addWidget(
             self.classification_panel,
-            1,
+            2.5,
         )
 
         center_layout.addLayout(
@@ -461,7 +466,7 @@ class MainWindow(QMainWindow):
         right_container = QFrame()
 
         right_container.setObjectName(
-            "panel"
+            "sidebarContainer"
         )
 
         right_container.setMinimumWidth(
@@ -606,7 +611,7 @@ class MainWindow(QMainWindow):
         )
 
         label.setObjectName(
-            "sectionTitle"
+            "lowerPanelHeader"
         )
 
         return label
@@ -708,6 +713,7 @@ class MainWindow(QMainWindow):
         )
 
         body = QFrame()
+        body.setObjectName("videoPreview")
 
         body_layout = QVBoxLayout(
             body
@@ -722,7 +728,7 @@ class MainWindow(QMainWindow):
         )
 
         status.setObjectName(
-            "graphDescription"
+            "videoPlaceholder"
         )
 
         status.setAlignment(
@@ -732,6 +738,7 @@ class MainWindow(QMainWindow):
         button = QPushButton(
             "Load Video..."
         )
+        button.setObjectName("loadVideoButton")
 
         button.setEnabled(
             False
@@ -797,6 +804,7 @@ class MainWindow(QMainWindow):
             button = QPushButton(
                 item
             )
+            button.setObjectName("exportButton")
 
             button.setEnabled(
                 False
@@ -808,98 +816,13 @@ class MainWindow(QMainWindow):
 
         return panel
 
-    def create_classification_panel(self):
-        """
-        Create the motor classification pane.
-
-        The actual classification result is populated when a test
-        is loaded.
-        """
-
-        panel = QFrame()
-
-        panel.setObjectName(
-            "subPanel"
-        )
-
-        layout = QVBoxLayout(
-            panel
-        )
-
-        layout.setContentsMargins(
-            10,
-            8,
-            10,
-            8,
-        )
-
-        layout.setSpacing(
-            5
-        )
-
-        layout.addWidget(
-            self.create_panel_header(
-                "Motor Classification"
-            )
-        )
-
-        self.classification_class = QLabel(
-            "—"
-        )
-
-        self.classification_class.setObjectName(
-            "metricValue"
-        )
-
-        self.classification_class.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-
-        self.classification_impulse = QLabel(
-            "Measured Impulse: —"
-        )
-
-        self.classification_impulse.setObjectName(
-            "graphDescription"
-        )
-
-        self.classification_impulse.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-
-        self.classification_range = QLabel(
-            "Classification range: —"
-        )
-
-        self.classification_range.setObjectName(
-            "graphDescription"
-        )
-
-        self.classification_range.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-
-        layout.addWidget(
-            self.classification_class
-        )
-
-        layout.addWidget(
-            self.classification_impulse
-        )
-
-        layout.addWidget(
-            self.classification_range
-        )
-
-        return panel
-
     def create_additional_metrics_panel(self):
         """Create the additional metrics pane."""
 
         panel = QFrame()
 
         panel.setObjectName(
-            "subPanel"
+            "additionalMetricsPanel"
         )
 
         layout = QVBoxLayout(
@@ -1043,7 +966,7 @@ class MainWindow(QMainWindow):
         panel = QFrame()
 
         panel.setObjectName(
-            "subPanel"
+            "cstarPanel"
         )
 
         layout = QVBoxLayout(
@@ -2076,26 +1999,10 @@ class MainWindow(QMainWindow):
         # Motor Classification Pane
         # ---------------------------------------------------------
 
-        if classification.motor_class is not None:
-            self.classification_class.setText(
-                f"Class {classification.motor_class}"
-            )
-        else:
-            self.classification_class.setText(
-                "Class —"
-            )
-
-        if thrust_results.total_impulse_valid_curve_Ns is not None:
-            self.classification_impulse.setText(
-                (
-                    "Measured Impulse: "
-                    f"{thrust_results.total_impulse_valid_curve_Ns:.2f} N·s"
-                )
-            )
-        else:
-            self.classification_impulse.setText(
-                "Measured Impulse: —"
-            )
+        self.classification_panel.set_result(
+            classification,
+            thrust_results.total_impulse_valid_curve_Ns,
+        )
 
         # ---------------------------------------------------------
         # Performance Extensions / C* Pane

@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMenu,
     QPushButton,
+    QVBoxLayout,
 )
 
 from .branding import Branding
@@ -62,7 +63,10 @@ class Header(QFrame):
             self.branding
         )
 
-        layout.addStretch()
+        # Keep the header focused on the RMCS Analyzer brand.
+        # The application descriptor and ROCI tagline are intentionally
+        # omitted to match the current dashboard direction.
+        layout.addStretch(1)
 
         # =========================================================
         # APPLICATION STATUS
