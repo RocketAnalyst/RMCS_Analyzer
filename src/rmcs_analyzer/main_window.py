@@ -1079,11 +1079,41 @@ class MainWindow(QMainWindow):
             Qt.AlignmentFlag.AlignCenter
         )
 
+        self.isp_status = QLabel(
+            "Isp unavailable"
+        )
+
+        self.isp_status.setObjectName(
+            "metricValueSmall"
+        )
+
+        self.isp_status.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        self.cstar_pressure = QLabel(
+            "Average chamber pressure: —"
+        )
+        self.cstar_pressure.setObjectName(
+            "graphDescription"
+        )
+        self.cstar_pressure.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        self.cstar_mass_flow = QLabel(
+            "Average mass flow: —"
+        )
+        self.cstar_mass_flow.setObjectName(
+            "graphDescription"
+        )
+        self.cstar_mass_flow.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
         cstar_description = QLabel(
-            "Chamber pressure data and "
-            "nozzle throat area are required "
-            "to calculate characteristic "
-            "velocity (C*)."
+            "C* requires valid chamber pressure data, "
+            "propellant mass, and nozzle throat diameter."
         )
 
         cstar_description.setObjectName(
@@ -1100,6 +1130,18 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(
             self.cstar_status
+        )
+
+        layout.addWidget(
+            self.isp_status
+        )
+
+        layout.addWidget(
+            self.cstar_pressure
+        )
+
+        layout.addWidget(
+            self.cstar_mass_flow
         )
 
         layout.addWidget(
@@ -1779,9 +1821,9 @@ class MainWindow(QMainWindow):
             test.data
         )
 
+        ignition_time_s = None
         burnout_time_s = None
-        burn_start_5pct_time_s = None
-        burn_end_5pct_time_s = None
+        recording_end_time_s = None
         peak_time_s = None
         peak_thrust_N = None
 
@@ -1789,16 +1831,15 @@ class MainWindow(QMainWindow):
 
             analysis = test.analysis_results
 
-            burnout_event = analysis.events.burnout
+            ignition_event = analysis.events.ignition
 
-            if burnout_event is not None:
-                burnout_time_s = burnout_event.time_s
+            if ignition_event is not None:
+                ignition_time_s = ignition_event.time_s
 
-            burn_start_5pct_time_s = (
-                analysis.thrust.burn_start_5pct_time_s
-            )
-
-            burn_end_5pct_time_s = (
+            # The graph's red Burnout marker represents the
+            # standardized 5% burn-end, not the physical event
+            # detector's recorded-data endpoint.
+            burnout_time_s = (
                 analysis.thrust.burn_end_5pct_time_s
             )
 
@@ -1810,12 +1851,19 @@ class MainWindow(QMainWindow):
                 analysis.thrust.peak_thrust_N
             )
 
+        # The end-of-recording marker represents the final recorded
+        # sample, not the standardized 5% burn-end calculation.
+        if test.data.sample_count > 0:
+            recording_end_time_s = float(
+                test.data.time_s[-1]
+            )
+
         self.thrust_plot.set_data(
             test.data.time_s,
             test.data.thrust_N,
+            ignition_time_s=ignition_time_s,
             burnout_time_s=burnout_time_s,
-            burn_start_5pct_time_s=burn_start_5pct_time_s,
-            burn_end_5pct_time_s=burn_end_5pct_time_s,
+            recording_end_time_s=recording_end_time_s,
             peak_time_s=peak_time_s,
             peak_thrust_N=peak_thrust_N,
         )
@@ -1993,6 +2041,25 @@ class MainWindow(QMainWindow):
                 "—"
             )
 
+        rise_rate = thrust_results.thrust_rise_rate_N_per_s
+        decay_rate = thrust_results.thrust_decay_rate_N_per_s
+
+        self.metric_rise_rate.findChildren(
+            QLabel
+        )[-1].setText(
+            f"{rise_rate:.1f} N/s"
+            if rise_rate is not None
+            else "—"
+        )
+
+        self.metric_decay_rate.findChildren(
+            QLabel
+        )[-1].setText(
+            f"{decay_rate:.1f} N/s"
+            if decay_rate is not None
+            else "—"
+        )
+
         self.metric_samples.findChildren(
             QLabel
         )[-1].setText(
@@ -2031,12 +2098,60 @@ class MainWindow(QMainWindow):
             )
 
         # ---------------------------------------------------------
-        # C* Pane
+        # Performance Extensions / C* Pane
         # ---------------------------------------------------------
 
-        self.cstar_status.setText(
-            "C* unavailable"
+        isp = thrust_results.isp_s
+        isp_status = thrust_results.isp_status
+
+        if isp is not None:
+            self.isp_status.setText(
+                f"Isp: {isp:.2f} s"
+            )
+        else:
+            self.isp_status.setText(
+                f"Isp unavailable: {isp_status}"
+            )
+
+        cstar = thrust_results.cstar_m_per_s
+        cstar_status = thrust_results.cstar_status
+
+        if cstar is not None:
+            self.cstar_status.setText(
+                f"C*: {cstar:.2f} m/s"
+            )
+        else:
+            self.cstar_status.setText(
+                f"C* unavailable: {cstar_status}"
+            )
+
+        avg_pressure = (
+            thrust_results.average_chamber_pressure_psi
         )
+
+        if avg_pressure is not None:
+            self.cstar_pressure.setText(
+                f"Average chamber pressure: "
+                f"{avg_pressure:.2f} psi"
+            )
+        else:
+            self.cstar_pressure.setText(
+                "Average chamber pressure: —"
+            )
+
+        avg_mass_flow = (
+            thrust_results.average_mass_flow_kg_per_s
+        )
+
+        if avg_mass_flow is not None:
+            self.cstar_mass_flow.setText(
+                f"Average mass flow: "
+                f"{avg_mass_flow:.4f} kg/s"
+            )
+        else:
+            self.cstar_mass_flow.setText(
+                "Average mass flow: —"
+            )
 
     # =============================================================
     # UPDATE STATUS

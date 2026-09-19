@@ -276,6 +276,56 @@ class AnalysisPanel(QFrame):
             self.cstar_description
         )
 
+        # ---------------------------------------------------------
+        # Specific Impulse
+        # ---------------------------------------------------------
+
+        self.isp_group, isp_grid = self._create_group(
+            "SPECIFIC IMPULSE"
+        )
+        content_layout.addWidget(self.isp_group)
+
+        self.isp = self._add_metric(
+            isp_grid,
+            0,
+            "Specific Impulse",
+            "—",
+            "s",
+        )
+
+        # ---------------------------------------------------------
+        # C* / PRESSURE / MASS FLOW
+        # ---------------------------------------------------------
+
+        cstar_group, cstar_grid = self._create_group(
+            "CHARACTERISTIC VELOCITY"
+        )
+        content_layout.addWidget(cstar_group)
+
+        self.cstar = self._add_metric(
+            cstar_grid,
+            0,
+            "Characteristic Velocity",
+            "—",
+            "m/s",
+        )
+
+        self.average_pressure = self._add_metric(
+            cstar_grid,
+            1,
+            "Average Chamber Pressure",
+            "—",
+            "psi",
+        )
+
+        self.average_mass_flow = self._add_metric(
+            cstar_grid,
+            2,
+            "Average Mass Flow",
+            "—",
+            "kg/s",
+        )
+
         content_layout.addStretch()
 
         scroll.setWidget(content)
@@ -375,11 +425,7 @@ class AnalysisPanel(QFrame):
 
         self._set_value(
             self.threshold,
-            getattr(
-                thrust_results,
-                "threshold_N",
-                None,
-            ),
+            thrust_results.threshold_thrust_N,
         )
 
         self._set_value(
@@ -479,6 +525,51 @@ class AnalysisPanel(QFrame):
             self._format_number(statistics.baseline_std_N)
         )
 
+        # ---------------------------------------------------------
+        # Performance Extensions
+        # ---------------------------------------------------------
+
+        self.isp.setText(
+            self._format_number(thrust_results.isp_s)
+        )
+
+        self.cstar.setText(
+            self._format_number(thrust_results.cstar_m_per_s)
+        )
+
+        self.average_pressure.setText(
+            self._format_number(
+                thrust_results.average_chamber_pressure_psi
+            )
+        )
+
+        self.average_mass_flow.setText(
+            self._format_number(
+                thrust_results.average_mass_flow_kg_per_s
+            )
+        )
+
+        if thrust_results.isp_s is not None:
+            self.cstar_description.setText(
+                f"Isp calculated from total impulse and "
+                f"propellant mass. Status: "
+                f"{thrust_results.isp_status}."
+            )
+        else:
+            self.cstar_description.setText(
+                f"Isp unavailable: "
+                f"{thrust_results.isp_status}"
+            )
+
+        if thrust_results.cstar_m_per_s is not None:
+            self.cstar_status.setText(
+                f"C* {thrust_results.cstar_m_per_s:.2f} m/s"
+            )
+        else:
+            self.cstar_status.setText(
+                f"C* unavailable: {thrust_results.cstar_status}"
+            )
+
     def clear_results(self):
         """Clear all displayed analysis values."""
 
@@ -508,8 +599,18 @@ class AnalysisPanel(QFrame):
         for field in fields:
             field.setText("—")
 
+        self.isp.setText("—")
+        self.cstar.setText("—")
+        self.average_pressure.setText("—")
+        self.average_mass_flow.setText("—")
+
         self.cstar_status.setText(
             "C* unavailable"
+        )
+
+        self.cstar_description.setText(
+            "Chamber pressure data and nozzle throat area are "
+            "required to calculate characteristic velocity (C*)."
         )
 
     @staticmethod

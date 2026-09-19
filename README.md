@@ -12,7 +12,7 @@ The application is being developed with Python, PySide6, PyQtGraph, NumPy, and P
 
 RMCS Analyzer is currently in active development.
 
-The project has completed the core data-model, processing, persistence, and authoritative performance-analysis foundation. The current development milestone is focused on establishing a reliable analysis engine before expanding the graphical interface and engineering features.
+The project has completed the core data-model, processing, persistence, and authoritative performance-analysis foundation. The authoritative analysis-engine foundation is now validated, including standardized thrust reduction, motor classification, thrust-rate metrics, and the first performance extensions (Isp and C*). Current development is focused on connecting those validated results cleanly to the graphical interface and building the dashboard toward the project visual specification.
 
 The current architecture is:
 
@@ -43,7 +43,8 @@ ProcessingPipeline
       │
       ├── Performance reduction
       ├── Statistical analysis
-      └── Motor classification
+      ├── Motor classification
+      └── Performance extensions (Isp / C*)
       │
       ▼
  AnalysisResults
@@ -77,6 +78,9 @@ The current codebase supports:
 - Motor impulse-class classification
 - Calculated performance designation
 - Basic statistical results
+- Thrust rise and decay rates
+- Specific impulse (Isp) when propellant mass is available
+- Characteristic velocity (C*) when chamber pressure, propellant mass, and nozzle throat data are available
 - Project/session persistence
 - Interactive thrust-curve visualization
 - Test metadata and test-file panels
@@ -360,6 +364,8 @@ RMCS_Analyzer/
 ├── test_thrustcurve_reference.py
 ├── test_performance_edge_cases.py
 ├── test_motor_classification.py
+├── test_cstar_isp.py
+├── test_thrust_rate_metrics.py
 │
 ├── .gitignore
 └── README.md
@@ -383,6 +389,9 @@ test_reference_analysis.py
 test_thrustcurve_reference.py
 test_performance_edge_cases.py
 test_motor_classification.py
+test_cstar_isp.py
+test_thrust_rate_metrics.py
+test_processing_analysis_path.py
 ```
 
 These tests cover:
@@ -400,6 +409,9 @@ These tests cover:
 - Full-curve versus normalized-interval impulse
 - Motor impulse-class boundaries
 - Motor-class transitions
+- Isp calculation and missing-input handling
+- C* calculation and missing-input handling
+- Thrust rise/decay-rate calculation
 - Performance designation
 - Raw-data protection
 - Processing-pipeline integration
@@ -442,14 +454,35 @@ The desktop interface currently includes the foundation for:
 The current thrust-curve view includes:
 
 - Positive motor thrust curve
-- Burnout marker
+- Standardized 5% burn-start and burn-end annotations
+- Peak-thrust annotation
+- Physical ignition and end-of-recording annotations
+- Interactive cursor/time-thrust readout
 - Post-burnout visualization
 - Zero reference line
 - Interactive plotting through PyQtGraph
 
-Several workspace panels are currently placeholders and will be implemented incrementally.
+The Analysis workspace now displays authoritative performance and performance-extension results. The Motor Classification area is being developed as a dedicated dashboard component. Compare, Simulation Overlay, video, and export workflows remain under development.
 
 ---
+
+## Dashboard Visual Direction
+
+The GUI is being developed against a project visual reference established during the design process. The reference defines the intended overall composition rather than the exact values shown in the mockup.
+
+The target dashboard uses:
+
+- A dark engineering-focused visual theme
+- A three-column application layout
+- Test information and file navigation on the left
+- The primary analysis workspace in the center
+- Key results and engineering metrics on the right
+- Tabbed analysis workspaces
+- Dedicated lower panels for video, exports, and motor classification
+- Clear visual distinction between measured data, calculated results, and unavailable/estimated inputs
+- Consistent status/event colors without allowing annotations to obscure the thrust curve
+
+The mockup is the visual reference for layout and presentation. The authoritative analysis engine remains the source of all engineering values.
 
 ## Planned Development
 
@@ -461,8 +494,9 @@ Future development is expected to include:
 - Improved event-detection methods
 - Configurable analysis settings
 - More detailed data-quality diagnostics
+- Explicit handling of padded pre-ignition and post-burn recording data
 - Additional pressure/thrust analysis
-- C* calculation when sufficient mass-flow, pressure, and nozzle data are available
+- Time-resolved C* analysis when the available data supports it
 - Reference-motor comparison
 
 ### Data and Projects

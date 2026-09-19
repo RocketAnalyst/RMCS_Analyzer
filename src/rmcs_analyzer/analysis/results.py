@@ -73,6 +73,19 @@ class ThrustResults:
     initial_thrust_average_N: Optional[float] = None
     initial_thrust_window_s: Optional[float] = None
 
+    thrust_rise_rate_N_per_s: Optional[float] = None
+    thrust_decay_rate_N_per_s: Optional[float] = None
+
+    # Performance extensions requiring metadata / auxiliary channels
+    isp_s: Optional[float] = None
+    isp_status: str = "unavailable"
+
+    cstar_m_per_s: Optional[float] = None
+    cstar_status: str = "unavailable"
+
+    average_chamber_pressure_psi: Optional[float] = None
+    average_mass_flow_kg_per_s: Optional[float] = None
+
     total_impulse_valid_curve_Ns: Optional[float] = None
     normalized_impulse_Ns: Optional[float] = None
 

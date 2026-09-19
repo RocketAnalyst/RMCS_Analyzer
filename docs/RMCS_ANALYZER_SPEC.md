@@ -323,7 +323,60 @@ N + 1816 -> N1816
 Exact rounding/formatting rules must be documented and tested. Delay
 information is separate from the core static-performance designation.
 
-## 16. Sampling and Numerical Integration
+## 16. Performance Extensions
+
+RMCS includes derived performance quantities that require test metadata or
+auxiliary sensor channels in addition to the thrust curve. These values
+are calculated by a dedicated performance-extension layer and exposed to
+the GUI through the authoritative results model.
+
+### 16.1 Specific impulse (Isp)
+
+When total impulse and valid propellant mass are available:
+
+``` text
+Isp = Total Impulse / (Propellant Mass × g0)
+```
+
+Propellant mass is converted from grams to kilograms before calculation,
+and standard gravity is `9.80665 m/s²`.
+
+If propellant mass is missing or invalid, Isp remains unavailable and the
+result includes an explicit status rather than inventing a value.
+
+### 16.2 Characteristic velocity (C*)
+
+When valid chamber-pressure data, propellant mass, nozzle throat diameter,
+and a valid standardized 5% burn interval are available, RMCS currently
+calculates an average C* using:
+
+``` text
+C* = Pc × At / mdot
+```
+
+where:
+
+- `Pc` is the time-weighted average chamber pressure over the standardized
+  5% burn interval.
+- `At` is nozzle throat area calculated from the supplied throat diameter.
+- `mdot` is average propellant mass flow calculated from propellant mass
+  divided by standardized burn time.
+
+Pressure is converted from psi to Pa and nozzle dimensions from inches to
+meters before calculation. Exact standardized-burn boundary times are
+handled by interpolation when calculating the pressure average.
+
+C* is only reported when all required inputs are valid. Missing or invalid
+pressure, propellant mass, throat diameter, or burn-interval data produces
+an explicit unavailable status.
+
+The current C* implementation is a calculated engineering extension. Its
+input assumptions must remain visible to the user; in particular, user-
+supplied or estimated nozzle geometry must not be presented as measured
+hardware data. Future work may add time-resolved C* analysis and additional
+validation against appropriate reference data.
+
+## 17. Sampling and Numerical Integration
 
 The Analyzer shall support irregular sample timing.
 
@@ -338,7 +391,7 @@ interval boundaries.
 
 The numerical integration method must be deterministic and documented.
 
-## 17. Filtering
+## 18. Filtering
 
 The primary performance calculation must not silently distort the
 measured thrust curve.
@@ -354,7 +407,7 @@ Default behavior:
 Display smoothing must never silently become the source of authoritative
 motor-performance results.
 
-## 18. Results Model
+## 19. Results Model
 
 ### Standard motor performance
 
@@ -366,6 +419,12 @@ motor-performance results.
 -   Initial thrust
 -   Motor class
 -   Calculated designation
+-   Specific impulse (Isp) when valid propellant mass is available
+-   Characteristic velocity (C*) when required pressure, mass, burn-time,
+    and throat inputs are available
+-   Average chamber pressure used for C*
+-   Average propellant mass flow used for C*
+-   Availability/status diagnostics for performance extensions
 
 ### Physical/diagnostic events
 
@@ -386,7 +445,7 @@ motor-performance results.
 
 The result model must be independent of the GUI.
 
-## 19. GUI Rules
+## 20. GUI Rules
 
 The GUI displays authoritative results produced by the analysis engine.
 
@@ -400,7 +459,7 @@ The thrust plot may visually distinguish motor-performance and
 diagnostic regions and standardized boundaries without modifying
 underlying data.
 
-## 20. Reference Validation
+## 21. Reference Validation
 
 Reference data is a first-class part of the project.
 
@@ -432,7 +491,7 @@ At minimum, reference tests should verify:
 -   Standardized average thrust
 -   Motor class
 
-## 21. Commercial Motor Validation Goal
+## 22. Commercial Motor Validation Goal
 
 A commercial motor test is an important real-world validation case.
 
@@ -449,7 +508,7 @@ Instead:
 5.  Differences should then be investigated as potential measurement,
     motor-variation, test-condition, or reference-data differences.
 
-## 22. Current Zerox Reference
+## 23. Current Zerox Reference
 
 The current Zerox CSV is the project's primary development and regression
 dataset.
@@ -475,6 +534,12 @@ Initial thrust average:   2635.834021 N
 
 Impulse class:                    N
 Calculated designation:       N2031
+
+Performance extensions (using supplied auxiliary inputs):
+Specific impulse:            197.17 s
+Average chamber pressure:    348.10 psi
+Average mass flow:             1.0581 kg/s
+Characteristic velocity (C*): 1149.34 m/s
 ```
 
 These values are regression references for the current implementation.
@@ -492,7 +557,14 @@ The current Zerox reduction is therefore treated as a documented
 regression result rather than as a manufacturer's certified performance
 designation.
 
-## 23. Architecture Cleanup Principles
+The current Isp and C* values are derived performance extensions and are
+not independent validation targets. The Zerox C* result depends on the
+supplied propellant mass, chamber-pressure channel, and nozzle throat
+diameter; those auxiliary inputs may be estimated or user-supplied. The
+software must preserve that distinction rather than presenting assumed
+geometry as measured hardware data.
+
+## 24. Architecture Cleanup Principles
 
 The codebase must favor clear responsibilities over historical
 compatibility.
@@ -515,7 +587,7 @@ GUI presentation
 Export
 ```
 
-## 24. Development Rules
+## 25. Development Rules
 
 1.  Work on one subsystem at a time.
 2.  Do not make unrelated changes in the same step.
@@ -531,7 +603,7 @@ Export
 9.  Document significant engineering decisions.
 10. Commit stable milestones to Git.
 
-## 25. Definition of Done for the Analysis Engine
+## 26. Definition of Done for the Analysis Engine
 
 The current analysis-engine milestone is complete when:
 
@@ -556,7 +628,7 @@ The analysis engine remains open to additional validation as more
 published thrust curves and properly characterized commercial tests become
 available.
 
-## 26. Sources and Methodology References
+## 27. Sources and Methodology References
 
 **ThrustCurve.org --- Motor Statistics**\
 https://www.thrustcurve.org/info/motorstats.html
@@ -572,7 +644,30 @@ validation/reference data, with the distinction that a published or
 certification result may represent representative or averaged
 performance rather than a single firing.
 
-## 27. Current Project Direction
+## 28. GUI Visual Direction
+
+The GUI is being developed against a project visual reference established
+during the design process. The reference is authoritative for presentation
+and layout, while the analysis engine remains authoritative for engineering
+values.
+
+The intended dashboard composition is:
+
+- dark engineering-focused styling
+- left column for test information and test files
+- center column for the primary thrust-analysis workspace
+- right column for key results, detected events, additional metrics, and C*
+- tabbed center workspaces for Thrust Curve, Data Table, Analysis, Compare,
+  and Simulation Overlay
+- lower supporting panels for video overlay, exports, and motor
+  classification
+
+New GUI work should extend this visual system rather than replacing it with
+a different layout or styling direction. Annotations and controls should
+remain readable at the default window size and should not obscure the
+engineering curve or each other.
+
+## 29. Current Project Direction
 
 The project has completed the core analysis-engine validation milestone.
 
@@ -587,13 +682,15 @@ The project has completed the core analysis-engine validation milestone.
         ↓
 5. Connect validated results to GUI
         ↓
-6. Build additional GUI analysis views
+6. Complete dashboard presentation and motor-classification UI
         ↓
-7. Add reference/comparison workflows
+7. Build Data Table / Analysis / Compare / Simulation workspaces
         ↓
-8. Expand exports and engineering features
+8. Expand exports and video workflows
         ↓
-9. Continue reference and commercial-motor validation
+9. Add deeper data-quality, trimming, and advanced performance analysis
+        ↓
+10. Continue reference and commercial-motor validation
 ```
 
 The current authoritative analysis implementation is protected by the

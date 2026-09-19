@@ -2,6 +2,7 @@ from .events import EventDetector
 from .impulse import ThrustAnalyzer
 from .motor_class import MotorClassCalculator
 from .performance import PerformanceReducer
+from .performance_extensions import PerformanceExtensionCalculator
 from .results import AnalysisResults, EventResults
 from .statistics import StatisticsAnalyzer
 from ..processing.event_model import EventSet, EventType
@@ -30,6 +31,7 @@ class AnalysisEngine:
         statistics_analyzer=None,
         motor_class_calculator=None,
         performance_reducer=None,
+        performance_extension_calculator=None,
     ):
         self.event_detector = event_detector or EventDetector()
         self.thrust_analyzer = thrust_analyzer or ThrustAnalyzer()
@@ -41,6 +43,10 @@ class AnalysisEngine:
         )
         self.performance_reducer = (
             performance_reducer or PerformanceReducer()
+        )
+        self.performance_extension_calculator = (
+            performance_extension_calculator
+            or PerformanceExtensionCalculator()
         )
 
     def analyze(
@@ -96,6 +102,31 @@ class AnalysisEngine:
         )
         thrust_results.initial_thrust_window_s = (
             standardized.initial_thrust_window_s
+        )
+        thrust_results.thrust_rise_rate_N_per_s = (
+            standardized.thrust_rise_rate_N_per_s
+        )
+        thrust_results.thrust_decay_rate_N_per_s = (
+            standardized.thrust_decay_rate_N_per_s
+        )
+
+        extensions = self.performance_extension_calculator.calculate(
+            test_data,
+            total_impulse_Ns=standardized.total_impulse_Ns,
+            burn_start_5pct_time_s=standardized.burn_start_5pct_time_s,
+            burn_end_5pct_time_s=standardized.burn_end_5pct_time_s,
+            burn_time_5pct_s=standardized.burn_time_5pct_s,
+        )
+
+        thrust_results.isp_s = extensions.isp_s
+        thrust_results.isp_status = extensions.isp_status
+        thrust_results.cstar_m_per_s = extensions.cstar_m_per_s
+        thrust_results.cstar_status = extensions.cstar_status
+        thrust_results.average_chamber_pressure_psi = (
+            extensions.average_chamber_pressure_psi
+        )
+        thrust_results.average_mass_flow_kg_per_s = (
+            extensions.average_mass_flow_kg_per_s
         )
         thrust_results.total_impulse_valid_curve_Ns = (
             standardized.total_impulse_Ns

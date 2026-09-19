@@ -59,6 +59,9 @@ class PerformanceReduction:
     initial_thrust_average_N: Optional[float] = None
     initial_thrust_window_s: Optional[float] = None
 
+    thrust_rise_rate_N_per_s: Optional[float] = None
+    thrust_decay_rate_N_per_s: Optional[float] = None
+
     curve_start_time_s: Optional[float] = None
     curve_end_time_s: Optional[float] = None
 
@@ -71,6 +74,10 @@ class PerformanceReducer:
 
     THRESHOLD_PERCENT = 5.0
     INITIAL_THRUST_WINDOW_S = 0.5
+
+    # Rate calculations use a short moving-average window to suppress
+    # sample-to-sample load-cell noise before differentiating the curve.
+    RATE_SMOOTHING_WINDOW_S = 0.10
 
     def __init__(
         self,
@@ -168,6 +175,13 @@ class PerformanceReducer:
             start_time,
         )
 
+        rise_rate, decay_rate = self._thrust_rate_metrics(
+            time_s,
+            thrust_N,
+            start_time,
+            end_time,
+        )
+
         classification = self.motor_class_calculator.classify(
             total_impulse
         )
@@ -193,6 +207,8 @@ class PerformanceReducer:
             average_thrust_N=average_thrust,
             initial_thrust_average_N=initial_average,
             initial_thrust_window_s=self.INITIAL_THRUST_WINDOW_S,
+            thrust_rise_rate_N_per_s=rise_rate,
+            thrust_decay_rate_N_per_s=decay_rate,
             curve_start_time_s=curve_start,
             curve_end_time_s=curve_end,
             impulse_class=classification.motor_class,
@@ -444,6 +460,139 @@ class PerformanceReducer:
                 interval_time,
             )
         )
+
+    @classmethod
+    def _thrust_rate_metrics(
+        cls,
+        time_s: np.ndarray,
+        thrust_N: np.ndarray,
+        start_time: float,
+        end_time: float,
+    ) -> tuple[Optional[float], Optional[float]]:
+        """Calculate characteristic rise and decay rates in N/s.
+
+        The thrust curve is smoothed with a short centered moving-average
+        window before differentiation. The maximum positive derivative
+        between standardized 5% burn start and peak represents thrust rise
+        rate; the most negative derivative between peak and standardized
+        5% burn end represents thrust decay rate.
+
+        Only points with a complete smoothing window are used so edge
+        padding cannot create artificial rate peaks.
+        """
+        if time_s.size < 3 or end_time <= start_time:
+            return None, None
+
+        duration = float(time_s[-1] - time_s[0])
+        if duration <= 0.0:
+            return None, None
+
+        dt = np.diff(time_s)
+        positive_dt = dt[dt > 0.0]
+        if positive_dt.size == 0:
+            return None, None
+
+        median_dt = float(np.median(positive_dt))
+        window_samples = max(
+            3,
+            int(round(cls.RATE_SMOOTHING_WINDOW_S / median_dt)),
+        )
+
+        if window_samples % 2 == 0:
+            window_samples += 1
+
+        half_window = window_samples // 2
+
+        if time_s.size <= window_samples:
+            return None, None
+
+        # Reflect at the ends so the smoothing operation does not introduce
+        # artificial zero-thrust edges. We still exclude the padded edge
+        # region from the derivative extrema below.
+        padded = np.pad(
+            thrust_N,
+            (half_window, half_window),
+            mode="reflect",
+        )
+
+        kernel = np.ones(
+            window_samples,
+            dtype=float,
+        ) / window_samples
+
+        smoothed = np.convolve(
+            padded,
+            kernel,
+            mode="valid",
+        )
+
+        derivative = np.gradient(
+            smoothed,
+            time_s,
+        )
+
+        valid_derivative = np.isfinite(derivative)
+
+        interior = np.zeros(
+            time_s.shape,
+            dtype=bool,
+        )
+
+        interior[
+            half_window:
+            len(time_s) - half_window
+        ] = True
+
+        rising_mask = (
+            (time_s >= start_time)
+            & (time_s <= end_time)
+            & interior
+            & valid_derivative
+        )
+
+        # Peak time is where the maximum thrust occurs. Restrict the
+        # positive rate to the rising half and the negative rate to the
+        # falling half by locating the maximum-thrust sample.
+        peak_index = int(np.argmax(thrust_N))
+
+        rising_mask[:] = False
+        rising_mask[
+            max(half_window, 0):
+            min(peak_index + 1, len(time_s) - half_window)
+        ] = True
+        rising_mask &= (
+            (time_s >= start_time)
+            & (time_s <= end_time)
+            & valid_derivative
+        )
+
+        decay_mask = np.zeros(
+            time_s.shape,
+            dtype=bool,
+        )
+        decay_mask[
+            max(peak_index, half_window):
+            len(time_s) - half_window
+        ] = True
+        decay_mask &= (
+            (time_s >= start_time)
+            & (time_s <= end_time)
+            & valid_derivative
+        )
+
+        rise_rate = (
+            float(np.max(derivative[rising_mask]))
+            if np.any(rising_mask)
+            else None
+        )
+
+        decay_rate = (
+            float(np.min(derivative[decay_mask]))
+            if np.any(decay_mask)
+            else None
+        )
+
+        return rise_rate, decay_rate
 
     def _initial_thrust_average(
         self,
