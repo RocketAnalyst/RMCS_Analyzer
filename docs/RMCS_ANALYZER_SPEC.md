@@ -635,6 +635,110 @@ The following video/overlay state must survive test switching and
 The project-file format is currently versioned and serializes the video
 state as part of each test.
 
+## 21. Campaign Analysis
+
+Campaign Analysis is a population-level analysis workflow for comparing
+completed recorded motor tests within an RMCS project.
+
+Campaign Analysis operates on the authoritative `AnalysisResults` already
+associated with each selected test. The Campaign layer must not independently
+recalculate thrust, impulse, burn time, Isp, C*, motor classification, or other
+authoritative engineering results.
+
+### 21.1 Test Selection
+
+The Campaign workspace maintains its own selection of project tests.
+
+Campaign selection:
+
+- Is independent of the active individual test.
+- May include multiple tests from the current project.
+- Must not change merely because the user changes the active test.
+- Must not introduce duplicate tests.
+- Must support restoring a previously saved selection.
+
+A project that predates Campaign-selection persistence may have no stored
+selection state. In that case, the Campaign workspace may use its normal
+default selection behavior.
+
+### 21.2 Campaign Metrics
+
+The current Campaign Analysis implementation reports population statistics for:
+
+- Total Impulse
+- Peak Thrust
+- Burn Time
+- Average Thrust
+- Isp
+- C*
+
+For each metric, the population result may include:
+
+- Count of valid values
+- Mean
+- Median
+- Minimum
+- Maximum
+- Population standard deviation
+- Coefficient of variation
+
+Tests that do not contain completed analysis results are excluded from
+campaign calculations rather than being represented as zero-valued measurements.
+
+### 21.3 Campaign Thrust Curves
+
+Campaign thrust-curve analysis places usable individual thrust curves on a
+common time basis and calculates population statistics.
+
+Supported curve bases are:
+
+- Absolute burn time
+- Normalized burn time
+
+The population curve provides:
+
+- Mean
+- Median
+- Standard deviation
+- Minimum
+- Maximum
+- Number of contributing tests at each point
+
+Individual campaign curves may also be displayed for comparison.
+
+### 21.4 Campaign Visualization
+
+The Campaign workspace currently provides:
+
+- A campaign test-selection area.
+- A campaign metric statistics table.
+- A Metric Distribution view.
+- A Campaign Thrust Curve view.
+- Absolute and normalized burn-time curve selection.
+
+Campaign visualization is presentation of authoritative analysis results and
+must not alter the underlying recorded test data.
+
+### 21.5 Campaign Project Persistence
+
+Campaign test selection is project-level state and must survive `.rmcs`
+save/load operations.
+
+The project file may persist the source identifiers of the selected tests.
+When a project is reopened, the saved selection must be restored after the
+project tests are loaded.
+
+The Campaign selection state must remain distinct from:
+
+- The active test.
+- Compare selection state.
+- Individual test metadata.
+- Individual test video state.
+
+Adding the Campaign selection field to the project manifest is an additive
+change and must remain compatible with older projects that do not contain the
+field.
+
 ## 22. GUI Rules
 
 The GUI displays authoritative results produced by the analysis engine.
@@ -891,11 +995,16 @@ The current development sequence is:
 The current project is intentionally prioritizing usable functionality over
 final visual polish.
 
-The functional video/overlay milestone is now established. The next major
-functional milestone is **Compare**.
+The functional video/overlay milestone is established, and the Compare,
+Pressure Curve, and Campaign Analysis workflows are now functional.
 
-The analysis engine remains authoritative. New GUI workflows must consume
-the existing result model rather than duplicating engineering calculations.
+The current major functional milestone is **Campaign Analysis v1**. The next
+development areas include broader simulation/data workflows, export capability,
+final video/overlay export, GUI visual polish, and continued reference and
+commercial-motor validation.
+
+The analysis engine remains authoritative. New GUI workflows must consume the
+existing result model rather than duplicating engineering calculations.
 
 Before any major analytical methodology change, new reference data or
 documented methodology should be added to the validation suite.
@@ -903,6 +1012,32 @@ documented methodology should be added to the validation suite.
 This document remains the project's source of truth for analysis
 methodology, architecture, current functional behavior, and development
 direction.
+
+## v0.3.0 Milestone
+
+Completed:
+- Campaign Analysis workspace for multi-test population analysis.
+- Population statistics for Total Impulse, Peak Thrust, Burn Time, Average Thrust,
+  Isp, and C*.
+- Mean, median, minimum, maximum, population standard deviation, and coefficient
+  of variation for campaign metrics.
+- Metric Distribution visualization.
+- Campaign Thrust Curve visualization with absolute and normalized burn-time views.
+- Population thrust-curve statistics.
+- Independent Campaign selection state.
+- Persistent Campaign selection in `.rmcs` projects.
+- Duplicate-selection prevention.
+- Backward-compatible handling of projects without persisted Campaign selection.
+
+The v0.2.0 Compare, Pressure Curve, metadata, import, and project-state work
+remains part of the current application.
+
+Next:
+- Broader simulation/data workflows.
+- Export workflows.
+- Rendered-video and transparent-overlay export.
+- Final GUI and overlay visual polish.
+- Continued reference and commercial-motor validation.
 
 ## v0.2.0 Milestone
 
@@ -914,7 +1049,3 @@ Completed:
 - Independent Compare selection state.
 - Test removal from the current project.
 - Multi-file CSV import.
-
-Next:
-- Campaign Analysis v1: population-level statistics and analysis built on the
-  Compare workflow.

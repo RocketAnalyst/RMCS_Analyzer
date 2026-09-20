@@ -101,6 +101,11 @@ class ProjectFile:
                         session
                     ),
                     "test_count": session.test_count,
+                    "campaign_selected_sources": (
+                        sorted(session.campaign_selected_sources)
+                        if session.campaign_selected_sources is not None
+                        else None
+                    ),
                 }
 
                 cls._write_json(
@@ -207,6 +212,29 @@ class ProjectFile:
                             "Duplicate test encountered "
                             "while loading project."
                         )
+
+                # -------------------------------------------------
+                # Restore Campaign Analysis selection state
+                # -------------------------------------------------
+
+                campaign_sources = manifest.get(
+                    "campaign_selected_sources"
+                )
+                if campaign_sources is None:
+                    # Older projects did not persist Campaign selection.
+                    # Leave this as None so the Campaign panel defaults
+                    # to all loaded tests.
+                    session.campaign_selected_sources = None
+                elif isinstance(campaign_sources, list):
+                    session.campaign_selected_sources = {
+                        str(source)
+                        for source in campaign_sources
+                        if source
+                    }
+                else:
+                    raise ProjectFileError(
+                        "Invalid Campaign selection data in project."
+                    )
 
                 # -------------------------------------------------
                 # Restore active test

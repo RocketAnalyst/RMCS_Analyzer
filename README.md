@@ -10,29 +10,32 @@ The application is being developed with Python, PySide6, PyQtGraph, NumPy, and P
 
 ## Current Development Status
 
-## v0.2.0
+## v0.3.0
 
-RMCS Analyzer v0.2.0 establishes the first feature milestone after the initial
-development baseline.
+RMCS Analyzer v0.3.0 establishes **Campaign Analysis v1** as the next functional
+milestone after the v0.2.0 Compare and project-workflow release.
 
-### Completed in v0.2.0
+### Completed in v0.3.0
 
-- Multi-test Compare workspace with thrust-curve overlays and key metrics.
-- Dedicated Pressure Curve workspace for tests containing pressure data.
-- Editable test metadata with project-level overrides.
-- Metadata reset to the values imported from the source CSV.
-- Persistence of metadata overrides in `.rmcs` projects.
-- Compare selections remain independent of the active individual test.
-- Tests can be removed from the current project without deleting their source CSV.
-- Multiple RMCS CSV test files can be imported in one operation.
-- Original CSV/source data remains separate from project-level metadata overrides.
+- Campaign Analysis workspace for selecting multiple recorded tests.
+- Population statistics for Total Impulse, Peak Thrust, Burn Time, Average Thrust,
+  Isp, and C* when the underlying test results are available.
+- Mean, median, minimum, maximum, population standard deviation, and coefficient
+  of variation for campaign metrics.
+- Metric Distribution visualization for the selected campaign metric.
+- Campaign Thrust Curve visualization with absolute-time and normalized-burn-time
+  views.
+- Campaign thrust-curve population statistics including mean, median, standard
+  deviation, minimum, and maximum.
+- Campaign selections remain independent of the active individual test.
+- Campaign selections persist in `.rmcs` project files and are restored when a
+  project is reopened.
+- Tests without completed analysis results are excluded from campaign calculations
+  rather than being treated as zero-valued measurements.
+- Existing v0.2.0 Compare, metadata, import, pressure-curve, and project workflows
+  remain part of the current application.
 
-### Next development milestone
-
-The next planned milestone is **Campaign Analysis v1**, extending Compare with
-population-level statistics and analysis across a group of tests.
-
-RMCS Analyzer is in active development.
+RMCS Analyzer remains in active development.
 
 The project has completed the core analysis-engine foundation and the first
 functional video-analysis workflow. The authoritative analysis layer is
@@ -127,6 +130,11 @@ The current codebase supports:
 - Specific impulse (Isp) when propellant mass is available
 - Characteristic velocity (C*) when chamber pressure, propellant mass, and nozzle throat data are available
 - Project/session persistence
+- Campaign Analysis
+- Campaign metric population statistics
+- Campaign metric distribution visualization
+- Campaign thrust-curve population comparison
+- Persistent Campaign test selection
 - Interactive thrust-curve visualization
 - Test metadata and test-file panels
 - Motor classification display
@@ -486,9 +494,33 @@ The application provides the current workspace structure for:
 - Analysis
 - Pressure Curve
 - Compare
+- Campaign
+- Data Table
 
-Some of these workspaces are still being expanded. Their presence in the
-interface does not mean every planned workflow is complete.
+Campaign Analysis is functional for comparing completed recorded test results
+at the population level. Additional campaign workflows and broader export and
+simulation capabilities remain future development areas.
+
+### Campaign Analysis
+
+The Campaign workspace operates on selected completed tests in the current
+project. It provides:
+
+- Population statistics for Total Impulse, Peak Thrust, Burn Time, Average Thrust,
+  Isp, and C*.
+- Mean, median, minimum, maximum, population standard deviation, and coefficient
+  of variation.
+- A metric distribution view for the selected campaign metric.
+- A campaign thrust-curve view using either absolute burn time or normalized
+  burn time.
+- Population curve statistics including mean, median, standard deviation,
+  minimum, and maximum.
+- Automatic exclusion of tests that do not contain completed analysis results.
+- Project-level persistence of the Campaign test selection.
+
+Campaign selection is independent of the active individual test. Changing which
+test is displayed must not silently change which tests are included in Campaign
+Analysis.
 
 ### Side panels
 

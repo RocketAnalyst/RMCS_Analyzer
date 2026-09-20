@@ -7,7 +7,7 @@ __pycache__/
 *$py.class
 
 # =========================================================
-# Virtual Environment
+# Virtual Environments
 # =========================================================
 
 .venv/
@@ -27,6 +27,7 @@ env/
 
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # =========================================================
 # Python Packaging
@@ -42,7 +43,10 @@ build/
 
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
+.tox/
+.nox/
 
 # =========================================================
 # Temporary Files
@@ -51,35 +55,41 @@ htmlcov/
 *.tmp
 *.temp
 *.log
+*.bak
+*.swp
+*~
 
 # =========================================================
-# Temporary Development Test Scripts
+# Local RMCS Project Files
 # =========================================================
 
-test_analysis.py
-test_csv_reader.py
+# RMCS project files are local working files and may contain
+# machine-specific paths and application state.
+*.rmcs
+
 # =========================================================
-# Generated / Local Media
+# Local / Generated Test Data
 # =========================================================
 
-# Local test recordings and generated video exports should not be committed.
+# Put disposable/generated test data here if needed.
+test_data/local/
+test_data/generated/
+
+# =========================================================
+# Generated Media
+# =========================================================
+
 *.mp4
 *.mov
 *.mkv
 *.avi
 *.webm
 
-# Generated analysis/export output
+# =========================================================
+# Generated Analysis / Export Output
+# =========================================================
+
 exports/
 output/
 *.rse
 *.eng
-
-# Local RMCS project files are working data, not source code.
-# Keep this commented unless the project later decides to ignore all
-# project files globally:
-# *.rmcs
-
-# Documentation is intentionally tracked:
-# README.md
-# docs/

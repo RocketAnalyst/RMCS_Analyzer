@@ -16,6 +16,12 @@ class TestSession:
         self._tests: List[TestModel] = []
         self._active_test: Optional[TestModel] = None
 
+        # Persisted project-level Campaign Analysis selection.
+        # None means the project predates Campaign selection persistence
+        # and should use the Campaign panel's normal default (all tests).
+        # An empty set is a valid saved state meaning no tests were selected.
+        self.campaign_selected_sources: Optional[set[str]] = None
+
     # =============================================================
     # TEST COLLECTION
     # =============================================================

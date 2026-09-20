@@ -56,6 +56,7 @@ from .ui.test_files_panel import TestFilesPanel
 from .ui.thrust_plot import ThrustPlot
 from .ui.pressure_plot import PressurePlot
 from .ui.compare_panel import ComparePanel
+from .ui.campaign_panel import CampaignPanel
 from .ui.playback_controls import PlaybackControls
 from .ui.results_panel import ResultsPanel
 from .ui.data_table import DataTable
@@ -82,10 +83,11 @@ class MainWindow(QMainWindow):
 
     The UI is organized around the primary analysis workspaces:
         - Thrust Curve
-        - Data Table
+        - Pressure Curve
         - Analysis
         - Compare
-        - Pressure Curve
+        - Campaign
+        - Data Table
     """
 
     def __init__(self):
@@ -344,14 +346,14 @@ class MainWindow(QMainWindow):
         )
 
         # =========================================================
-        # DATA TABLE TAB
+        # PRESSURE CURVE TAB
         # =========================================================
 
-        self.data_table = DataTable()
+        self.pressure_plot = PressurePlot()
 
         self.workspace_tabs.addTab(
-            self.data_table,
-            "Data Table",
+            self.pressure_plot,
+            "Pressure Curve",
         )
 
         # =========================================================
@@ -366,17 +368,6 @@ class MainWindow(QMainWindow):
         )
 
         # =========================================================
-        # PRESSURE CURVE TAB
-        # =========================================================
-
-        self.pressure_plot = PressurePlot()
-
-        self.workspace_tabs.addTab(
-            self.pressure_plot,
-            "Pressure Curve",
-        )
-
-        # =========================================================
         # COMPARE TAB
         # =========================================================
 
@@ -385,6 +376,28 @@ class MainWindow(QMainWindow):
         self.workspace_tabs.addTab(
             self.compare_panel,
             "Compare",
+        )
+
+        # =========================================================
+        # CAMPAIGN TAB
+        # =========================================================
+
+        self.campaign_panel = CampaignPanel()
+
+        self.workspace_tabs.addTab(
+            self.campaign_panel,
+            "Campaign",
+        )
+
+        # =========================================================
+        # DATA TABLE TAB
+        # =========================================================
+
+        self.data_table = DataTable()
+
+        self.workspace_tabs.addTab(
+            self.data_table,
+            "Data Table",
         )
 
         center_layout.addWidget(
@@ -563,7 +576,7 @@ class MainWindow(QMainWindow):
         )
 
         version = QLabel(
-            "v0.2.0"
+            "v0.3.0"
         )
 
         version.setObjectName(
@@ -1635,6 +1648,12 @@ class MainWindow(QMainWindow):
                     active_index
                 )
 
+                # Restore the Campaign Analysis selection after the active
+                # test view has populated the panel.
+                self.campaign_panel.restore_selection(
+                    self.session.campaign_selected_sources
+                )
+
         else:
 
             self.test_info.clear()
@@ -1719,6 +1738,12 @@ class MainWindow(QMainWindow):
             filename = self.project_filename
 
         try:
+
+            # Campaign selection is project-level UI state, so persist it
+            # alongside the loaded tests when the project is saved.
+            self.session.campaign_selected_sources = (
+                self.campaign_panel.selected_sources()
+            )
 
             ProjectFile.save(
                 self.session,
@@ -1864,6 +1889,7 @@ class MainWindow(QMainWindow):
             self.thrust_plot.clear()
             self.pressure_plot.clear()
             self.compare_panel.set_tests([])
+            self.campaign_panel.set_tests([])
             self.data_table.clear()
             return
 
@@ -1967,6 +1993,10 @@ class MainWindow(QMainWindow):
         self.compare_panel.set_tests(
             self.session.tests,
             active_test=test,
+        )
+
+        self.campaign_panel.set_tests(
+            self.session.tests,
         )
 
         if test.analysis_results is not None:
@@ -2345,6 +2375,9 @@ class MainWindow(QMainWindow):
                 self.compare_panel.set_tests(
                     self.session.tests,
                     active_test=self.session.active_test,
+                )
+                self.campaign_panel.set_tests(
+                    self.session.tests,
                 )
                 self.update_status(test)
 
