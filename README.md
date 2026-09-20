@@ -10,6 +10,28 @@ The application is being developed with Python, PySide6, PyQtGraph, NumPy, and P
 
 ## Current Development Status
 
+## v0.2.0
+
+RMCS Analyzer v0.2.0 establishes the first feature milestone after the initial
+development baseline.
+
+### Completed in v0.2.0
+
+- Multi-test Compare workspace with thrust-curve overlays and key metrics.
+- Dedicated Pressure Curve workspace for tests containing pressure data.
+- Editable test metadata with project-level overrides.
+- Metadata reset to the values imported from the source CSV.
+- Persistence of metadata overrides in `.rmcs` projects.
+- Compare selections remain independent of the active individual test.
+- Tests can be removed from the current project without deleting their source CSV.
+- Multiple RMCS CSV test files can be imported in one operation.
+- Original CSV/source data remains separate from project-level metadata overrides.
+
+### Next development milestone
+
+The next planned milestone is **Campaign Analysis v1**, extending Compare with
+population-level statistics and analysis across a group of tests.
+
 RMCS Analyzer is in active development.
 
 The project has completed the core analysis-engine foundation and the first
@@ -462,8 +484,8 @@ The application provides the current workspace structure for:
 - Thrust Curve
 - Data Table
 - Analysis
+- Pressure Curve
 - Compare
-- Simulation Overlay
 
 Some of these workspaces are still being expanded. Their presence in the
 interface does not mean every planned workflow is complete.
@@ -637,6 +659,7 @@ Development is intentionally proceeding in functional milestones.
 
 - Complete the **Compare** workflow
 - Compare measured tests without duplicating analysis logic
+- Treat simulation/reference data as optional additional curves on the Thrust Curve workspace
 - Preserve project/test state while switching between comparisons
 
 ### Analysis and data workflow

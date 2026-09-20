@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QPushButton,
     QVBoxLayout,
 )
 
@@ -18,6 +19,7 @@ class TestFilesPanel(QFrame):
     """
 
     test_selected = Signal(int)
+    remove_requested = Signal(int)
 
     EMPTY_TEXT = "No test files loaded"
 
@@ -64,7 +66,76 @@ class TestFilesPanel(QFrame):
             1,
         )
 
+        self.remove_button = QPushButton(
+            "Remove Selected Test"
+        )
+        self.remove_button.setEnabled(False)
+        self.remove_button.clicked.connect(
+            self._on_remove_clicked
+        )
+        layout.addWidget(
+            self.remove_button
+        )
+
         self.show_empty_state()
+
+    def _update_remove_button(self):
+        """Enable removal only when a real test row is selected."""
+
+        row = self.file_list.currentRow()
+        item = self.file_list.item(row) if row >= 0 else None
+
+        enabled = (
+            item is not None
+            and item.data(Qt.ItemDataRole.UserRole) is not None
+        )
+        self.remove_button.setEnabled(enabled)
+
+    def _on_remove_clicked(self):
+        """Request that the main window remove the selected test."""
+
+        row = self.file_list.currentRow()
+        item = self.file_list.item(row) if row >= 0 else None
+
+        if item is None:
+            return
+
+        test_index = item.data(Qt.ItemDataRole.UserRole)
+        if test_index is None:
+            return
+
+        self.remove_requested.emit(int(test_index))
+
+    def remove_file(self, test_index):
+        """Remove the list row associated with a TestSession index."""
+
+        for row in range(self.file_list.count()):
+            item = self.file_list.item(row)
+            if item is None:
+                continue
+
+            if item.data(Qt.ItemDataRole.UserRole) == test_index:
+                self.file_list.blockSignals(True)
+                self.file_list.takeItem(row)
+                self.file_list.blockSignals(False)
+                break
+
+        self._reindex_items()
+        self._update_remove_button()
+
+    def _reindex_items(self):
+        """Keep UserRole session indices aligned after a removal."""
+
+        for row in range(self.file_list.count()):
+            item = self.file_list.item(row)
+            if item is not None:
+                item.setData(
+                    Qt.ItemDataRole.UserRole,
+                    row,
+                )
+
+        if self.file_list.count() == 0:
+            self.show_empty_state()
 
     def show_empty_state(self):
         """Display the empty file-list state."""
@@ -131,6 +202,7 @@ class TestFilesPanel(QFrame):
         self.file_list.setCurrentItem(
             item
         )
+        self._update_remove_button()
 
         self.file_list.blockSignals(
             False
@@ -166,12 +238,15 @@ class TestFilesPanel(QFrame):
         self.file_list.blockSignals(
             False
         )
+        self._update_remove_button()
 
     def _on_current_row_changed(
         self,
         row,
     ):
         """Report the selected TestSession index."""
+
+        self._update_remove_button()
 
         if row < 0:
             return

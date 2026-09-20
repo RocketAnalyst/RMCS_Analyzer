@@ -275,8 +275,13 @@ class ProjectFile:
         metadata = {
             "test_number": test.test_number,
             "motor_designation": test.motor_designation,
+            "motor_type": test.motor_type,
             "manufacturer": test.manufacturer,
+            "builder": test.builder,
+            "case_material": test.case_material,
             "test_date": test.test_date,
+            "test_stand": test.test_stand,
+            "test_operator": test.test_operator,
             "location": test.location,
             "motor_diameter_in": test.motor_diameter_in,
             "motor_length_in": test.motor_length_in,
@@ -285,6 +290,12 @@ class ProjectFile:
             "propellant_type": test.propellant_type,
             "nozzle_throat_in": test.nozzle_throat_in,
             "nozzle_exit_in": test.nozzle_exit_in,
+            "nozzle_material": test.nozzle_material,
+            "load_cell": test.load_cell,
+            "load_cell_calibration": test.load_cell_calibration,
+            "pressure_sensor": test.pressure_sensor,
+            "pressure_sensor_calibration": test.pressure_sensor_calibration,
+            "sample_rate_hz": test.sample_rate_hz,
             "notes": test.notes,
             "source_file": test.source_file,
             "video": {
@@ -509,12 +520,32 @@ class ProjectFile:
                 "motor_designation",
                 "",
             ),
+            motor_type=metadata.get(
+                "motor_type",
+                "",
+            ),
             manufacturer=metadata.get(
                 "manufacturer",
                 "",
             ),
+            builder=metadata.get(
+                "builder",
+                "",
+            ),
+            case_material=metadata.get(
+                "case_material",
+                "",
+            ),
             test_date=metadata.get(
                 "test_date",
+                "",
+            ),
+            test_stand=metadata.get(
+                "test_stand",
+                "",
+            ),
+            test_operator=metadata.get(
+                "test_operator",
                 "",
             ),
             location=metadata.get(
@@ -542,6 +573,29 @@ class ProjectFile:
             ),
             nozzle_exit_in=metadata.get(
                 "nozzle_exit_in"
+            ),
+            nozzle_material=metadata.get(
+                "nozzle_material",
+                "",
+            ),
+            load_cell=metadata.get(
+                "load_cell",
+                "",
+            ),
+            load_cell_calibration=metadata.get(
+                "load_cell_calibration",
+                "",
+            ),
+            pressure_sensor=metadata.get(
+                "pressure_sensor",
+                "",
+            ),
+            pressure_sensor_calibration=metadata.get(
+                "pressure_sensor_calibration",
+                "",
+            ),
+            sample_rate_hz=metadata.get(
+                "sample_rate_hz"
             ),
             notes=metadata.get(
                 "notes",

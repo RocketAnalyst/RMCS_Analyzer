@@ -847,8 +847,8 @@ The intended dashboard composition is:
 - left column for test information and test files
 - center column for the primary thrust-analysis workspace
 - right column for key results, detected events, additional metrics, and C*
-- tabbed center workspaces for Thrust Curve, Data Table, Analysis, Compare,
-  and Simulation Overlay
+- tabbed center workspaces for Thrust Curve, Pressure Curve, Data Table, Analysis,
+  and Compare
 - lower supporting panels for video overlay, exports, and motor
   classification
 
@@ -903,3 +903,18 @@ documented methodology should be added to the validation suite.
 This document remains the project's source of truth for analysis
 methodology, architecture, current functional behavior, and development
 direction.
+
+## v0.2.0 Milestone
+
+Completed:
+- Compare workspace with multi-test thrust overlays and key metrics.
+- Dedicated Pressure Curve workspace.
+- Project-level editable metadata overrides with CSV-metadata reset.
+- Persistent metadata overrides in `.rmcs`.
+- Independent Compare selection state.
+- Test removal from the current project.
+- Multi-file CSV import.
+
+Next:
+- Campaign Analysis v1: population-level statistics and analysis built on the
+  Compare workflow.

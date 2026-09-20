@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QLabel,
     QLineEdit,
+    QPushButton,
     QVBoxLayout,
 )
 
@@ -19,6 +20,7 @@ class TestInfoPanel(QFrame):
     """
 
     metadata_changed = Signal()
+    edit_metadata_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -78,6 +80,14 @@ class TestInfoPanel(QFrame):
             "Propellant Mass (g)",
             "",
         )
+
+        self.edit_metadata_button = QPushButton(
+            "Edit Metadata..."
+        )
+        self.edit_metadata_button.clicked.connect(
+            self.edit_metadata_requested.emit
+        )
+        layout.addWidget(self.edit_metadata_button)
 
         layout.addStretch()
 

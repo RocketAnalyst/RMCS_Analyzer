@@ -54,6 +54,8 @@ from .ui.header import Header
 from .ui.test_info_panel import TestInfoPanel
 from .ui.test_files_panel import TestFilesPanel
 from .ui.thrust_plot import ThrustPlot
+from .ui.pressure_plot import PressurePlot
+from .ui.compare_panel import ComparePanel
 from .ui.playback_controls import PlaybackControls
 from .ui.results_panel import ResultsPanel
 from .ui.data_table import DataTable
@@ -62,6 +64,7 @@ from .ui.motor_classification_panel import MotorClassificationPanel
 from .ui.playback_timeline import PlaybackTimeline
 from .ui.video_panel import VideoPanel
 from .ui.settings_dialog import SettingsDialog
+from .ui.metadata_dialog import MetadataDialog
 
 
 class MainWindow(QMainWindow):
@@ -82,7 +85,7 @@ class MainWindow(QMainWindow):
         - Data Table
         - Analysis
         - Compare
-        - Simulation Overlay
+        - Pressure Curve
     """
 
     def __init__(self):
@@ -363,47 +366,25 @@ class MainWindow(QMainWindow):
         )
 
         # =========================================================
+        # PRESSURE CURVE TAB
+        # =========================================================
+
+        self.pressure_plot = PressurePlot()
+
+        self.workspace_tabs.addTab(
+            self.pressure_plot,
+            "Pressure Curve",
+        )
+
+        # =========================================================
         # COMPARE TAB
         # =========================================================
 
-        compare_page = self.create_placeholder_page(
-            "Compare",
-            (
-                "Test comparison workspace."
-                "\n\n"
-                "Planned capabilities:\n"
-                "• Select multiple tests\n"
-                "• Overlay thrust curves\n"
-                "• Compare calculated results\n"
-                "• Compare motor performance"
-            ),
-        )
+        self.compare_panel = ComparePanel()
 
         self.workspace_tabs.addTab(
-            compare_page,
+            self.compare_panel,
             "Compare",
-        )
-
-        # =========================================================
-        # SIMULATION OVERLAY TAB
-        # =========================================================
-
-        simulation_page = self.create_placeholder_page(
-            "Simulation Overlay",
-            (
-                "Simulation comparison workspace."
-                "\n\n"
-                "Planned capabilities:\n"
-                "• Load simulation data\n"
-                "• Overlay measured thrust\n"
-                "• Compare OpenMotor/BurnSim results\n"
-                "• Review measured vs. predicted performance"
-            ),
-        )
-
-        self.workspace_tabs.addTab(
-            simulation_page,
-            "Simulation Overlay",
         )
 
         center_layout.addWidget(
@@ -582,7 +563,7 @@ class MainWindow(QMainWindow):
         )
 
         version = QLabel(
-            "v0.1.0"
+            "v0.2.0"
         )
 
         version.setObjectName(
@@ -1029,9 +1010,15 @@ class MainWindow(QMainWindow):
         self.test_files.test_selected.connect(
             self.select_test
         )
+        self.test_files.remove_requested.connect(
+            self.remove_test
+        )
 
         self.test_info.metadata_changed.connect(
             self.update_active_test_metadata
+        )
+        self.test_info.edit_metadata_requested.connect(
+            self.edit_active_test_metadata
         )
 
         self.video_panel.video_changed.connect(
@@ -1137,10 +1124,10 @@ class MainWindow(QMainWindow):
 
     def import_rmcs_test(self):
         """
-        Import one RMCS-compatible CSV test file.
+        Import one or more RMCS-compatible CSV test files.
         """
 
-        filename, _ = QFileDialog.getOpenFileName(
+        filenames, _ = QFileDialog.getOpenFileNames(
             self,
             "Import RMCS Test Data",
             "",
@@ -1150,12 +1137,81 @@ class MainWindow(QMainWindow):
             ),
         )
 
-        if not filename:
+        if not filenames:
             return
 
-        self.open_test(
-            filename
-        )
+        # Preserve the existing single-file behavior while allowing a
+        # multi-selection to be imported as one operation.  Tests are
+        # added to the session first and the individual-test view is
+        # updated only once at the end.
+        imported_indices = []
+        duplicate_indices = []
+        failures = []
+
+        for filename in filenames:
+            result = self.open_test(
+                filename,
+                select_test_after=False,
+                show_errors=False,
+            )
+
+            if result["status"] == "imported":
+                imported_indices.append(
+                    result["test_index"]
+                )
+            elif result["status"] == "duplicate":
+                duplicate_indices.append(
+                    result["test_index"]
+                )
+            else:
+                failures.append(
+                    (
+                        Path(filename).name,
+                        result["error"],
+                    )
+                )
+
+        # Select the last newly imported test, matching the existing
+        # behavior of ending an import operation on the imported test.
+        if imported_indices:
+            self.test_files.set_current_test(
+                imported_indices[-1]
+            )
+            self.select_test(
+                imported_indices[-1]
+            )
+        elif duplicate_indices:
+            self.test_files.set_current_test(
+                duplicate_indices[-1]
+            )
+            self.select_test(
+                duplicate_indices[-1]
+            )
+
+        if failures:
+            message = (
+                f"Imported {len(imported_indices)} "
+                f"of {len(filenames)} selected file(s)."
+            )
+
+            if duplicate_indices:
+                message += (
+                    f"\n\n{len(duplicate_indices)} "
+                    "file(s) were already loaded."
+                )
+
+            message += "\n\nFiles that could not be imported:\n"
+
+            message += "\n".join(
+                f"• {filename}: {error}"
+                for filename, error in failures
+            )
+
+            QMessageBox.warning(
+                self,
+                "Import Completed with Errors",
+                message,
+            )
 
     # =============================================================
     # IMPORT OTHER CSV
@@ -1304,10 +1360,18 @@ class MainWindow(QMainWindow):
     def open_test(
         self,
         filename,
+        select_test_after=True,
+        show_errors=True,
     ):
         """
-        Load, process, analyze, and add an RMCS CSV test
-        to the session.
+        Load, process, analyze, and add an RMCS CSV test to the session.
+
+        ``select_test_after`` is disabled by batch import so the active
+        individual-test view is updated only once after all selected files
+        have been processed.
+
+        Returns a small status dictionary for callers that need to report
+        batch-import results.
         """
 
         existing_test = (
@@ -1322,7 +1386,7 @@ class MainWindow(QMainWindow):
                 existing_test
             )
 
-            if index is not None:
+            if index is not None and select_test_after:
 
                 self.test_files.set_current_test(
                     index
@@ -1332,7 +1396,11 @@ class MainWindow(QMainWindow):
                     index
                 )
 
-            return
+            return {
+                "status": "duplicate",
+                "test_index": index,
+                "error": None,
+            }
 
         try:
 
@@ -1362,7 +1430,11 @@ class MainWindow(QMainWindow):
             )
 
             if not added:
-                return
+                return {
+                    "status": "duplicate",
+                    "test_index": self.get_test_index(test),
+                    "error": None,
+                }
 
             if self.project_filename is not None:
 
@@ -1373,45 +1445,80 @@ class MainWindow(QMainWindow):
             )
 
             if test_index is None:
-                return
+                return {
+                    "status": "failed",
+                    "test_index": None,
+                    "error": "The imported test could not be located in the session.",
+                }
 
             self.test_files.add_file(
                 test.display_name,
                 test_index,
             )
 
-            self.select_test(
-                test_index
-            )
+            if select_test_after:
+
+                self.select_test(
+                    test_index
+                )
+
+            return {
+                "status": "imported",
+                "test_index": test_index,
+                "error": None,
+            }
 
         except CSVReadError as error:
 
-            QMessageBox.critical(
-                self,
-                "Unable to Import Test",
-                str(error),
-            )
+            if show_errors:
+                QMessageBox.critical(
+                    self,
+                    "Unable to Import Test",
+                    str(error),
+                )
+
+            return {
+                "status": "failed",
+                "test_index": None,
+                "error": str(error),
+            }
 
         except ValueError as error:
 
-            QMessageBox.critical(
-                self,
-                "Unable to Process Test",
-                str(error),
-            )
+            if show_errors:
+                QMessageBox.critical(
+                    self,
+                    "Unable to Process Test",
+                    str(error),
+                )
+
+            return {
+                "status": "failed",
+                "test_index": None,
+                "error": str(error),
+            }
 
         except Exception as error:
 
-            QMessageBox.critical(
-                self,
-                "Unexpected Error",
-                (
-                    "An unexpected error occurred "
-                    "while importing, processing, "
-                    "or analyzing the test:\n\n"
-                    f"{error}"
-                ),
+            message = (
+                "An unexpected error occurred "
+                "while importing, processing, "
+                "or analyzing the test:\n\n"
+                f"{error}"
             )
+
+            if show_errors:
+                QMessageBox.critical(
+                    self,
+                    "Unexpected Error",
+                    message,
+                )
+
+            return {
+                "status": "failed",
+                "test_index": None,
+                "error": str(error),
+            }
 
     # =============================================================
     # OPEN PROJECT
@@ -1533,6 +1640,8 @@ class MainWindow(QMainWindow):
             self.test_info.clear()
 
             self.thrust_plot.clear()
+            self.pressure_plot.clear()
+            self.compare_panel.set_tests([])
 
             self.data_table.clear()
 
@@ -1706,6 +1815,78 @@ class MainWindow(QMainWindow):
         self.display_active_test()
 
     # =============================================================
+    # REMOVE TEST
+    # =============================================================
+
+    def remove_test(
+        self,
+        test_index,
+    ):
+        """Remove a loaded test from the current session without deleting its source file."""
+
+        tests = self.session.tests
+
+        if test_index < 0 or test_index >= len(tests):
+            return
+
+        test = tests[test_index]
+        filename = test.display_name
+
+        response = QMessageBox.question(
+            self,
+            "Remove Test",
+            (
+                f"Remove '{filename}' from the current session?\n\n"
+                "The original CSV file will not be deleted."
+            ),
+            (
+                QMessageBox.StandardButton.Yes
+                | QMessageBox.StandardButton.No
+            ),
+            QMessageBox.StandardButton.No,
+        )
+
+        if response != QMessageBox.StandardButton.Yes:
+            return
+
+        was_active = self.session.active_test is test
+
+        if not self.session.remove_test(test):
+            return
+
+        self.test_files.remove_file(test_index)
+        self.mark_project_modified()
+
+        if self.session.test_count == 0:
+            self.current_test = None
+            self.current_analysis = None
+            self.test_info.clear()
+            self.thrust_plot.clear()
+            self.pressure_plot.clear()
+            self.compare_panel.set_tests([])
+            self.data_table.clear()
+            return
+
+        # Keep the active individual-test view valid after the session
+        # collection changes. If the removed test was not active, keep
+        # the current test selected. Otherwise select the session's new
+        # active test.
+        target = (
+            self.session.active_test
+            if was_active
+            else self.current_test
+        )
+
+        target_index = self.get_test_index(target)
+        if target_index is None:
+            target = self.session.active_test
+            target_index = self.get_test_index(target)
+
+        if target_index is not None:
+            self.test_files.set_current_test(target_index)
+            self.select_test(target_index)
+
+    # =============================================================
     # DISPLAY ACTIVE TEST
     # =============================================================
 
@@ -1770,6 +1951,22 @@ class MainWindow(QMainWindow):
             recording_end_time_s=recording_end_time_s,
             peak_time_s=peak_time_s,
             peak_thrust_N=peak_thrust_N,
+        )
+
+        if test.data.pressure_psi is not None:
+            self.pressure_plot.set_data(
+                test.data.time_s,
+                test.data.pressure_psi,
+                ignition_time_s=ignition_time_s,
+                burnout_time_s=burnout_time_s,
+                recording_end_time_s=recording_end_time_s,
+            )
+        else:
+            self.pressure_plot.clear()
+
+        self.compare_panel.set_tests(
+            self.session.tests,
+            active_test=test,
         )
 
         if test.analysis_results is not None:
@@ -2093,58 +2290,74 @@ class MainWindow(QMainWindow):
     # =============================================================
 
     def update_active_test_metadata(self):
-        """
-        Store edited metadata in the active TestModel.
-        """
+        """Store edited basic metadata and refresh dependent analysis."""
 
         test = self.session.active_test
-
         if test is None:
             return
 
-        test.test_number = (
-            self.test_info.test_number.text().strip()
+        test.test_number = self.test_info.test_number.text().strip()
+        test.motor_designation = self.test_info.motor.text().strip()
+        test.test_date = self.test_info.date.text().strip()
+        test.motor_diameter_in = self.parse_optional_float(
+            self.test_info.diameter.text()
+        )
+        test.motor_length_in = self.parse_optional_float(
+            self.test_info.length.text()
+        )
+        test.initial_mass_g = self.parse_optional_float(
+            self.test_info.initial_mass.text()
+        )
+        test.propellant_mass_g = self.parse_optional_float(
+            self.test_info.propellant_mass.text()
         )
 
-        test.motor_designation = (
-            self.test_info.motor.text().strip()
-        )
+        self._reanalyze_test(test)
 
-        test.test_date = (
-            self.test_info.date.text().strip()
-        )
+    def edit_active_test_metadata(self):
+        """Open the full metadata editor for the active test."""
+        test = self.session.active_test
+        if test is None:
+            return
 
-        test.motor_diameter_in = (
-            self.parse_optional_float(
-                self.test_info.diameter.text()
+        dialog = MetadataDialog(test, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        self.test_info.set_test_model(test)
+        self._reanalyze_test(test)
+
+    def _reanalyze_test(self, test):
+        """Recalculate one test using its current project metadata overrides."""
+        try:
+            _, analysis_result = self.process_and_analyze(
+                test.analysis_data()
             )
-        )
+            test.analysis_results = analysis_result
+            test.mark_modified()
+            self.project_modified = True
 
-        test.motor_length_in = (
-            self.parse_optional_float(
-                self.test_info.length.text()
+            if test is self.session.active_test:
+                self.display_active_test()
+            else:
+                # Compare reads the TestModel directly; refresh it without
+                # changing the active-test selection or comparison selection.
+                self.compare_panel.set_tests(
+                    self.session.tests,
+                    active_test=self.session.active_test,
+                )
+                self.update_status(test)
+
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "Unable to Recalculate Test",
+                (
+                    "The metadata was updated, but the test could not be "
+                    "recalculated:\n\n"
+                    f"{error}"
+                ),
             )
-        )
-
-        test.initial_mass_g = (
-            self.parse_optional_float(
-                self.test_info.initial_mass.text()
-            )
-        )
-
-        test.propellant_mass_g = (
-            self.parse_optional_float(
-                self.test_info.propellant_mass.text()
-            )
-        )
-
-        test.mark_modified()
-
-        self.project_modified = True
-
-        self.update_status(
-            test
-        )
 
     # =============================================================
     # PARSE OPTIONAL FLOAT
