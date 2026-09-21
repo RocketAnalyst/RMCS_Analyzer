@@ -10,6 +10,35 @@ The application is being developed with Python, PySide6, PyQtGraph, NumPy, and P
 
 ## Current Development Status
 
+### v0.4.0 — Feature-complete v1.0 foundation
+
+RMCS Analyzer v0.4.0 contains the complete planned **v1.0 feature set**.
+The project is now entering a dedicated refinement phase rather than adding
+major v1.0 functionality.
+
+The v1.0 feature set includes:
+
+- Standardized RMCS CSV import and engineering analysis
+- Test metadata and project/session persistence
+- Compare workspace
+- Pressure Curve workspace
+- Campaign Analysis v1
+- Project-level simulation import and comparison
+- Synchronized video analysis
+- Independent measured and simulation Thrust/Pressure video overlays
+- Campaign and single-test PDF reporting
+- BurnSim CSV export
+- RASP / `.ENG` motor-curve export
+- Analysis CSV export
+- Regression/reference testing for the completed feature areas
+
+The next phase is **GUI refinement and production-readiness**, including
+workspace layout, chart presentation, tab-specific improvements, and a
+Settings system with user preferences such as display units.
+
+The application release remains **v0.4.0** until the refinement phase is
+complete and the final v1.0 release is made.
+
 ## v0.4.0
 
 RMCS Analyzer v0.4.0 establishes **Simulation Integration, Expanded Video
@@ -50,13 +79,16 @@ functional test, campaign, simulation-comparison, and synchronized video
 analysis workflows. The authoritative analysis layer remains separate from the
 GUI and is protected by standalone regression/reference tests.
 
-The current development priority remains **functionality before final visual
-polish**. PDF reporting, BurnSim export, and RASP / `.ENG` export are complete
-and validated. OpenMotor export was removed from the roadmap because openMotor
+The project has completed the planned v1.0 feature set. PDF reporting,
+BurnSim export, RASP / `.ENG` export, and Analysis CSV export are complete and
+validated. OpenMotor export was removed from the roadmap because openMotor
 does not provide a meaningful direct experimental-test-data import workflow.
-The remaining functional export is Analysis CSV. Video and Overlay exports are
-intentionally represented as active v2 future-feature placeholders. Final GUI
-and production-readiness refinement will follow the remaining functional work.
+Video and Overlay file exports are intentionally represented as active v2
+future-feature placeholders.
+
+The current development priority is **refinement before final v1.0 release**:
+GUI/layout polish, chart presentation, Settings and user preferences,
+workspace-specific improvements, consistency, and final regression validation.
 
 The current architecture is:
 
@@ -805,104 +837,71 @@ The target dashboard uses:
 
 The mockup is the visual reference for layout and presentation. The authoritative analysis engine remains the source of all engineering values.
 
-## Planned Development
+## v1.0 Refinement Phase
 
-Development is intentionally proceeding in functional milestones.
+The major v1.0 functionality is now complete. Remaining work is focused on
+refinement, consistency, usability, and production readiness rather than
+adding another major export or analysis subsystem.
 
-### Immediate / next major milestone
+### GUI refinement
 
-- Implement the remaining planned engineering/data interchange exports.
-- Keep export calculations driven by the authoritative `AnalysisResults` and
-  project/test data rather than duplicating analysis logic.
-- Validate exported data against the existing RMCS analysis results.
+Planned refinement areas include:
 
-The PDF report export is complete and should be treated as a stable export
-workflow rather than part of the remaining export work.
+- Main-window layout and navigation
+- Analysis workspace presentation
+- Thrust Curve and Pressure Curve tab layout
+- Compare workspace presentation
+- Campaign workspace presentation
+- Video / Overlay workspace presentation
+- Export panel spacing and consistency
+- Chart colors, labels, legends, and visual hierarchy
+- Results presentation and engineering readability
+- Consistent spacing, sizing, typography, and tooltips
 
-### Analysis and data workflow
+### Settings
 
-- Additional pressure-curve analysis
-- Improved event/data-quality workflows
-- Explicit handling of padded pre-ignition and post-burn recording data
-- More detailed engineering statistics
-- Additional reference-motor comparison
-- Time-resolved C* analysis when the available data supports it
+A dedicated Settings system is planned for user-level application preferences.
 
-### Simulation
+The first major preference group is **Units**, allowing the user to choose
+preferred display units while keeping the engineering analysis layer in its
+canonical internal units.
 
-The core simulation-import and comparison workflow is now functional.
+Candidate preferences include:
 
-Current simulation behavior:
+- Thrust / force
+- Pressure
+- Mass
+- Distance
+- Velocity
+- Temperature
+- Impulse
+- Density
 
-- Import one project-level simulation dataset from CSV.
-- Normalize imported time to seconds, thrust to Newtons, and pressure to psi.
-- Support BurnSim/OpenMotor-style column naming without making simulator identity
-  a requirement for parsing.
-- Preserve the imported simulation inside the `.rmcs` project.
-- Allow independent simulation visibility on the Thrust Curve and Pressure Curve
-  workspaces.
-- Allow simulation visibility on the corresponding video graph overlays.
+Settings should affect presentation and conversion, not duplicate or alter
+the authoritative engineering calculations.
 
-### Export
+Other application preferences may be added during refinement where they provide
+clear value, such as chart defaults, export behavior, appearance, or video
+preferences.
 
-The export panel exposes the completed PDF Report and BurnSim CSV workflows,
-with placeholders for the remaining exports.
+### Final validation
 
-Completed:
+After refinement:
 
-- PDF report
-- BurnSim CSV export
+- Run the full regression suite.
+- Review representative single-test and campaign projects.
+- Verify project save/load behavior.
+- Verify export outputs.
+- Verify legacy-project compatibility.
+- Review repository hygiene.
+- Update release documentation and version branding.
+- Establish the final v1.0 release/tag.
 
-BurnSim export details:
+### Deferred v2 functionality
 
-- Uses the complete measured RMCS trace rather than simulation or derived engineering data.
-- Exports `Time,Pressure,Thrust` in seconds, psi, and newtons.
-- Retains pre-ignition and post-burnout samples.
-- Includes the CSV header required by the documented BurnSim 4 import workflow.
-- Does not add an RMCS-specific metadata or units row.
-- The exported data has been independently checked against Synthetic-Test-01, Synthetic-Test-03, and Zerox reference data.
-
-Remaining planned exports:
-
-- OpenMotor
-- Analysis CSV
-
-RockSim and OpenRocket exports are intentionally not part of the current
-export roadmap.
-
-Each export must use the authoritative analysis/result model and clearly
-distinguish measured data, calculated results, and exported metadata.
-
-### Video
-
-The current synchronized video-analysis workflow is functional, including
-independent Thrust and Pressure graph overlays and optional simulation curves.
-
-Future video work includes:
-
-- Final rendered-video export at source resolution
-- Transparent overlay-video export for external video software such as OBS
-  or DaVinci Resolve
-- Additional synchronized analysis presentation features
-
-### Final polish
-
-After core functionality is established:
-
-- Final overlay visual styling
-- Typography and spacing refinement
-- Chart styling
-- Results presentation refinement
-- Event presentation refinement
-- Broader GUI polish
-- Production-readiness review and cleanup
-
-### Packaging
-
-The final application is expected to be distributed as a Windows desktop
-application using a packaging workflow such as PyInstaller.
-
----
+Video file export and rendered overlay export remain explicitly deferred to v2.
+They are represented in the GUI as future-feature placeholders and are not
+part of the v1.0 feature-complete milestone.
 
 ## Development Environment
 

@@ -750,10 +750,11 @@ class MainWindow(QMainWindow):
 
         self.analysis_csv_export_button = QPushButton("Analysis CSV")
         self.analysis_csv_export_button.setObjectName("exportButton")
-        self.analysis_csv_export_button.setEnabled(False)
+        self.analysis_csv_export_button.setEnabled(True)
         self.analysis_csv_export_button.setToolTip(
-            "Analysis CSV export is planned for the remaining export phase."
+            "Export analyzed test results as an Analysis CSV."
         )
+        self.analysis_csv_export_button.clicked.connect(self.export_analysis_csv)
 
         self.pdf_report_export_button = QPushButton("PDF Report")
         self.pdf_report_export_button.setObjectName("exportButton")
@@ -849,6 +850,90 @@ class MainWindow(QMainWindow):
             self,
             "BurnSim CSV Created",
             f"The BurnSim test-data CSV was created successfully.\n\n{output_path}",
+            QMessageBox.StandardButton.Ok,
+        )
+
+
+    def _analysis_csv_export_tests(self):
+        """Return the test population used for the Analysis CSV export."""
+        if self.session.test_count == 0:
+            return []
+
+        if self.session.test_count == 1:
+            return list(self.session.tests)
+
+        selected_sources = self.campaign_panel.selected_sources()
+        return [
+            test
+            for test in self.session.tests
+            if test.source_file and test.source_file in selected_sources
+        ]
+
+    def export_analysis_csv(self):
+        """Export one analysis-summary row for each selected test."""
+        selected_tests = self._analysis_csv_export_tests()
+        if not selected_tests:
+            QMessageBox.information(
+                self,
+                "No Campaign Tests Selected",
+                (
+                    "Select at least one test in the Campaign tab before "
+                    "exporting the Analysis CSV."
+                ),
+            )
+            return
+
+        if len(selected_tests) == 1:
+            test = selected_tests[0]
+            stem = Path(test.filename).stem if test.filename else "RMCS_Test"
+            default_name = f"{stem}_Analysis.csv"
+            source_label = "test"
+        else:
+            default_name = "RMCS_Campaign_Analysis.csv"
+            source_label = f"{len(selected_tests)}-test campaign"
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Analysis CSV",
+            default_name,
+            "CSV Files (*.csv);;All Files (*.*)",
+        )
+        if not filename:
+            return
+
+        try:
+            from .export import export_analysis_csv
+
+            output_path = export_analysis_csv(
+                selected_tests,
+                filename,
+            )
+        except ValueError as error:
+            QMessageBox.warning(
+                self,
+                "Analysis CSV Export Unavailable",
+                str(error),
+            )
+            return
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "Analysis CSV Export Failed",
+                (
+                    "An unexpected error occurred while creating the "
+                    f"Analysis CSV:\n\n{error}"
+                ),
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Analysis CSV Created",
+            (
+                f"The Analysis CSV for the selected {source_label} "
+                "was created successfully.\n\n"
+                f"{output_path}"
+            ),
             QMessageBox.StandardButton.Ok,
         )
 

@@ -2,6 +2,27 @@
 
 All notable changes to RMCS Analyzer are documented here.
 
+## [Unreleased] — v1.0 Feature-Complete Checkpoint
+
+### Completed
+
+- Completed the planned v1.0 engineering and data-analysis feature set.
+- Completed Analysis CSV export with one summary row per test.
+- Completed campaign Analysis CSV export with one row per selected Campaign test.
+- Confirmed Analysis CSV uses authoritative analysis results and does not
+  duplicate engineering calculations in the GUI.
+- Established the transition from feature development to v1.0 GUI refinement
+  and production-readiness work.
+- Defined Settings and user unit preferences as a planned refinement area.
+- Retained Video and Overlay file export as explicitly deferred v2 functionality.
+
+### Current Direction
+
+The next development phase focuses on GUI/layout refinement, chart
+presentation, workspace-specific improvements, Settings, user unit
+preferences, consistency, and final regression/release validation.
+
+
 ## [0.4.0] - 2026-09-20
 
 ### RASP / `.ENG` Export

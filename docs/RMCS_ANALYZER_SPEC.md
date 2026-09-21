@@ -5,6 +5,7 @@
 ```text
 Project:              RMCS Analyzer
 Current release:      v0.4.0
+v1.0 status:           Feature-complete; refinement in progress
 Project format:       .rmcs format 3
 Reference CSV format: 1.0
 Primary language:     Python
@@ -43,7 +44,8 @@ AnalysisResults
     +--> PDF
     +--> BurnSim CSV
     +--> RASP / .ENG
-    +--> Analysis CSV (planned)
+    +--> Analysis CSV
+    +--> RASP / .ENG
 ```
 
 Project/session state owns metadata overrides, campaign selections, video state,
@@ -216,12 +218,90 @@ CSV format:      1.0
 An export feature addition does not automatically require a project-format
 change.
 
-## 7. Remaining v0.4.0 Work
+## 7. v1.0 Feature-Complete Status
 
-The next functional export is Analysis CSV.
+The planned v1.0 engineering and data-analysis feature set is complete.
 
-After the remaining export functionality is complete, the project moves into
-the final overall refinement / production-readiness pass, including UI/layout
-polish, chart presentation, consistency, and final regression validation.
+Completed v1.0 functionality includes:
 
-Video and Overlay file export are intentionally deferred to v2.
+- standardized RMCS CSV import and engineering analysis
+- project/session persistence
+- Compare workspace
+- Pressure Curve workspace
+- Campaign Analysis v1
+- simulation CSV import and comparison
+- synchronized video analysis
+- measured and simulation Thrust/Pressure video overlays
+- single-test and campaign PDF reporting
+- BurnSim CSV export
+- RASP / `.ENG` export
+- Analysis CSV export
+
+Analysis CSV provides one engineering-summary row per test. Campaign exports
+contain one row per selected test and do not create an averaged campaign row.
+
+The authoritative engineering results remain in `AnalysisResults`. Exporters
+use authoritative analysis results or measured source data according to the
+purpose of the format.
+
+## 8. Refinement and Production Readiness
+
+The next phase is focused on refining the completed application rather than
+adding major v1.0 functionality.
+
+Planned areas include:
+
+- main-window layout and navigation
+- individual analysis workspace refinement
+- Thrust Curve and Pressure Curve presentation
+- Compare and Campaign workspace refinement
+- Video / Overlay presentation
+- Export-pane consistency
+- chart colors, labels, legends, and visual hierarchy
+- results and event presentation
+- Settings infrastructure
+- user-selectable display units
+- other application-level preferences where useful
+- final regression and compatibility validation
+- final v1.0 release/version branding
+
+### User units
+
+User unit preferences should be implemented as presentation-layer settings.
+The analysis engine should retain canonical engineering units and should not
+be recalculated differently based on the user's display preferences.
+
+Candidate display preferences include:
+
+- thrust / force
+- pressure
+- mass
+- distance
+- velocity
+- temperature
+- impulse
+- density
+
+The exact preference list and conversion behavior will be finalized during
+the Settings refinement work.
+
+## 9. Deferred v2 Functionality
+
+Rendered video export and transparent overlay-video export remain deferred to
+v2. The existing Video and Overlay export controls are intentionally presented
+as future-feature placeholders.
+
+## 10. Versioning
+
+Current versions:
+
+```text
+Application:     v0.4.0
+v1.0 status:     Feature-complete; refinement in progress
+Project format:  3
+CSV format:      1.0
+```
+
+The application and project format versions remain separate. Completing the
+v1.0 feature set does not require a `.rmcs` format bump.
+
