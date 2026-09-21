@@ -722,17 +722,11 @@ class MainWindow(QMainWindow):
 
         panel = QFrame()
         panel.setObjectName("subPanel")
-        panel.setMinimumWidth(205)
-        panel.setMaximumWidth(220)
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(10, 8, 10, 8)
-        layout.setSpacing(4)
+        layout.setSpacing(3)
         layout.addWidget(self.create_panel_header("Export"))
-        # Add a little breathing room below the section title so the export
-        # buttons sit visually centered in the available pane height rather
-        # than appearing pressed against the header.
-        layout.addSpacing(7)
 
         self.burnsim_export_button = QPushButton("BurnSim")
         self.burnsim_export_button.setObjectName("exportButton")
@@ -741,10 +735,10 @@ class MainWindow(QMainWindow):
         )
         self.burnsim_export_button.clicked.connect(self.export_burnsim_csv)
 
-        self.rasp_export_button = QPushButton("RASP / .ENG Motor Curve")
+        self.rasp_export_button = QPushButton("RASP / .ENG Curve")
         self.rasp_export_button.setObjectName("exportButton")
         self.rasp_export_button.setToolTip(
-            "Export the current single test or multi-test campaign as RASP / .ENG motor data."
+            "Export the selected Campaign tests as a RASP / .ENG motor-data file."
         )
         self.rasp_export_button.clicked.connect(self.export_rasp_eng)
 
@@ -752,7 +746,7 @@ class MainWindow(QMainWindow):
         self.analysis_csv_export_button.setObjectName("exportButton")
         self.analysis_csv_export_button.setEnabled(False)
         self.analysis_csv_export_button.setToolTip(
-            "Analysis CSV export is planned for the remaining export phase."
+            "Analysis CSV export is planned for a future export phase."
         )
 
         self.pdf_report_export_button = QPushButton("PDF Report")
@@ -776,26 +770,36 @@ class MainWindow(QMainWindow):
         )
         self.overlay_export_button.clicked.connect(self.export_overlay_placeholder)
 
-        # Keep every export action in one vertical column.  The export pane
-        # is deliberately width-constrained so the RASP label cannot force
-        # the adjacent Motor Classification pane to collapse.
-        for button in (
+        buttons = [
             self.burnsim_export_button,
             self.rasp_export_button,
             self.analysis_csv_export_button,
             self.pdf_report_export_button,
             self.video_export_button,
             self.overlay_export_button,
-        ):
+        ]
+        for button in buttons:
             button.setFixedHeight(25)
-            button.setSizePolicy(
-                QSizePolicy.Policy.Expanding,
-                QSizePolicy.Policy.Fixed,
-            )
             layout.addWidget(button)
 
         layout.addStretch(1)
         return panel
+
+    def _selected_campaign_tests(self):
+        """Return the tests that define the current RASP campaign export.
+
+        With one loaded test, that test is exported directly. With multiple
+        loaded tests, the Campaign panel selection defines the campaign.
+        """
+        if self.session.test_count == 1:
+            return self.session.tests
+
+        selected_sources = self.campaign_panel.selected_sources()
+        return [
+            test
+            for test in self.session.tests
+            if test.source_file and test.source_file in selected_sources
+        ]
 
     def export_burnsim_csv(self):
         """Export the active measured test as a BurnSim test-data CSV."""
@@ -825,17 +829,9 @@ class MainWindow(QMainWindow):
 
         try:
             from .export import export_burnsim_csv
-
-            output_path = export_burnsim_csv(
-                test,
-                filename,
-            )
+            output_path = export_burnsim_csv(test, filename)
         except ValueError as error:
-            QMessageBox.warning(
-                self,
-                "BurnSim Export Unavailable",
-                str(error),
-            )
+            QMessageBox.warning(self, "BurnSim Export Unavailable", str(error))
             return
         except Exception as error:
             QMessageBox.critical(
@@ -852,32 +848,10 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.Ok,
         )
 
-
-    def _rasp_export_tests(self):
-        """Return the test population used for the RASP export.
-
-        RMCS treats a multi-test session as a campaign export.  When only one
-        test is loaded, that single test is exported.  When multiple tests are
-        loaded, the Campaign selection defines which tests are included.
-        """
-        if self.session.test_count == 0:
-            return []
-
-        if self.session.test_count == 1:
-            return list(self.session.tests)
-
-        selected_sources = self.campaign_panel.selected_sources()
-        selected_tests = [
-            test
-            for test in self.session.tests
-            if test.source_file and test.source_file in selected_sources
-        ]
-        return selected_tests
-
     def export_rasp_eng(self):
-        """Export a single measured motor or the current Campaign as RASP .ENG."""
+        """Export one test or the selected Campaign as a RASP .ENG file."""
 
-        selected_tests = self._rasp_export_tests()
+        selected_tests = self._selected_campaign_tests()
         if not selected_tests:
             QMessageBox.information(
                 self,
@@ -909,17 +883,9 @@ class MainWindow(QMainWindow):
 
         try:
             from .export import export_rasp_eng
-
-            output_path = export_rasp_eng(
-                selected_tests,
-                filename,
-            )
+            output_path = export_rasp_eng(selected_tests, filename)
         except ValueError as error:
-            QMessageBox.warning(
-                self,
-                "RASP Export Unavailable",
-                str(error),
-            )
+            QMessageBox.warning(self, "RASP Export Unavailable", str(error))
             return
         except Exception as error:
             QMessageBox.critical(
@@ -958,7 +924,6 @@ class MainWindow(QMainWindow):
             "Future Feature",
             "Overlay export is not yet available.\n\nThis feature is planned for RMCS Analyzer v2.",
         )
-
 
     def export_pdf_report(self):
         """Generate the complete PDF report for the current campaign."""

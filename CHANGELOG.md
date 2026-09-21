@@ -4,6 +4,25 @@ All notable changes to RMCS Analyzer are documented here.
 
 ## [0.4.0] - 2026-09-20
 
+### RASP / `.ENG` Export
+
+- Added functional RASP / `.ENG` motor-curve export.
+- Single-test export produces one measured motor entry.
+- Multi-test Campaign export produces one RASP motor entry per selected test
+  rather than averaging campaign performance into one synthetic curve.
+- RASP export uses the authoritative standardized measured thrust curve.
+- Curve reduction preserves key thrust-curve features while remaining within
+  the legacy-compatible RASP point-count limit.
+- Static-test exports use `P` for the no-ejection-charge field.
+- Added regression coverage for RASP header fields, curve validity, final
+  zero-thrust points, and multi-entry campaign exports.
+- Validated single-test Zerox and five-test synthetic campaign `.eng` outputs.
+- Removed the planned OpenMotor export because openMotor does not provide a
+  meaningful direct experimental-test-data import workflow.
+- Added active Video and Overlay export buttons as explicit v2 future-feature
+  placeholders rather than leaving dead controls in the GUI.
+
+
 ### Added
 
 - Functional BurnSim CSV export from the measured RMCS test trace.

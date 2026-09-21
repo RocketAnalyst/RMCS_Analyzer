@@ -13,7 +13,7 @@ The application is being developed with Python, PySide6, PyQtGraph, NumPy, and P
 ## v0.4.0
 
 RMCS Analyzer v0.4.0 establishes **Simulation Integration, Expanded Video
-Analysis, PDF Reporting, and BurnSim Export** as the current functional
+Analysis, PDF Reporting, and Data Export** as the current functional
 milestone after the v0.3.0 Campaign Analysis release.
 
 ### Completed in v0.4.0
@@ -39,6 +39,9 @@ milestone after the v0.3.0 Campaign Analysis release.
 - PDF video evidence preserves the source video's native aspect ratio.
 - PDF reports use the authoritative standardized analysis results rather than duplicating engineering calculations.
 - BurnSim CSV export from the measured RMCS test trace, including the complete pre-ignition through post-burnout recording.
+- RASP / `.ENG` motor-curve export for measured thrust curves.
+- Multi-test campaign `.ENG` export with one RASP motor entry per selected campaign test.
+- Video and Overlay export buttons as explicit v2 future-feature placeholders.
 
 RMCS Analyzer remains in active development.
 
@@ -48,10 +51,12 @@ analysis workflows. The authoritative analysis layer remains separate from the
 GUI and is protected by standalone regression/reference tests.
 
 The current development priority remains **functionality before final visual
-polish**. PDF reporting and BurnSim export are complete. The remaining planned
-interchange/data exports are OpenMotor and Analysis CSV, followed by the broader
-GUI and production-readiness refinement. Final rendered-video export and
-transparent overlay-video export remain separate future capabilities.
+polish**. PDF reporting, BurnSim export, and RASP / `.ENG` export are complete
+and validated. OpenMotor export was removed from the roadmap because openMotor
+does not provide a meaningful direct experimental-test-data import workflow.
+The remaining functional export is Analysis CSV. Video and Overlay exports are
+intentionally represented as active v2 future-feature placeholders. Final GUI
+and production-readiness refinement will follow the remaining functional work.
 
 The current architecture is:
 
@@ -142,6 +147,9 @@ The current codebase supports:
 - Project-level simulation import and persistence
 - BurnSim/OpenMotor-style simulation comparison
 - BurnSim measured-data CSV export
+- RASP / `.ENG` measured motor-curve export
+- RASP / `.ENG` measured motor-curve export
+- Multi-test campaign `.ENG` export with one entry per selected test
 - Thrust and pressure simulation overlays
 - Independent synchronized video Thrust and Pressure graph overlays
 - Persistent video overlay positions and configuration
@@ -174,6 +182,47 @@ The selected timestamp is stored in **video time**, preserving RMCS Analyzer's e
 The `.rmcs` project format remains **3**; the PDF-frame timestamp is an additive video-state field.
 
 PDF export decodes the selected frame forward from the beginning of the source video rather than relying on a non-zero MP4 seek. This avoids Windows Qt multimedia seek/backend issues while preserving the selected timestamp and the video's native aspect ratio.
+
+## RASP / `.ENG` Motor-Curve Export
+
+RMCS Analyzer can export measured motor performance as a RASP-compatible
+`.eng` thrust-curve file.
+
+The export uses the authoritative standardized measured thrust curve rather
+than the complete BurnSim experimental recording. The RASP curve is reduced to
+the legacy-compatible point count while retaining the major thrust features,
+peak thrust, standardized burn endpoint, and a final zero-thrust point.
+
+### Single-test export
+
+When one test is being exported, the `.eng` file contains one motor entry.
+
+### Campaign export
+
+When multiple tests are selected in the Campaign workspace, RMCS Analyzer
+creates one `.eng` file containing **one RASP motor entry per selected test**.
+The curves are not averaged together. This preserves real firing-to-firing
+performance differences within the campaign.
+
+The campaign filename defaults to:
+
+```text
+RMCS_Campaign.eng
+```
+
+A single-test export defaults to the corresponding test name.
+
+The static-test export uses `P` in the delay/ejection field because the measured
+motor curve represents a plugged/static test rather than a motor with an
+ejection charge.
+
+The export does not create a proprietary OpenRocket or RockSim file. `.eng` is
+the RASP motor-data interchange format used by flight-simulation software.
+
+RASP export was validated using the Zerox single-test curve and a five-test
+synthetic campaign. Validation confirmed the expected header structure,
+separate campaign entries, increasing time values, and final zero-thrust
+points.
 
 ## PDF Reporting
 
