@@ -12,9 +12,9 @@ The application is being developed with Python, PySide6, PyQtGraph, NumPy, and P
 
 ## v0.4.0
 
-RMCS Analyzer v0.4.0 establishes **Simulation Integration and Expanded Video
-Analysis** as the current functional milestone after the v0.3.0 Campaign
-Analysis release.
+RMCS Analyzer v0.4.0 establishes **Simulation Integration, Expanded Video
+Analysis, and PDF Reporting** as the current functional milestone after the
+v0.3.0 Campaign Analysis release.
 
 ### Completed in v0.4.0
 
@@ -31,9 +31,13 @@ Analysis release.
 - Improved saved-project video source restoration.
 - Synthetic simulation fixtures for regression testing.
 - Continued Campaign Analysis v1 functionality from v0.3.0.
+- Campaign-level and single-test PDF reports.
+- Conditional PDF sections based on available pressure, simulation, video, and notes data.
 - User-selectable PDF report video frame stored with each test.
 - Automatic PDF representative-frame fallback remains available when no frame is selected.
 - Selected PDF frame timestamp persists in `.rmcs` projects without changing project format 3.
+- PDF video evidence preserves the source video's native aspect ratio.
+- PDF reports use the authoritative standardized analysis results rather than duplicating engineering calculations.
 
 RMCS Analyzer remains in active development.
 
@@ -43,8 +47,9 @@ analysis workflows. The authoritative analysis layer remains separate from the
 GUI and is protected by standalone regression/reference tests.
 
 The current development priority remains **functionality before final visual
-polish**. Export functionality and final production-readiness refinement are
-the next major development milestones. Final rendered-video export and
+polish**. PDF reporting is complete. The remaining planned interchange/data
+exports are BurnSim, OpenMotor, and Analysis CSV, followed by the broader GUI
+and production-readiness refinement. Final rendered-video export and
 transparent overlay-video export remain separate future capabilities.
 
 The current architecture is:
@@ -138,6 +143,8 @@ The current codebase supports:
 - Thrust and pressure simulation overlays
 - Independent synchronized video Thrust and Pressure graph overlays
 - Persistent video overlay positions and configuration
+- Selectable PDF report video frame
+- Campaign and individual-test PDF report generation
 - Interactive thrust-curve visualization
 - Test metadata and test-file panels
 - Motor classification display
@@ -165,6 +172,48 @@ The selected timestamp is stored in **video time**, preserving RMCS Analyzer's e
 The `.rmcs` project format remains **3**; the PDF-frame timestamp is an additive video-state field.
 
 PDF export decodes the selected frame forward from the beginning of the source video rather than relying on a non-zero MP4 seek. This avoids Windows Qt multimedia seek/backend issues while preserving the selected timestamp and the video's native aspect ratio.
+
+## PDF Reporting
+
+PDF reporting is the first completed export workflow.
+
+The PDF exporter supports two report modes:
+
+### Single-test report
+
+A one-test campaign produces a compact motor test report containing only
+sections supported by the available data:
+
+- Measured thrust profile
+- Pressure analysis when pressure data is available
+- Simulation comparison when simulation data is available
+- Engineering analysis and detected events
+- Data-quality/acquisition information
+- Video Evidence when a video is available
+
+Campaign population analysis is omitted for a single-test report.
+
+### Multi-test campaign report
+
+A campaign containing multiple analyzed tests includes:
+
+- Campaign overview
+- Test summary
+- Population-level Campaign Analysis
+- Individual test reports
+- Video Evidence for tests that have video
+
+Optional sections are omitted rather than rendered as empty placeholders.
+
+### Video evidence
+
+If a PDF frame is selected for a test, the report uses that stored video
+timestamp. Otherwise the exporter selects a representative frame automatically.
+The source video's native aspect ratio is preserved.
+
+The PDF exporter consumes authoritative `AnalysisResults` and project/test state.
+It does not recalculate motor-performance metrics independently of the analysis
+layer.
 
 ## Standardized CSV Format
 
@@ -389,58 +438,40 @@ RMCS_Analyzer/
 │
 ├── src/
 │   └── rmcs_analyzer/
-│       │
 │       ├── analysis/
-│       │   ├── analyzer.py
-│       │   ├── events.py
-│       │   ├── impulse.py
-│       │   ├── motor_class.py
-│       │   ├── performance.py
-│       │   └── results.py
-│       │
 │       ├── data/
-│       │   ├── csv_reader.py
-│       │   └── models.py
-│       │
 │       ├── processing/
-│       │   ├── alignment.py
-│       │   ├── baseline.py
-│       │   ├── cleaning.py
-│       │   ├── event_model.py
-│       │   ├── pipeline.py
-│       │   ├── settings.py
-│       │   └── validation.py
-│       │
 │       ├── project/
-│       │   ├── project_file.py
-│       │   ├── session.py
-│       │   ├── test_model.py
-│       │   └── validation.py
-│       │
+│       ├── simulation/
+│       ├── export/
 │       └── ui/
-│           ├── branding.py
-│           ├── header.py
-│           ├── playback_controls.py
-│           ├── results_panel.py
-│           ├── test_files_panel.py
-│           ├── test_info_panel.py
-│           └── thrust_plot.py
 │
 ├── test_data/
 │   └── Zerox.csv
+│
+├── sim_data/
+│   ├── Synthetic-Simulation-BurnSim.csv
+│   └── Synthetic-Simulation-OpenMotor.csv
 │
 ├── docs/
 │   └── RMCS_ANALYZER_SPEC.md
 │
 ├── test_analysis_engine.py
-├── test_performance.py
-├── test_reference_validation.py
-├── test_reference_analysis.py
-├── test_thrustcurve_reference.py
-├── test_performance_edge_cases.py
-├── test_motor_classification.py
+├── test_campaign_analysis.py
 ├── test_cstar_isp.py
+├── test_motor_classification.py
+├── test_pdf_report.py
+├── test_performance.py
+├── test_performance_edge_cases.py
+├── test_processing_analysis_path.py
+├── test_reference_analysis.py
+├── test_reference_validation.py
+├── test_simulation_import.py
+├── test_simulation_project.py
 ├── test_thrust_rate_metrics.py
+├── test_thrustcurve_reference.py
+├── test_video_pdf_frame_selection.py
+├── test_video_simulation_state.py
 │
 ├── .gitignore
 └── README.md
@@ -458,15 +489,21 @@ The current canonical tests are:
 
 ```text
 test_analysis_engine.py
-test_performance.py
-test_reference_validation.py
-test_reference_analysis.py
-test_thrustcurve_reference.py
-test_performance_edge_cases.py
-test_motor_classification.py
+test_campaign_analysis.py
 test_cstar_isp.py
-test_thrust_rate_metrics.py
+test_motor_classification.py
+test_pdf_report.py
+test_performance.py
+test_performance_edge_cases.py
 test_processing_analysis_path.py
+test_reference_analysis.py
+test_reference_validation.py
+test_simulation_import.py
+test_simulation_project.py
+test_thrust_rate_metrics.py
+test_thrustcurve_reference.py
+test_video_pdf_frame_selection.py
+test_video_simulation_state.py
 ```
 
 These tests cover:
@@ -490,6 +527,11 @@ These tests cover:
 - Performance designation
 - Raw-data protection
 - Processing-pipeline integration
+- Campaign population statistics and curve alignment
+- Simulation CSV normalization and project persistence
+- PDF report generation for single tests and multi-test campaigns
+- PDF video-frame selection and persistence
+- Video simulation-state persistence
 
 The test suite is intended to protect the authoritative analysis layer as the GUI and future features are developed.
 
@@ -517,7 +559,6 @@ The application provides the current workspace structure for:
 - Pressure Curve
 - Compare
 - Campaign
-- Data Table
 
 Campaign Analysis is functional for comparing completed recorded test results
 at the population level. Additional campaign workflows and broader export and
@@ -658,6 +699,7 @@ A project stores the working state needed to reopen a test, including:
 - Independent Thrust and Pressure overlay positions and sizes
 - Overlay event positions/visibility
 - Overlay titles and selected result fields
+- Selected PDF report frame timestamp
 
 The video file itself is referenced by path rather than embedded in the
 `.rmcs` project.
@@ -717,10 +759,13 @@ Development is intentionally proceeding in functional milestones.
 
 ### Immediate / next major milestone
 
-- Implement the planned engineering and interchange export functions.
+- Implement the remaining planned engineering/data interchange exports.
 - Keep export calculations driven by the authoritative `AnalysisResults` and
   project/test data rather than duplicating analysis logic.
 - Validate exported data against the existing RMCS analysis results.
+
+The PDF report export is complete and should be treated as a stable export
+workflow rather than part of the remaining export work.
 
 ### Analysis and data workflow
 
@@ -748,17 +793,21 @@ Current simulation behavior:
 
 ### Export
 
-The export panel is present, but the planned export implementations are the
-next major functional milestone.
+The export panel currently exposes the completed PDF Report workflow and
+placeholders for the remaining exports.
 
-Planned export work may include:
+Completed:
 
-- OpenRocket-compatible data
-- RockSim-compatible data
-- BurnSim-compatible workflows
-- Analysis CSV
 - PDF report
-- Additional engineering-data export as requirements are established
+
+Remaining planned exports:
+
+- BurnSim
+- OpenMotor
+- Analysis CSV
+
+RockSim and OpenRocket exports are intentionally not part of the current
+export roadmap.
 
 Each export must use the authoritative analysis/result model and clearly
 distinguish measured data, calculated results, and exported metadata.

@@ -683,7 +683,95 @@ The following video/overlay state must survive test switching and
 The project-file format is currently versioned and serializes the video
 state as part of each test.
 
-## 21. Campaign Analysis
+### 20.13 PDF report frame selection
+
+Each test's `VideoState` may contain an optional PDF report frame timestamp.
+
+The value:
+
+- Is stored in video time.
+- Is independent of the current playback position.
+- Persists with the `.rmcs` project.
+- Is cleared when the associated video is removed.
+- May be cleared by the user to restore automatic representative-frame
+  selection.
+
+PDF frame extraction must preserve the source video's native aspect ratio.
+
+The current PDF exporter avoids relying on a direct non-zero seek when the
+underlying Qt multimedia backend cannot reliably deliver a decoded frame after
+seeking. It decodes forward from the beginning of the source video and retains
+the closest decoded frame to the requested timestamp.
+
+### 20.14 PDF reporting
+
+PDF reporting is a completed v0.4.0 export workflow.
+
+A single-test report shall:
+
+- Omit population-level Campaign Analysis.
+- Include measured thrust analysis.
+- Include pressure analysis only when pressure data is available.
+- Include simulation comparison only when simulation data is available.
+- Include engineering metrics, detected events, and data-quality information
+  when available.
+- Include Video Evidence only when a usable video frame can be extracted.
+
+A multi-test campaign report shall:
+
+- Include Campaign Overview.
+- Include Test Summary.
+- Include population-level Campaign Analysis.
+- Include each analyzed test's individual report.
+- Include Video Evidence only for tests with usable video.
+
+Optional sections must be omitted rather than rendered as empty placeholders.
+
+PDF engineering values must come from the authoritative `AnalysisResults`
+and associated project/test state. The PDF exporter must not create a second
+independent implementation of motor-performance calculations.
+
+Video evidence must preserve the source video's native aspect ratio.
+
+## 21. Export Workflows
+
+Export services consume the authoritative analysis/results layer and project
+state. Export implementations must not duplicate the motor-performance
+calculation methodology.
+
+### 21.1 PDF Report
+
+The PDF report is the first completed export workflow in v0.4.0.
+
+It supports:
+
+- Single-test reports.
+- Multi-test campaign reports.
+- Conditional pressure, simulation, and video sections.
+- Campaign population statistics for multi-test reports.
+- User-selected PDF video frames.
+- Automatic representative video-frame selection.
+- Native video aspect-ratio preservation.
+
+The PDF report is intended to document and communicate RMCS results. It does
+not replace the authoritative analysis engine.
+
+### 21.2 Remaining export roadmap
+
+The remaining planned export workflows are:
+
+- BurnSim
+- OpenMotor
+- Analysis CSV
+
+RockSim and OpenRocket exports are not part of the current RMCS Analyzer
+export roadmap.
+
+The remaining exports should be implemented independently and should consume
+the existing `AnalysisResults`, prepared test data, simulation data, and
+metadata as appropriate.
+
+## 22. Campaign Analysis
 
 Campaign Analysis is a population-level analysis workflow for comparing
 completed recorded motor tests within an RMCS project.
@@ -693,7 +781,7 @@ associated with each selected test. The Campaign layer must not independently
 recalculate thrust, impulse, burn time, Isp, C*, motor classification, or other
 authoritative engineering results.
 
-### 21.1 Test Selection
+### 22.1 Test Selection
 
 The Campaign workspace maintains its own selection of project tests.
 
@@ -709,7 +797,7 @@ A project that predates Campaign-selection persistence may have no stored
 selection state. In that case, the Campaign workspace may use its normal
 default selection behavior.
 
-### 21.2 Campaign Metrics
+### 22.2 Campaign Metrics
 
 The current Campaign Analysis implementation reports population statistics for:
 
@@ -733,7 +821,7 @@ For each metric, the population result may include:
 Tests that do not contain completed analysis results are excluded from
 campaign calculations rather than being represented as zero-valued measurements.
 
-### 21.3 Campaign Thrust Curves
+### 22.3 Campaign Thrust Curves
 
 Campaign thrust-curve analysis places usable individual thrust curves on a
 common time basis and calculates population statistics.
@@ -754,7 +842,7 @@ The population curve provides:
 
 Individual campaign curves may also be displayed for comparison.
 
-### 21.4 Campaign Visualization
+### 22.4 Campaign Visualization
 
 The Campaign workspace currently provides:
 
@@ -767,7 +855,7 @@ The Campaign workspace currently provides:
 Campaign visualization is presentation of authoritative analysis results and
 must not alter the underlying recorded test data.
 
-### 21.5 Campaign Project Persistence
+### 22.5 Campaign Project Persistence
 
 Campaign test selection is project-level state and must survive `.rmcs`
 save/load operations.
@@ -787,7 +875,7 @@ Adding the Campaign selection field to the project manifest is an additive
 change and must remain compatible with older projects that do not contain the
 field.
 
-## 22. GUI Rules
+## 23. GUI Rules
 
 The GUI displays authoritative results produced by the analysis engine.
 
@@ -801,7 +889,7 @@ The thrust plot may visually distinguish motor-performance and
 diagnostic regions and standardized boundaries without modifying
 underlying data.
 
-## 22. Reference Validation
+## 24. Reference Validation
 
 Reference data is a first-class part of the project.
 
@@ -833,7 +921,7 @@ At minimum, reference tests should verify:
 -   Standardized average thrust
 -   Motor class
 
-## 23. Commercial Motor Validation Goal
+## 25. Commercial Motor Validation Goal
 
 A commercial motor test is an important real-world validation case.
 
@@ -850,7 +938,7 @@ Instead:
 5.  Differences should then be investigated as potential measurement,
     motor-variation, test-condition, or reference-data differences.
 
-## 24. Current Zerox Reference
+## 26. Current Zerox Reference
 
 The current Zerox CSV is the project's primary development and regression
 dataset.
@@ -906,7 +994,7 @@ diameter; those auxiliary inputs may be estimated or user-supplied. The
 software must preserve that distinction rather than presenting assumed
 geometry as measured hardware data.
 
-## 25. Architecture Cleanup Principles
+## 27. Architecture Cleanup Principles
 
 The codebase must favor clear responsibilities over historical
 compatibility.
@@ -929,7 +1017,7 @@ GUI presentation
 Export
 ```
 
-## 26. Development Rules
+## 28. Development Rules
 
 1.  Work on one subsystem at a time.
 2.  Do not make unrelated changes in the same step.
@@ -945,7 +1033,7 @@ Export
 9.  Document significant engineering decisions.
 10. Commit stable milestones to Git.
 
-## 27. Definition of Done for the Analysis Engine
+## 29. Definition of Done for the Analysis Engine
 
 The current analysis-engine milestone is complete when:
 
@@ -970,7 +1058,7 @@ The analysis engine remains open to additional validation as more
 published thrust curves and properly characterized commercial tests become
 available.
 
-## 28. Sources and Methodology References
+## 30. Sources and Methodology References
 
 **ThrustCurve.org --- Motor Statistics**\
 https://www.thrustcurve.org/info/motorstats.html
@@ -986,7 +1074,7 @@ validation/reference data, with the distinction that a published or
 certification result may represent representative or averaged
 performance rather than a single firing.
 
-## 29. GUI Visual Direction
+## 31. GUI Visual Direction
 
 The GUI is being developed against a project visual reference established
 during the design process. The reference is authoritative for presentation
@@ -1009,7 +1097,7 @@ a different layout or styling direction. Annotations and controls should
 remain readable at the default window size and should not obscure the
 engineering curve or each other.
 
-## 30. Current Project Direction
+## 32. Current Project Direction
 
 The core analysis-engine validation milestone is complete, and the project
 has moved into functional GUI and workflow development.
@@ -1031,26 +1119,29 @@ The current development sequence is:
         ↓
 7. Simulation import and comparison workflow
         ↓
-8. Export workflows
+8. PDF reporting
         ↓
-9. Final GUI / overlay / production-readiness refinement
+9. BurnSim / OpenMotor / Analysis CSV exports
         ↓
-10. Rendered-video and transparent-overlay export
+10. Final GUI / overlay / production-readiness refinement
         ↓
-11. Continued reference and commercial-motor validation
+11. Rendered-video and transparent-overlay export
+        ↓
+12. Continued reference and commercial-motor validation
 ```
 
 The current project is intentionally prioritizing usable functionality over
 final visual polish.
 
 The functional video/overlay milestone is established, and the Compare,
-Pressure Curve, Campaign Analysis, and Simulation workflows are now functional.
+Pressure Curve, Campaign Analysis, Simulation, and PDF reporting workflows are
+now functional.
 
-The current major functional milestone is **Simulation Integration and
-Expanded Video Analysis (v0.4.0)**. The next major development area is the
-export workflow, followed by final GUI/overlay and production-readiness
-refinement. Rendered-video and transparent-overlay export remain separate
-future capabilities.
+The current major functional milestone is **Simulation Integration, Expanded
+Video Analysis, and PDF Reporting (v0.4.0)**. The remaining export work is
+BurnSim, OpenMotor, and Analysis CSV, followed by final GUI/overlay and
+production-readiness refinement. Rendered-video and transparent-overlay export
+remain separate future capabilities.
 
 The analysis engine remains authoritative. New GUI workflows must consume the
 existing result model rather than duplicating engineering calculations.
@@ -1080,6 +1171,11 @@ Completed:
   area fill.
 - Saved `.rmcs` projects reopen as clean projects rather than falsely showing
   `MODIFIED`.
+- Campaign-level and compact single-test PDF reports.
+- Conditional PDF report sections based on available data.
+- User-selectable PDF report frame with `.rmcs` persistence.
+- Automatic representative-frame fallback.
+- Native video aspect-ratio preservation in PDF Video Evidence.
 
 Project compatibility:
 
@@ -1088,7 +1184,9 @@ Project compatibility:
 
 Next:
 
-- Export workflows.
+- BurnSim export.
+- OpenMotor export.
+- Analysis CSV export.
 - Final GUI/overlay and production-readiness refinement.
 - Rendered-video and transparent-overlay export.
 - Continued reference and commercial-motor validation.

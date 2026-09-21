@@ -251,13 +251,13 @@ def _two_column_table(rows: list[tuple[str, str]], available_width: float) -> Ta
         ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
         ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
         ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 6.9),
+        ("FONTSIZE", (0, 0), (-1, -1), 6.7),
         ("LEADING", (0, 0), (-1, -1), 8),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("TOPPADDING", (0, 0), (-1, -1), 2.2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.2),
     ]))
     return table
 
@@ -368,7 +368,7 @@ def _campaign_curve_image(curve, title="Campaign Thrust Comparison") -> Image:
     for text in legend.get_texts():
         text.set_color("#DCE8F2")
     fig.tight_layout(pad=1.0)
-    return _fig_to_reportlab_image(fig, max_height=3.05 * inch)
+    return _fig_to_reportlab_image(fig, max_height=3.55 * inch)
 
 def _campaign_metric_image(tests, attribute, unit, title) -> Optional[Image]:
     usable = []
@@ -402,7 +402,7 @@ def _campaign_metric_image(tests, attribute, unit, title) -> Optional[Image]:
         spine.set_color("#29404F")
     ax.grid(axis="y", color="#29404F", alpha=0.42, linewidth=0.55)
     fig.tight_layout(pad=1.0)
-    return _fig_to_reportlab_image(fig, max_height=3.20 * inch)
+    return _fig_to_reportlab_image(fig, max_height=3.55 * inch)
 
 def _campaign_pressure_image(tests) -> Optional[Image]:
     usable = []
@@ -430,7 +430,7 @@ def _campaign_pressure_image(tests) -> Optional[Image]:
     for text in legend.get_texts():
         text.set_color("#DCE8F2")
     fig.tight_layout(pad=1.0)
-    return _fig_to_reportlab_image(fig, max_height=3.20 * inch)
+    return _fig_to_reportlab_image(fig, max_height=3.55 * inch)
 
 def _event_tuples(test):
     analysis = test.analysis_results
@@ -720,14 +720,17 @@ def _video_frame_image(test) -> Optional[tuple[Image, str]]:
     return report_image, caption
 
 
-def _add_test_report(story, test, simulation, styles, *, include_heading=True, include_page_break=False):
-    """Append a compact, meeting-ready report for one test.
+def _add_test_report(story, test, simulation, styles, *, include_heading=True, include_page_break=False, compact_single=False):
+    """Append a complete individual-test report.
 
-    The test report is intentionally organized into a small number of flowing
-    pages instead of forcing each subsection onto its own page:
-      page 1: overview, thrust, metadata, optional pressure
-      page 2: simulation (when present) and engineering results
-      optional page 3: video evidence / notes when they cannot fit cleanly
+    Multi-test campaigns use a predictable two-page test layout:
+      page 1: measured thrust, metadata, pressure
+      page 2: simulation comparison and engineering results
+
+    A one-test campaign uses the same information but allows pressure to flow
+    onto the analysis page instead of creating a mostly empty standalone page.
+    Video evidence remains a dedicated page so the selected/representative
+    frame always has enough room and its aspect ratio is preserved.
     """
     if include_page_break:
         story.append(PageBreak())
@@ -736,9 +739,12 @@ def _add_test_report(story, test, simulation, styles, *, include_heading=True, i
     data = test.data
     if include_heading:
         designation = (analysis.thrust.designation if analysis else None) or test.motor_designation or test.display_name
-        story.append(Paragraph("Individual Test Report", styles["section"]))
-        story.append(Paragraph(_escape(f"{test.display_name} • {designation}"), styles["subtitle"]))
-        story.append(HRFlowable(width="100%", thickness=1.0, color=BLUE, spaceBefore=3, spaceAfter=10))
+        if compact_single:
+            story.append(Paragraph("Measured Test", styles["section"]))
+        else:
+            story.append(Paragraph("Individual Test Report", styles["section"]))
+            story.append(Paragraph(_escape(f"{test.display_name} • {designation}"), styles["subtitle"]))
+            story.append(HRFlowable(width="100%", thickness=1.0, color=BLUE, spaceBefore=3, spaceAfter=10))
 
     if analysis is None:
         story.append(Paragraph("Analysis Results", styles["subsection"]))
@@ -752,37 +758,41 @@ def _add_test_report(story, test, simulation, styles, *, include_heading=True, i
     kpis = _kpi_table(test, styles)
     if kpis:
         story.append(kpis)
-        story.append(Spacer(1, 0.10 * inch))
+        story.append(Spacer(1, 0.08 * inch))
 
-    # Overview page: measured thrust and metadata, followed by pressure when available.
+    # Measured thrust profile.
     if len(data.time_s) and len(data.thrust_N):
-        sim_time = simulation.time_s if simulation is not None and simulation.has_thrust else None
-        sim_thrust = simulation.thrust_N if simulation is not None and simulation.has_thrust else None
         story.append(_chart_image(
             np.asarray(data.time_s), np.asarray(data.thrust_N),
             ylabel="Thrust (N)", title="Measured Thrust Profile",
             simulation_time=None, simulation=None,
-            events=_event_tuples(test), max_height=2.05 * inch,
+            events=_event_tuples(test), max_height=2.18 * inch,
         ))
-        story.append(Spacer(1, 0.06 * inch))
+        story.append(Spacer(1, 0.05 * inch))
 
     summary_rows = _metadata_rows(test)
     if summary_rows:
         story.append(Paragraph("Test Summary", styles["subsection"]))
         story.append(_two_column_table(summary_rows, 7.25 * inch))
 
-    if data.pressure_psi is not None and len(data.pressure_psi):
-        sim_time = simulation.time_s if simulation is not None and simulation.has_pressure else None
-        sim_pressure = simulation.pressure_psi if simulation is not None and simulation.has_pressure else None
+    pressure_available = data.pressure_psi is not None and len(data.pressure_psi)
+    if pressure_available:
+        # For a single-test report the pressure section starts the analysis
+        # page. This prevents an orphan heading while using the page for the
+        # simulation/engineering content that follows it.
+        if compact_single:
+            story.append(PageBreak())
+        else:
+            story.append(Spacer(1, 0.08 * inch))
+
         finite = np.asarray(data.pressure_psi, dtype=float)
         finite = finite[np.isfinite(finite)]
-        story.append(Spacer(1, 0.08 * inch))
         story.append(Paragraph("Pressure Analysis", styles["subsection"]))
         story.append(_chart_image(
             np.asarray(data.time_s), np.asarray(data.pressure_psi),
             ylabel="Pressure (psi)", title="Measured Chamber Pressure vs. Time",
             simulation_time=None, simulation=None,
-            events=_event_tuples(test), max_height=1.95 * inch,
+            events=_event_tuples(test), max_height=1.50 * inch if compact_single else 2.02 * inch,
         ))
         pressure_rows = []
         if finite.size:
@@ -792,8 +802,10 @@ def _add_test_report(story, test, simulation, styles, *, include_heading=True, i
         if pressure_rows:
             story.append(_table(pressure_rows, widths=[2.15 * inch, 5.10 * inch]))
 
-    # Second page: simulation comparison and authoritative engineering results.
-    story.append(PageBreak())
+    # In multi-test reports this begins the intentionally separate analysis
+    # page. In a one-test report it follows pressure directly on the same page.
+    if not compact_single:
+        story.append(PageBreak())
 
     if simulation is not None and (simulation.has_thrust or simulation.has_pressure):
         story.append(Paragraph("Simulation Comparison", styles["section"]))
@@ -807,17 +819,17 @@ def _add_test_report(story, test, simulation, styles, *, include_heading=True, i
                 np.asarray(data.time_s), np.asarray(data.thrust_N),
                 ylabel="Thrust (N)", title="Measured vs. Simulated Thrust",
                 simulation_time=np.asarray(simulation.time_s), simulation=np.asarray(simulation.thrust_N),
-                events=_event_tuples(test), max_height=2.15 * inch,
+                events=_event_tuples(test), max_height=1.65 * inch if compact_single else 2.48 * inch,
             ))
-            story.append(Spacer(1, 0.05 * inch))
+            story.append(Spacer(1, 0.04 * inch))
         if simulation.has_pressure and data.pressure_psi is not None:
             story.append(_chart_image(
                 np.asarray(data.time_s), np.asarray(data.pressure_psi),
                 ylabel="Pressure (psi)", title="Measured vs. Simulated Pressure",
                 simulation_time=np.asarray(simulation.time_s), simulation=np.asarray(simulation.pressure_psi),
-                events=_event_tuples(test), max_height=2.15 * inch,
+                events=_event_tuples(test), max_height=1.65 * inch if compact_single else 2.48 * inch,
             ))
-        story.append(Spacer(1, 0.08 * inch))
+        story.append(Spacer(1, 0.05 * inch))
 
     story.append(Paragraph("Engineering Analysis", styles["section"]))
     metric_rows = _metric_rows(test)
@@ -826,11 +838,11 @@ def _add_test_report(story, test, simulation, styles, *, include_heading=True, i
 
     event_rows = _event_rows(test)
     if event_rows:
-        story.append(Spacer(1, 0.10 * inch))
+        story.append(Spacer(1, 0.07 * inch))
         story.append(Paragraph("Detected Events", styles["subsection"]))
         story.append(_table(event_rows, widths=[2.65 * inch, 4.60 * inch]))
 
-    story.append(Spacer(1, 0.10 * inch))
+    story.append(Spacer(1, 0.05 * inch))
     story.append(Paragraph("Data Quality and Acquisition", styles["subsection"]))
     acquisition_rows = [
         ("Samples", str(data.sample_count)),
@@ -841,9 +853,19 @@ def _add_test_report(story, test, simulation, styles, *, include_heading=True, i
         acquisition_rows.append(("Pressure Channel", "Available"))
     if simulation is not None:
         acquisition_rows.append(("Simulation", "Available"))
-    if test.source_file:
+    if test.source_file and not compact_single:
         acquisition_rows.append(("Source File", Path(test.source_file).name))
-    story.append(_two_column_table(acquisition_rows, 7.25 * inch))
+
+    if compact_single:
+        # A one-test report should keep acquisition details on the analysis
+        # page instead of allowing a small table to spill onto a mostly empty
+        # third page before the optional video evidence page.
+        quality_parts = []
+        for label, value in acquisition_rows:
+            quality_parts.append(f"<b>{_escape(label)}:</b> {_escape(value)}")
+        story.append(Paragraph(" • ".join(quality_parts), styles["small"]))
+    else:
+        story.append(_two_column_table(acquisition_rows, 7.25 * inch))
 
     # Video is a distinct evidence section. Keep its heading with the image.
     if getattr(test.video, "source_path", "") and Path(test.video.source_path).exists():
@@ -855,7 +877,6 @@ def _add_test_report(story, test, simulation, styles, *, include_heading=True, i
             story.append(Paragraph(_escape(caption), styles["small"]))
             story.append(image)
             story.append(Spacer(1, 0.08 * inch))
-            frame_row_label = "PDF Frame"
             frame_row_value = (
                 f"{getattr(test.video, 'pdf_frame_position_s', None):.3f} s (selected)"
                 if getattr(test.video, 'pdf_frame_position_s', None) is not None
@@ -864,12 +885,12 @@ def _add_test_report(story, test, simulation, styles, *, include_heading=True, i
             story.append(_table([
                 ("Video File", Path(test.video.source_path).name),
                 ("Sync Start", _fmt(test.video.sync_offset_s, "s", 3)),
-                (frame_row_label, frame_row_value),
+                ("PDF Frame", frame_row_value),
             ], widths=[2.65 * inch, 4.60 * inch]))
 
     notes = _clean(test.notes)
     if notes:
-        story.append(Spacer(1, 0.12 * inch))
+        story.append(Spacer(1, 0.10 * inch))
         story.append(Paragraph("Test Notes", styles["subsection"]))
         story.append(Paragraph(_escape(notes).replace("\n", "<br/>"), styles["body"]))
 
@@ -990,29 +1011,49 @@ def generate_campaign_pdf_report(session, output_path=None, app_version=APP_VERS
 
     styles = _build_styles()
     doc = SimpleDocTemplate(str(path), pagesize=letter, rightMargin=MARGIN, leftMargin=MARGIN, topMargin=0.52*inch, bottomMargin=0.58*inch, title="RMCS Analyzer Campaign Report", author="RMCS Analyzer")
-    story = [Spacer(1, 0.25*inch), Paragraph("RMCS ANALYZER", styles["subtitle"]), Paragraph("Motor Characterization Campaign Report", styles["title"]), Paragraph(f"{len(tests)} loaded test{'s' if len(tests) != 1 else ''}", styles["subtitle"]), HRFlowable(width="100%", thickness=1.1, color=BLUE, spaceBefore=5, spaceAfter=15)]
+    if len(tests) == 1:
+        single = tests[0]
+        single_designation = (
+            single.analysis_results.thrust.designation
+            if single.analysis_results is not None
+            else None
+        ) or single.motor_designation or single.display_name
+        story = [
+            Spacer(1, 0.25*inch),
+            Paragraph("RMCS ANALYZER", styles["subtitle"]),
+            Paragraph("Motor Test Report", styles["title"]),
+            Paragraph(_escape(f"{single.display_name} • {single_designation}"), styles["subtitle"]),
+            HRFlowable(width="100%", thickness=1.1, color=BLUE, spaceBefore=5, spaceAfter=15),
+        ]
+    else:
+        story = [Spacer(1, 0.25*inch), Paragraph("RMCS ANALYZER", styles["subtitle"]), Paragraph("Motor Characterization Campaign Report", styles["title"]), Paragraph(f"{len(tests)} loaded tests", styles["subtitle"]), HRFlowable(width="100%", thickness=1.1, color=BLUE, spaceBefore=5, spaceAfter=15)]
 
     kpi = _campaign_kpi_table(tests, styles)
     if kpi:
         story += [kpi, Spacer(1, 0.18*inch)]
 
-    story.append(Paragraph("Campaign Overview", styles["section"]))
     analyzed = [t for t in tests if t.analysis_results is not None]
-    videos = [t for t in tests if getattr(t.video, "source_path", "") and Path(t.video.source_path).exists()]
-    pressure_tests = [t for t in tests if t.data.pressure_psi is not None]
-    overview_rows = [
-        ("Loaded Tests", str(len(tests))),
-        ("Analyzed Tests", str(len(analyzed))),
-        ("Tests with Pressure", str(len(pressure_tests))),
-        ("Tests with Video", str(len(videos))),
-    ]
-    if session.simulation is not None:
-        overview_rows.append(("Simulation", session.simulation.metadata.simulator or "Imported"))
-    story.append(_table(overview_rows, widths=[2.65*inch, 4.60*inch]))
-    story.append(Spacer(1, 0.18*inch))
 
-    story.append(Paragraph("Test Summary", styles["section"]))
-    story.append(_campaign_summary_table(tests, styles))
+    # Campaign-level overview and comparison material only add value when
+    # there is a population to compare. A one-test campaign is presented as
+    # a focused individual report instead of a population-of-one report.
+    if len(tests) > 1:
+        story.append(Paragraph("Campaign Overview", styles["section"]))
+        videos = [t for t in tests if getattr(t.video, "source_path", "") and Path(t.video.source_path).exists()]
+        pressure_tests = [t for t in tests if t.data.pressure_psi is not None]
+        overview_rows = [
+            ("Loaded Tests", str(len(tests))),
+            ("Analyzed Tests", str(len(analyzed))),
+            ("Tests with Pressure", str(len(pressure_tests))),
+            ("Tests with Video", str(len(videos))),
+        ]
+        if session.simulation is not None:
+            overview_rows.append(("Simulation", session.simulation.metadata.simulator or "Imported"))
+        story.append(_table(overview_rows, widths=[2.65*inch, 4.60*inch]))
+        story.append(Spacer(1, 0.18*inch))
+
+        story.append(Paragraph("Test Summary", styles["section"]))
+        story.append(_campaign_summary_table(tests, styles))
 
     try:
         from ..analysis.campaign_analysis import CampaignAnalyzer
@@ -1020,7 +1061,7 @@ def generate_campaign_pdf_report(session, output_path=None, app_version=APP_VERS
     except Exception as error:
         raise PDFReportError(f"Unable to calculate campaign report statistics:\n{error}") from error
 
-    if campaign_result is not None and campaign_result.included_tests:
+    if len(tests) > 1 and campaign_result is not None and campaign_result.included_tests:
         story.append(PageBreak())
         story.append(Paragraph("Campaign Analysis", styles["section"]))
         story.append(Paragraph("Population-level statistics summarize the measured tests included in this campaign. They do not replace the individual test results.", styles["body"]))
@@ -1047,9 +1088,18 @@ def generate_campaign_pdf_report(session, output_path=None, app_version=APP_VERS
 
     # Individual reports are deliberately complete and self-contained.
     for index, test in enumerate(tests):
-        story.append(PageBreak())
-        story.append(Paragraph(f"Test {index + 1} of {len(tests)}", styles["subtitle"]))
-        _add_test_report(story, test, session.simulation, styles, include_heading=True, include_page_break=False)
+        if len(tests) > 1:
+            story.append(PageBreak())
+            story.append(Paragraph(f"Test {index + 1} of {len(tests)}", styles["subtitle"]))
+        _add_test_report(
+            story,
+            test,
+            session.simulation,
+            styles,
+            include_heading=True,
+            include_page_break=False,
+            compact_single=(len(tests) == 1),
+        )
 
     try:
         doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page)

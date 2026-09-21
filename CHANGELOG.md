@@ -6,6 +6,14 @@ All notable changes to RMCS Analyzer are documented here.
 
 ### Added
 
+- Campaign-level PDF reporting for multi-test projects.
+- Compact single-test PDF reporting without population-level campaign analysis.
+- Conditional PDF sections for pressure, simulation, notes, and video evidence.
+- User-selectable PDF video frame support with `.rmcs` persistence.
+- Automatic representative video-frame fallback when no PDF frame is selected.
+- Native video aspect-ratio preservation in PDF video evidence.
+- PDF regression coverage for report generation and selected-frame persistence.
+
 - Project-level simulation data import from BurnSim/OpenMotor-style CSV output.
 - Simulator-independent normalized simulation data model using seconds, Newtons,
   and psi internally.
@@ -24,6 +32,11 @@ All notable changes to RMCS Analyzer are documented here.
 
 ### Changed
 
+- Completed the PDF reporting workflow using the authoritative standardized
+  analysis results.
+- PDF reports use separate single-test and multi-test campaign layouts.
+- PDF video-frame extraction decodes forward from the source video to avoid
+  unreliable non-zero MP4 seek behavior on the Windows Qt multimedia backend.
 - Expanded the functional video overlay system to support both measured thrust
   and pressure curves.
 - Improved saved-project video source restoration when projects are moved and
@@ -45,8 +58,11 @@ All notable changes to RMCS Analyzer are documented here.
   projects without simulation data.
 - Video simulation-state persistence tests cover simulation visibility and
   existing video overlay state.
-- Existing analysis, processing, classification, performance, reference, and
-  Campaign Analysis regression tests remain part of the project test suite.
+- PDF report tests cover single-test and campaign report generation,
+  conditional sections, chart generation, and video-frame behavior.
+- Existing analysis, processing, classification, performance, reference,
+  simulation, video-state, and Campaign Analysis regression tests remain part
+  of the project test suite.
 
 ## [0.3.0] - 2026-09-20
 

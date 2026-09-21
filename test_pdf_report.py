@@ -110,3 +110,24 @@ def test_video_frame_state_and_pdf_selection_support():
     assert state.pdf_frame_position_s is None
     state.pdf_frame_position_s = 1.234
     assert state.pdf_frame_position_s == 1.234
+
+
+def test_single_test_campaign_uses_compact_report_layout(tmp_path):
+    session = RMCS_TestSession()
+    session.add_test(build_test("Synthetic-Test-01.csv"))
+    session.simulation = import_simulation_csv(
+        ROOT / "sim_data" / "Synthetic-Simulation-OpenMotor.csv"
+    )
+    output = tmp_path / "single-test-campaign.pdf"
+    result = generate_campaign_pdf_report(session, output_path=output)
+
+    pages = PdfReader(result).pages
+    text = "\n".join(page.extract_text() or "" for page in pages)
+
+    # A one-test campaign is intentionally presented as a focused motor test
+    # report rather than a population-level campaign report.
+    assert len(pages) == 2
+    assert "Motor Test Report" in (pages[0].extract_text() or "")
+    assert "Campaign Analysis" not in text
+    assert "Campaign Overview" not in text
+    assert "Population-level statistics" not in text
