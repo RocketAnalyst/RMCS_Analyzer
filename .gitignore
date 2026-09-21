@@ -58,3 +58,7 @@ htmlcov/
 
 test_analysis.py
 test_csv_reader.py
+
+BurnSim exports/
+PDF exports/
+RASP Exports/
