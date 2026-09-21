@@ -31,6 +31,9 @@ Analysis release.
 - Improved saved-project video source restoration.
 - Synthetic simulation fixtures for regression testing.
 - Continued Campaign Analysis v1 functionality from v0.3.0.
+- User-selectable PDF report video frame stored with each test.
+- Automatic PDF representative-frame fallback remains available when no frame is selected.
+- Selected PDF frame timestamp persists in `.rmcs` projects without changing project format 3.
 
 RMCS Analyzer remains in active development.
 
@@ -143,6 +146,25 @@ The current codebase supports:
 The graphical interface is functional in its current foundation, while several workspace areas remain under development.
 
 ---
+
+## PDF Report Video Frame Selection
+
+The Video Analysis workspace supports selecting the exact video moment that should appear in the PDF report.
+
+### Workflow
+
+1. Load a test with an associated video.
+2. Play or scrub to the desired video moment.
+3. Click **Use Current Frame** in the Video Analysis controls.
+4. The selected video timestamp is displayed as the PDF report frame.
+5. Save the `.rmcs` project if the selection should persist.
+6. Generate the PDF report normally.
+
+The selected timestamp is stored in **video time**, preserving RMCS Analyzer's existing video timeline and Sync Start model. Clicking **Clear Selection** returns the report to its automatic representative-frame behavior.
+
+The `.rmcs` project format remains **3**; the PDF-frame timestamp is an additive video-state field.
+
+PDF export decodes the selected frame forward from the beginning of the source video rather than relying on a non-zero MP4 seek. This avoids Windows Qt multimedia seek/backend issues while preserving the selected timestamp and the video's native aspect ratio.
 
 ## Standardized CSV Format
 

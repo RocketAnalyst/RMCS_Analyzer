@@ -40,6 +40,10 @@ class VideoState:
 
     playback_position_s: float = 0.0
 
+    # Optional user-selected video timestamp to use as the PDF report frame.
+    # None means the PDF exporter chooses a representative frame automatically.
+    pdf_frame_position_s: float | None = None
+
     # Normalized position and size for the editable overlay components.
     curve_overlay_x: float = 0.06
     curve_overlay_y: float = 0.58
@@ -89,6 +93,7 @@ class VideoState:
         self.source_path = ""
         self.sync_offset_s = 0.0
         self.playback_position_s = 0.0
+        self.pdf_frame_position_s = None
 
     @property
     def has_video(self) -> bool:

@@ -718,7 +718,7 @@ class MainWindow(QMainWindow):
         return page
 
     def create_export_placeholder(self):
-        """Create the future export pane."""
+        """Create the export pane with the currently implemented report export."""
 
         panel = QFrame()
 
@@ -747,30 +747,120 @@ class MainWindow(QMainWindow):
             )
         )
 
-        export_items = (
-            "OpenRocket",
-            "RockSim",
-            "BurnSim",
-            "Analysis CSV",
-            "PDF Report",
+        # Vendor-specific exports remain intentionally disabled until their
+        # exact interchange requirements are implemented.  PDF Report is
+        # the first functional export because it is generated entirely from
+        # the authoritative RMCS analysis model.
+        self.burnsim_export_button = QPushButton(
+            "BurnSim"
         )
+        self.burnsim_export_button.setObjectName("exportButton")
+        self.burnsim_export_button.setEnabled(False)
+        self.burnsim_export_button.setToolTip(
+            "BurnSim export is planned for a future export phase."
+        )
+        layout.addWidget(self.burnsim_export_button)
 
-        for item in export_items:
+        self.openmotor_export_button = QPushButton(
+            "OpenMotor"
+        )
+        self.openmotor_export_button.setObjectName("exportButton")
+        self.openmotor_export_button.setEnabled(False)
+        self.openmotor_export_button.setToolTip(
+            "OpenMotor export is planned for a future export phase."
+        )
+        layout.addWidget(self.openmotor_export_button)
 
-            button = QPushButton(
-                item
-            )
-            button.setObjectName("exportButton")
+        self.analysis_csv_export_button = QPushButton(
+            "Analysis CSV"
+        )
+        self.analysis_csv_export_button.setObjectName("exportButton")
+        self.analysis_csv_export_button.setEnabled(False)
+        self.analysis_csv_export_button.setToolTip(
+            "Analysis CSV export is planned for a future export phase."
+        )
+        layout.addWidget(self.analysis_csv_export_button)
 
-            button.setEnabled(
-                False
-            )
-
-            layout.addWidget(
-                button
-            )
+        self.pdf_report_export_button = QPushButton(
+            "PDF Report"
+        )
+        self.pdf_report_export_button.setObjectName("exportButton")
+        self.pdf_report_export_button.setToolTip(
+            "Generate a presentation-ready report for the active motor test."
+        )
+        self.pdf_report_export_button.clicked.connect(
+            self.export_pdf_report
+        )
+        layout.addWidget(self.pdf_report_export_button)
 
         return panel
+
+    def export_pdf_report(self):
+        """Generate the complete PDF report for the current campaign."""
+
+        if self.session.test_count == 0:
+            QMessageBox.information(
+                self,
+                "No Tests Loaded",
+                "Load at least one motor test before generating a PDF report.",
+            )
+            return
+
+        default_name = "RMCS_Campaign_Report.pdf"
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Campaign PDF Report",
+            default_name,
+            "PDF Reports (*.pdf);;All Files (*.*)",
+        )
+
+        if not filename:
+            return
+
+        try:
+            # Keep PDF-specific dependencies out of normal application startup.
+            from .export import PDFReportError, generate_campaign_pdf_report
+
+            output_path = generate_campaign_pdf_report(
+                self.session,
+                output_path=filename,
+                app_version="0.4.0",
+            )
+        except ModuleNotFoundError as error:
+            package = getattr(error, "name", "") or "required package"
+            QMessageBox.critical(
+                self,
+                "PDF Export Dependency Missing",
+                (
+                    f"The PDF report requires the {package} package.\n\n"
+                    "Install the project dependencies in the RMCS Analyzer virtual environment with:\n\n"
+                    "pip install -r requirements.txt"
+                ),
+            )
+            return
+        except PDFReportError as error:
+            QMessageBox.critical(
+                self,
+                "PDF Export Failed",
+                str(error),
+            )
+            return
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "PDF Export Failed",
+                f"An unexpected error occurred while generating the campaign report:\n\n{error}",
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Campaign PDF Report Created",
+            f"The campaign PDF report was created successfully.\n\n{output_path}",
+            QMessageBox.StandardButton.Ok,
+        )
+
 
     def create_additional_metrics_panel(self):
         """Create the additional metrics pane."""
@@ -1116,6 +1206,9 @@ class MainWindow(QMainWindow):
         )
         self.video_panel.duration_changed.connect(
             self.on_video_duration_changed
+        )
+        self.video_panel.pdf_frame_changed.connect(
+            self.on_video_pdf_frame_changed
         )
 
         self.playback.play_requested.connect(
@@ -2240,6 +2333,7 @@ class MainWindow(QMainWindow):
             curve_show_grid=test.video.curve_show_grid,
             curve_show_axes=test.video.curve_show_axes,
             curve_show_background=test.video.curve_show_background,
+            pdf_frame_position_s=test.video.pdf_frame_position_s,
         )
         self.video_panel.set_timeline_position(
             self.playback_timeline.position_s
@@ -2347,6 +2441,7 @@ class MainWindow(QMainWindow):
 
         test.video.source_path = filename
         test.video.playback_position_s = self.playback_timeline.position_s
+        test.video.pdf_frame_position_s = None
         test.mark_modified()
         self.project_modified = True
         self.update_status(test)
@@ -2365,6 +2460,21 @@ class MainWindow(QMainWindow):
         )
         self.playback_timeline.set_duration(duration_s)
         self.playback.set_duration(duration_s)
+        test.mark_modified()
+        self.project_modified = True
+        self.update_status(test)
+
+    def on_video_pdf_frame_changed(self, position_s):
+        test = self.session.active_test
+        if test is None:
+            return
+        if position_s is None:
+            test.video.pdf_frame_position_s = None
+        else:
+            try:
+                test.video.pdf_frame_position_s = max(0.0, float(position_s))
+            except (TypeError, ValueError):
+                test.video.pdf_frame_position_s = None
         test.mark_modified()
         self.project_modified = True
         self.update_status(test)

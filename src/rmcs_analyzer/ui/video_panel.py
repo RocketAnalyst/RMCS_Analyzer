@@ -1105,6 +1105,7 @@ class VideoPanel(QFrame):
     overlay_event_positions_changed = Signal(object)
     overlay_configuration_changed = Signal(object)
     duration_changed = Signal(float)
+    pdf_frame_changed = Signal(object)
 
     SUPPORTED_FILTER = (
         "Video Files (*.mp4 *.mov *.m4v *.avi *.mkv *.wmv *.webm);;"
@@ -1125,6 +1126,7 @@ class VideoPanel(QFrame):
         self._has_analysis = False
         self._priming_frame = False
         self._priming_audio_volume = None
+        self._pdf_frame_position_s = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 8, 10, 8)
@@ -1220,6 +1222,27 @@ class VideoPanel(QFrame):
         sync_row.addLayout(sync)
         layout.addLayout(sync_row)
 
+        pdf_frame_row = QHBoxLayout()
+        pdf_frame_row.setSpacing(5)
+        self.pdf_frame_label = QLabel("PDF Report Frame: Automatic")
+        self.pdf_frame_label.setObjectName("videoPdfFrameLabel")
+        self.pdf_frame_label.setToolTip(
+            "Position the video at the desired moment, then choose Use Current Frame. Automatic uses RMCS's representative frame."
+        )
+        pdf_frame_row.addWidget(self.pdf_frame_label)
+        pdf_frame_row.addStretch(1)
+        self.use_pdf_frame_button = QPushButton("Use Current Frame")
+        self.use_pdf_frame_button.setObjectName("videoPdfFrameButton")
+        self.use_pdf_frame_button.setEnabled(False)
+        self.use_pdf_frame_button.setToolTip("Use the current video position as the PDF report frame for this test.")
+        self.clear_pdf_frame_button = QPushButton("Clear Selection")
+        self.clear_pdf_frame_button.setObjectName("videoPdfFrameButton")
+        self.clear_pdf_frame_button.setEnabled(False)
+        self.clear_pdf_frame_button.setToolTip("Return PDF frame selection to automatic representative-frame selection.")
+        pdf_frame_row.addWidget(self.use_pdf_frame_button)
+        pdf_frame_row.addWidget(self.clear_pdf_frame_button)
+        layout.addLayout(pdf_frame_row)
+
         self.player = QMediaPlayer(self)
         self.audio = QAudioOutput(self)
         self.audio.setVolume(1.0)
@@ -1237,6 +1260,8 @@ class VideoPanel(QFrame):
         self.sync_spin.valueChanged.connect(self._sync_changed)
         self.sync_up_button.clicked.connect(self.sync_spin.stepUp)
         self.sync_down_button.clicked.connect(self.sync_spin.stepDown)
+        self.use_pdf_frame_button.clicked.connect(self.use_current_frame_for_pdf)
+        self.clear_pdf_frame_button.clicked.connect(self.clear_pdf_frame)
 
         for checkbox in (
             self.curve_check,
@@ -1282,6 +1307,10 @@ class VideoPanel(QFrame):
         self._video_duration_s = 0.0
         self._video_name = ""
         self._playing = False
+        self._pdf_frame_position_s = None
+        self.pdf_frame_label.setText("PDF Report Frame: Automatic")
+        self.use_pdf_frame_button.setEnabled(False)
+        self.clear_pdf_frame_button.setEnabled(False)
         self.video_surface.clear_frame()
         self._has_analysis = False
         self.overlay.set_analysis(None, None, pressure=None)
@@ -1321,9 +1350,11 @@ class VideoPanel(QFrame):
         curve_show_grid=True,
         curve_show_axes=True,
         curve_show_background=True,
+        pdf_frame_position_s=None,
     ):
         self._loading_state = True
         try:
+            self._set_pdf_frame_position(pdf_frame_position_s, emit=False)
             self._sync_offset_s = float(sync_offset_s or 0.0)
             self.sync_spin.setValue(self._sync_offset_s)
             self.curve_check.setChecked(bool(show_curve))
@@ -1466,6 +1497,8 @@ class VideoPanel(QFrame):
         self._video_name = path.name
         self.status_label.setText(path.name)
         self.status_label.setToolTip(str(path.resolve()))
+        self.use_pdf_frame_button.setEnabled(True)
+        self.clear_pdf_frame_button.setEnabled(self._pdf_frame_position_s is not None)
         self.remove_button.setEnabled(True)
         self.popout_button.setEnabled(True)
 
@@ -1607,6 +1640,41 @@ class VideoPanel(QFrame):
         )
         if filename:
             self.load_video(filename)
+
+    def _set_pdf_frame_position(self, position_s, emit=True):
+        if position_s is None:
+            self._pdf_frame_position_s = None
+            self.pdf_frame_label.setText("PDF Report Frame: Automatic")
+            self.clear_pdf_frame_button.setEnabled(self.is_loaded())
+        else:
+            try:
+                value = max(0.0, float(position_s))
+            except (TypeError, ValueError):
+                value = None
+            self._pdf_frame_position_s = value
+            if value is None:
+                self.pdf_frame_label.setText("PDF Report Frame: Automatic")
+            else:
+                self.pdf_frame_label.setText(f"PDF Report Frame: {value:.3f} s")
+            self.clear_pdf_frame_button.setEnabled(self.is_loaded() and value is not None)
+        if emit and not self._loading_state:
+            self.pdf_frame_changed.emit(self._pdf_frame_position_s)
+
+    def pdf_frame_position_s(self):
+        return self._pdf_frame_position_s
+
+    def use_current_frame_for_pdf(self):
+        if not self.is_loaded():
+            return
+        position_s = self._timeline_position_s
+        if self.is_loaded():
+            media_position_s = self.player.position() / 1000.0
+            if media_position_s > 0.0 or self._timeline_position_s <= 0.0:
+                position_s = media_position_s
+        self._set_pdf_frame_position(position_s, emit=True)
+
+    def clear_pdf_frame(self):
+        self._set_pdf_frame_position(None, emit=True)
 
     def _duration_changed(self, duration_ms):
         self._video_duration_s = max(0.0, duration_ms / 1000.0)

@@ -188,22 +188,6 @@ class Header(QFrame):
         )
 
         # =========================================================
-        # EXPORT
-        # =========================================================
-
-        self.export_button = QPushButton(
-            "Export"
-        )
-
-        self.export_button.setObjectName(
-            "headerButton"
-        )
-
-        layout.addWidget(
-            self.export_button
-        )
-
-        # =========================================================
         # SETTINGS
         # =========================================================
 
