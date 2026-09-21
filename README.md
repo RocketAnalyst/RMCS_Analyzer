@@ -13,8 +13,8 @@ The application is being developed with Python, PySide6, PyQtGraph, NumPy, and P
 ## v0.4.0
 
 RMCS Analyzer v0.4.0 establishes **Simulation Integration, Expanded Video
-Analysis, and PDF Reporting** as the current functional milestone after the
-v0.3.0 Campaign Analysis release.
+Analysis, PDF Reporting, and BurnSim Export** as the current functional
+milestone after the v0.3.0 Campaign Analysis release.
 
 ### Completed in v0.4.0
 
@@ -38,6 +38,7 @@ v0.3.0 Campaign Analysis release.
 - Selected PDF frame timestamp persists in `.rmcs` projects without changing project format 3.
 - PDF video evidence preserves the source video's native aspect ratio.
 - PDF reports use the authoritative standardized analysis results rather than duplicating engineering calculations.
+- BurnSim CSV export from the measured RMCS test trace, including the complete pre-ignition through post-burnout recording.
 
 RMCS Analyzer remains in active development.
 
@@ -47,9 +48,9 @@ analysis workflows. The authoritative analysis layer remains separate from the
 GUI and is protected by standalone regression/reference tests.
 
 The current development priority remains **functionality before final visual
-polish**. PDF reporting is complete. The remaining planned interchange/data
-exports are BurnSim, OpenMotor, and Analysis CSV, followed by the broader GUI
-and production-readiness refinement. Final rendered-video export and
+polish**. PDF reporting and BurnSim export are complete. The remaining planned
+interchange/data exports are OpenMotor and Analysis CSV, followed by the broader
+GUI and production-readiness refinement. Final rendered-video export and
 transparent overlay-video export remain separate future capabilities.
 
 The current architecture is:
@@ -140,6 +141,7 @@ The current codebase supports:
 - Persistent Campaign test selection
 - Project-level simulation import and persistence
 - BurnSim/OpenMotor-style simulation comparison
+- BurnSim measured-data CSV export
 - Thrust and pressure simulation overlays
 - Independent synchronized video Thrust and Pressure graph overlays
 - Persistent video overlay positions and configuration
@@ -472,6 +474,7 @@ RMCS_Analyzer/
 ├── test_thrustcurve_reference.py
 ├── test_video_pdf_frame_selection.py
 ├── test_video_simulation_state.py
+├── test_burnsim_export.py
 │
 ├── .gitignore
 └── README.md
@@ -793,16 +796,25 @@ Current simulation behavior:
 
 ### Export
 
-The export panel currently exposes the completed PDF Report workflow and
-placeholders for the remaining exports.
+The export panel exposes the completed PDF Report and BurnSim CSV workflows,
+with placeholders for the remaining exports.
 
 Completed:
 
 - PDF report
+- BurnSim CSV export
+
+BurnSim export details:
+
+- Uses the complete measured RMCS trace rather than simulation or derived engineering data.
+- Exports `Time,Pressure,Thrust` in seconds, psi, and newtons.
+- Retains pre-ignition and post-burnout samples.
+- Includes the CSV header required by the documented BurnSim 4 import workflow.
+- Does not add an RMCS-specific metadata or units row.
+- The exported data has been independently checked against Synthetic-Test-01, Synthetic-Test-03, and Zerox reference data.
 
 Remaining planned exports:
 
-- BurnSim
 - OpenMotor
 - Analysis CSV
 

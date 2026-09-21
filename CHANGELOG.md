@@ -6,6 +6,11 @@ All notable changes to RMCS Analyzer are documented here.
 
 ### Added
 
+- Functional BurnSim CSV export from the measured RMCS test trace.
+- BurnSim export uses the documented `Time,Pressure,Thrust` column order with a header and
+  seconds / psi / newtons units.
+- BurnSim export retains the complete recorded trace, including pre-ignition and post-burnout
+  samples, rather than exporting only the standardized engineering analysis window.
 - Campaign-level PDF reporting for multi-test projects.
 - Compact single-test PDF reporting without population-level campaign analysis.
 - Conditional PDF sections for pressure, simulation, notes, and video evidence.
@@ -52,6 +57,11 @@ All notable changes to RMCS Analyzer are documented here.
 
 ### Validation
 
+- BurnSim export was independently checked against Synthetic-Test-01, Synthetic-Test-03, and
+  Zerox reference data for sample count, time range, peak values, and integrated impulse.
+- BurnSim CSV structure was checked against the documented BurnSim 4 CSV import requirements.
+- Direct runtime import into BurnSim has not been performed because BurnSim is not available
+  in the current development environment.
 - Simulation CSV import regression tests cover normalized BurnSim-style and
   OpenMotor-style fixtures.
 - Simulation project persistence tests cover save/load round trips and legacy
@@ -61,8 +71,8 @@ All notable changes to RMCS Analyzer are documented here.
 - PDF report tests cover single-test and campaign report generation,
   conditional sections, chart generation, and video-frame behavior.
 - Existing analysis, processing, classification, performance, reference,
-  simulation, video-state, and Campaign Analysis regression tests remain part
-  of the project test suite.
+  simulation, video-state, Campaign Analysis, and BurnSim export regression tests
+  remain part of the project test suite.
 
 ## [0.3.0] - 2026-09-20
 

@@ -747,17 +747,17 @@ class MainWindow(QMainWindow):
             )
         )
 
-        # Vendor-specific exports remain intentionally disabled until their
-        # exact interchange requirements are implemented.  PDF Report is
-        # the first functional export because it is generated entirely from
-        # the authoritative RMCS analysis model.
+        # BurnSim is a functional experimental-data export. It writes the
+        # measured RMCS trace in BurnSim's test-data CSV structure.
         self.burnsim_export_button = QPushButton(
             "BurnSim"
         )
         self.burnsim_export_button.setObjectName("exportButton")
-        self.burnsim_export_button.setEnabled(False)
         self.burnsim_export_button.setToolTip(
-            "BurnSim export is planned for a future export phase."
+            "Export the active measured test as a BurnSim test-data CSV."
+        )
+        self.burnsim_export_button.clicked.connect(
+            self.export_burnsim_csv
         )
         layout.addWidget(self.burnsim_export_button)
 
@@ -794,6 +794,62 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.pdf_report_export_button)
 
         return panel
+
+    def export_burnsim_csv(self):
+        """Export the active measured test as a BurnSim test-data CSV."""
+
+        test = self.session.active_test
+
+        if test is None:
+            QMessageBox.information(
+                self,
+                "No Test Loaded",
+                "Load a motor test before exporting BurnSim test data.",
+            )
+            return
+
+        stem = Path(test.filename).stem if test.filename else "RMCS_Test"
+        default_name = f"{stem}_BurnSim.csv"
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export BurnSim Test Data",
+            default_name,
+            "CSV Files (*.csv);;All Files (*.*)",
+        )
+
+        if not filename:
+            return
+
+        try:
+            from .export import export_burnsim_csv
+
+            output_path = export_burnsim_csv(
+                test,
+                filename,
+            )
+        except ValueError as error:
+            QMessageBox.warning(
+                self,
+                "BurnSim Export Unavailable",
+                str(error),
+            )
+            return
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "BurnSim Export Failed",
+                f"An unexpected error occurred while creating the BurnSim CSV:\n\n{error}",
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "BurnSim CSV Created",
+            f"The BurnSim test-data CSV was created successfully.\n\n{output_path}",
+            QMessageBox.StandardButton.Ok,
+        )
+
 
     def export_pdf_report(self):
         """Generate the complete PDF report for the current campaign."""

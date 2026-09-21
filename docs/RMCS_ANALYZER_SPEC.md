@@ -756,20 +756,50 @@ It supports:
 The PDF report is intended to document and communicate RMCS results. It does
 not replace the authoritative analysis engine.
 
-### 21.2 Remaining export roadmap
+### 21.2 BurnSim CSV export
+
+BurnSim CSV export is implemented and is available from the Export panel.
+
+The export is intentionally a **measured test-data export**, not a re-export of
+RMCS simulation data or derived engineering results. It writes the complete
+measured trace using the following columns:
+
+```text
+Time,Pressure,Thrust
+```
+
+Units are:
+
+- Time: seconds
+- Pressure: psi
+- Thrust: newtons
+
+The complete recorded trace is retained, including pre-ignition and
+post-burnout samples. Pressure is interpolated onto the measured thrust time
+base when the two measured channels use different time bases.
+
+The exporter includes the CSV header and does not add an RMCS-specific metadata
+or units row. This matches the documented BurnSim 4 CSV import structure.
+
+The export has been independently checked against Synthetic-Test-01,
+Synthetic-Test-03, and Zerox reference data for sample count, time range, peak
+values, and integrated impulse. Direct runtime import into BurnSim has not been
+performed because BurnSim is not available in the current development
+environment.
+
+### 21.3 Remaining export roadmap
 
 The remaining planned export workflows are:
 
-- BurnSim
 - OpenMotor
 - Analysis CSV
 
 RockSim and OpenRocket exports are not part of the current RMCS Analyzer
 export roadmap.
 
-The remaining exports should be implemented independently and should consume
-the existing `AnalysisResults`, prepared test data, simulation data, and
-metadata as appropriate.
+The remaining exports should be implemented independently and should consume the
+existing `AnalysisResults`, prepared test data, simulation data, and metadata as
+appropriate.
 
 ## 22. Campaign Analysis
 
@@ -1138,8 +1168,8 @@ Pressure Curve, Campaign Analysis, Simulation, and PDF reporting workflows are
 now functional.
 
 The current major functional milestone is **Simulation Integration, Expanded
-Video Analysis, and PDF Reporting (v0.4.0)**. The remaining export work is
-BurnSim, OpenMotor, and Analysis CSV, followed by final GUI/overlay and
+Video Analysis, PDF Reporting, and BurnSim Export (v0.4.0)**. The remaining
+export work is OpenMotor and Analysis CSV, followed by final GUI/overlay and
 production-readiness refinement. Rendered-video and transparent-overlay export
 remain separate future capabilities.
 
@@ -1176,6 +1206,8 @@ Completed:
 - User-selectable PDF report frame with `.rmcs` persistence.
 - Automatic representative-frame fallback.
 - Native video aspect-ratio preservation in PDF Video Evidence.
+- Functional BurnSim CSV export from the complete measured RMCS test trace.
+- BurnSim export validation against Synthetic-Test-01, Synthetic-Test-03, and Zerox reference data.
 
 Project compatibility:
 
@@ -1184,7 +1216,6 @@ Project compatibility:
 
 Next:
 
-- BurnSim export.
 - OpenMotor export.
 - Analysis CSV export.
 - Final GUI/overlay and production-readiness refinement.
