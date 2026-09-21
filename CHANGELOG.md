@@ -2,6 +2,52 @@
 
 All notable changes to RMCS Analyzer are documented here.
 
+## [0.4.0] - 2026-09-20
+
+### Added
+
+- Project-level simulation data import from BurnSim/OpenMotor-style CSV output.
+- Simulator-independent normalized simulation data model using seconds, Newtons,
+  and psi internally.
+- Simulation comparison controls on the Thrust Curve and Pressure Curve
+  workspaces.
+- Project-level simulation persistence inside `.rmcs` project files.
+- Simulation project round-trip regression coverage.
+- Independent video Thrust and Pressure graph overlays that can be displayed
+  simultaneously.
+- Simulation curves on the corresponding video Thrust and Pressure overlays.
+- Persistent video overlay positions and sizes for the independent curve
+  overlays.
+- Video simulation overlay state persistence.
+- Synthetic BurnSim-style and OpenMotor-style simulation fixtures based on the
+  existing synthetic RMCS test population.
+
+### Changed
+
+- Expanded the functional video overlay system to support both measured thrust
+  and pressure curves.
+- Improved saved-project video source restoration when projects are moved and
+  the original absolute video path is no longer available.
+- Preserved the RMCS project format at version 3 because the simulation state
+  is an additive extension within the existing project format.
+- Kept the standardized RMCS CSV format at version 1.0.
+- Corrected video overlay rendering so pressure curves are rendered as line
+  overlays without unintended area fill.
+- Corrected saved `.rmcs` project loading so a successfully opened project
+  returns to a clean `READY` state rather than being incorrectly marked
+  `MODIFIED`.
+
+### Validation
+
+- Simulation CSV import regression tests cover normalized BurnSim-style and
+  OpenMotor-style fixtures.
+- Simulation project persistence tests cover save/load round trips and legacy
+  projects without simulation data.
+- Video simulation-state persistence tests cover simulation visibility and
+  existing video overlay state.
+- Existing analysis, processing, classification, performance, reference, and
+  Campaign Analysis regression tests remain part of the project test suite.
+
 ## [0.3.0] - 2026-09-20
 
 ### Added

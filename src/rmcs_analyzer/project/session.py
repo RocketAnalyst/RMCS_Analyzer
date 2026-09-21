@@ -22,6 +22,9 @@ class TestSession:
         # An empty set is a valid saved state meaning no tests were selected.
         self.campaign_selected_sources: Optional[set[str]] = None
 
+        # Optional project-level simulation comparison dataset.
+        self.simulation = None
+
     # =============================================================
     # TEST COLLECTION
     # =============================================================

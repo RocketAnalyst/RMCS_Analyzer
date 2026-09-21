@@ -28,6 +28,7 @@ from ..processing.event_model import (
 from .test_model import TestModel
 from .session import TestSession
 from .video_state import VideoState
+from ..simulation.models import SimulationData, SimulationMetadata
 
 
 class ProjectFileError(Exception):
@@ -101,6 +102,7 @@ class ProjectFile:
                         session
                     ),
                     "test_count": session.test_count,
+                    "simulation_present": session.simulation is not None,
                     "campaign_selected_sources": (
                         sorted(session.campaign_selected_sources)
                         if session.campaign_selected_sources is not None
@@ -113,6 +115,16 @@ class ProjectFile:
                     "project.json",
                     manifest,
                 )
+
+                # -------------------------------------------------
+                # Project-level simulation
+                # -------------------------------------------------
+
+                if session.simulation is not None:
+                    cls._write_simulation(
+                        archive,
+                        session.simulation,
+                    )
 
                 # -------------------------------------------------
                 # Individual tests
@@ -204,6 +216,17 @@ class ProjectFile:
                         index,
                     )
 
+                    # Video files remain external to the .rmcs archive.
+                    # Resolve saved paths robustly when a project is moved:
+                    # 1) use the original path if it still exists;
+                    # 2) resolve relative paths beside the .rmcs file;
+                    # 3) if an old absolute path no longer exists, look for
+                    #    a video with the same filename beside the project.
+                    test.video.source_path = cls._resolve_video_source_path(
+                        test.video.source_path,
+                        path.parent,
+                    )
+
                     if not session.add_test(
                         test
                     ):
@@ -212,6 +235,15 @@ class ProjectFile:
                             "Duplicate test encountered "
                             "while loading project."
                         )
+
+                # -------------------------------------------------
+                # Restore project-level simulation
+                # -------------------------------------------------
+
+                if manifest.get("simulation_present", False):
+                    session.simulation = cls._read_simulation(archive)
+                else:
+                    session.simulation = None
 
                 # -------------------------------------------------
                 # Restore Campaign Analysis selection state
@@ -280,6 +312,62 @@ class ProjectFile:
             ) from error
 
     # =============================================================
+    # SIMULATION SERIALIZATION
+    # =============================================================
+
+    @classmethod
+    def _write_simulation(cls, archive, simulation: SimulationData):
+        """Store the optional project-level simulation dataset."""
+        metadata = {
+            "source_path": simulation.metadata.source_path,
+            "source_format": simulation.metadata.source_format,
+            "simulator": simulation.metadata.simulator,
+            "title": simulation.metadata.title,
+            "extra": dict(simulation.metadata.extra),
+            "has_thrust": simulation.thrust_N is not None,
+            "has_pressure": simulation.pressure_psi is not None,
+        }
+        cls._write_json(archive, "simulation/metadata.json", metadata)
+        arrays = {"time_s": simulation.time_s}
+        if simulation.thrust_N is not None:
+            arrays["thrust_N"] = simulation.thrust_N
+        if simulation.pressure_psi is not None:
+            arrays["pressure_psi"] = simulation.pressure_psi
+        with archive.open("simulation/data.npz", mode="w") as file:
+            np.savez_compressed(file, **arrays)
+
+    @classmethod
+    def _read_simulation(cls, archive) -> SimulationData:
+        metadata = cls._read_json(archive, "simulation/metadata.json")
+        try:
+            with archive.open("simulation/data.npz", mode="r") as file:
+                loaded = np.load(file, allow_pickle=False)
+                arrays = {name: loaded[name] for name in loaded.files}
+        except KeyError as error:
+            raise ProjectFileError("Missing simulation data in project.") from error
+
+        if "time_s" not in arrays:
+            raise ProjectFileError("Simulation data is missing time_s.")
+        thrust = arrays.get("thrust_N")
+        pressure = arrays.get("pressure_psi")
+        if thrust is None and pressure is None:
+            raise ProjectFileError("Simulation data contains neither thrust nor pressure.")
+
+        sim_metadata = SimulationMetadata(
+            source_path=str(metadata.get("source_path", "")),
+            source_format=str(metadata.get("source_format", "CSV")),
+            simulator=metadata.get("simulator"),
+            title=metadata.get("title"),
+            extra=metadata.get("extra", {}) or {},
+        )
+        return SimulationData(
+            time_s=arrays["time_s"],
+            thrust_N=thrust,
+            pressure_psi=pressure,
+            metadata=sim_metadata,
+        )
+
+    # =============================================================
     # TEST SERIALIZATION
     # =============================================================
 
@@ -330,6 +418,8 @@ class ProjectFile:
                 "source_path": test.video.source_path,
                 "sync_offset_s": test.video.sync_offset_s,
                 "show_curve_overlay": test.video.show_curve_overlay,
+                "show_pressure_overlay": test.video.show_pressure_overlay,
+                "show_simulation_overlay": test.video.show_simulation_overlay,
                 "show_results_overlay": test.video.show_results_overlay,
                 "show_event_markers": test.video.show_event_markers,
                 "playback_position_s": test.video.playback_position_s,
@@ -337,6 +427,10 @@ class ProjectFile:
                 "curve_overlay_y": test.video.curve_overlay_y,
                 "curve_overlay_w": test.video.curve_overlay_w,
                 "curve_overlay_h": test.video.curve_overlay_h,
+                "pressure_overlay_x": test.video.pressure_overlay_x,
+                "pressure_overlay_y": test.video.pressure_overlay_y,
+                "pressure_overlay_w": test.video.pressure_overlay_w,
+                "pressure_overlay_h": test.video.pressure_overlay_h,
                 "results_overlay_x": test.video.results_overlay_x,
                 "results_overlay_y": test.video.results_overlay_y,
                 "results_overlay_w": test.video.results_overlay_w,
@@ -346,6 +440,7 @@ class ProjectFile:
                 "event_overlay_positions": test.video.normalized_event_positions(),
                 "event_visibility": dict(test.video.event_visibility),
                 "curve_title": test.video.curve_title,
+                "curve_mode": test.video.curve_mode,
                 "results_title": test.video.results_title,
                 "result_fields": list(test.video.result_fields),
                 "curve_show_grid": test.video.curve_show_grid,
@@ -636,7 +731,15 @@ class ProjectFile:
             video=VideoState(
                 source_path=metadata.get("video", {}).get("source_path", ""),
                 sync_offset_s=metadata.get("video", {}).get("sync_offset_s", 0.0),
-                show_curve_overlay=metadata.get("video", {}).get("show_curve_overlay", True),
+                show_curve_overlay=metadata.get("video", {}).get(
+                    "show_curve_overlay",
+                    metadata.get("video", {}).get("curve_mode", "thrust") != "pressure",
+                ),
+                show_pressure_overlay=metadata.get("video", {}).get(
+                    "show_pressure_overlay",
+                    metadata.get("video", {}).get("curve_mode", "thrust") == "pressure",
+                ),
+                show_simulation_overlay=metadata.get("video", {}).get("show_simulation_overlay", False),
                 show_results_overlay=metadata.get("video", {}).get("show_results_overlay", True),
                 show_event_markers=metadata.get("video", {}).get("show_event_markers", True),
                 playback_position_s=metadata.get("video", {}).get("playback_position_s", 0.0),
@@ -644,6 +747,10 @@ class ProjectFile:
                 curve_overlay_y=metadata.get("video", {}).get("curve_overlay_y", 0.62),
                 curve_overlay_w=metadata.get("video", {}).get("curve_overlay_w", 0.56),
                 curve_overlay_h=metadata.get("video", {}).get("curve_overlay_h", 0.30),
+                pressure_overlay_x=metadata.get("video", {}).get("pressure_overlay_x", 0.06),
+                pressure_overlay_y=metadata.get("video", {}).get("pressure_overlay_y", 0.10),
+                pressure_overlay_w=metadata.get("video", {}).get("pressure_overlay_w", 0.58),
+                pressure_overlay_h=metadata.get("video", {}).get("pressure_overlay_h", 0.34),
                 results_overlay_x=metadata.get("video", {}).get("results_overlay_x", 0.70),
                 results_overlay_y=metadata.get("video", {}).get("results_overlay_y", 0.06),
                 results_overlay_w=metadata.get("video", {}).get("results_overlay_w", 0.25),
@@ -669,6 +776,11 @@ class ProjectFile:
                 curve_title=metadata.get("video", {}).get(
                     "curve_title",
                     "Measured Thrust",
+                ),
+                curve_mode=(
+                    metadata.get("video", {}).get("curve_mode", "thrust")
+                    if metadata.get("video", {}).get("curve_mode", "thrust") in {"thrust", "pressure"}
+                    else "thrust"
                 ),
                 results_title=metadata.get("video", {}).get(
                     "results_title",
@@ -750,6 +862,32 @@ class ProjectFile:
                 )
 
         return test
+
+    @staticmethod
+    def _resolve_video_source_path(source_path: str, project_dir: Path) -> str:
+        """Resolve an external video path saved with an RMCS project."""
+        if not source_path:
+            return ""
+
+        raw = Path(str(source_path)).expanduser()
+
+        # Preserve an existing absolute/working-directory path.
+        if raw.exists() and raw.is_file():
+            return str(raw.resolve())
+
+        # Relative paths are interpreted relative to the project file.
+        if not raw.is_absolute():
+            candidate = project_dir / raw
+            if candidate.exists() and candidate.is_file():
+                return str(candidate.resolve())
+
+        # If the project was moved, the original absolute path may no longer
+        # exist. A same-named video beside the project is a safe recovery.
+        candidate = project_dir / raw.name
+        if candidate.exists() and candidate.is_file():
+            return str(candidate.resolve())
+
+        return str(raw)
 
     # =============================================================
     # LEGACY PROJECT MIGRATION

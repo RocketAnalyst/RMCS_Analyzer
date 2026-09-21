@@ -33,6 +33,8 @@ class VideoState:
     sync_offset_s: float = 0.0
 
     show_curve_overlay: bool = True
+    show_pressure_overlay: bool = False
+    show_simulation_overlay: bool = False
     show_results_overlay: bool = True
     show_event_markers: bool = True
 
@@ -43,6 +45,11 @@ class VideoState:
     curve_overlay_y: float = 0.58
     curve_overlay_w: float = 0.58
     curve_overlay_h: float = 0.34
+
+    pressure_overlay_x: float = 0.06
+    pressure_overlay_y: float = 0.10
+    pressure_overlay_w: float = 0.58
+    pressure_overlay_h: float = 0.34
 
     results_overlay_x: float = 0.70
     results_overlay_y: float = 0.06
@@ -68,6 +75,7 @@ class VideoState:
 
     # Overlay presentation/configuration.
     curve_title: str = "Measured Thrust"
+    curve_mode: str = "thrust"
     results_title: str = "Test Results"
     result_fields: List[str] = field(
         default_factory=lambda: DEFAULT_RESULT_FIELDS.copy()

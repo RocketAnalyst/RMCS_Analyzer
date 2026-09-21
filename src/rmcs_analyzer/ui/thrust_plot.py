@@ -91,6 +91,10 @@ class ThrustPlot(QFrame):
         )
 
         self.curve = None
+        self.simulation_curve = None
+        self.simulation_time = None
+        self.simulation_thrust = None
+        self._show_simulation = False
         self.post_burn_curve = None
         self.zero_line = None
         self.ignition_line = None
@@ -852,6 +856,31 @@ class ThrustPlot(QFrame):
         # intentionally not split or visually dimmed after burnout.
         self.post_burn_curve = None
 
+        if self.simulation_curve is not None:
+            try:
+                self.plot.removeItem(self.simulation_curve)
+            except Exception:
+                pass
+            self.simulation_curve = None
+
+        if (
+            self._show_simulation
+            and self.simulation_time is not None
+            and self.simulation_thrust is not None
+            and len(self.simulation_time) == len(self.simulation_thrust)
+        ):
+            sim_mask = (
+                np.isfinite(self.simulation_time)
+                & np.isfinite(self.simulation_thrust)
+            )
+            if np.any(sim_mask):
+                self.simulation_curve = self.plot.plot(
+                    self.simulation_time[sim_mask],
+                    self.simulation_thrust[sim_mask],
+                    pen=pg.mkPen(color="#ffb84d", width=2, style=Qt.PenStyle.DashLine),
+                    name="Simulation Thrust",
+                )
+
         # ---------------------------------------------------------
         # Zero reference
         # ---------------------------------------------------------
@@ -1249,6 +1278,9 @@ class ThrustPlot(QFrame):
         self.plot.clear()
 
         self.curve = None
+        self.simulation_curve = None
+        self.simulation_time = None
+        self.simulation_thrust = None
         self.post_burn_curve = None
         self.zero_line = None
         self.ignition_line = None
@@ -1269,6 +1301,64 @@ class ThrustPlot(QFrame):
         self.stack.setCurrentWidget(
             self.placeholder
         )
+
+    def _update_simulation_curve(self):
+        """Add, remove, or refresh the simulation curve without rebuilding the measured plot."""
+        if self.simulation_curve is not None:
+            try:
+                self.plot.removeItem(self.simulation_curve)
+            except Exception:
+                pass
+            self.simulation_curve = None
+
+        if (
+            not self._show_simulation
+            or self.simulation_time is None
+            or self.simulation_thrust is None
+            or len(self.simulation_time) != len(self.simulation_thrust)
+        ):
+            return
+
+        sim_mask = (
+            np.isfinite(self.simulation_time)
+            & np.isfinite(self.simulation_thrust)
+        )
+
+        if not np.any(sim_mask):
+            return
+
+        self.simulation_curve = self.plot.plot(
+            self.simulation_time[sim_mask],
+            self.simulation_thrust[sim_mask],
+            pen=pg.mkPen(
+                color="#ffb84d",
+                width=2,
+                style=Qt.PenStyle.DashLine,
+            ),
+            name="Simulation Thrust",
+        )
+        self.simulation_curve.setZValue(5)
+
+    def set_simulation(self, time_s=None, thrust_N=None, visible=False):
+        """Set the optional project-level simulation comparison curve."""
+        if time_s is None or thrust_N is None:
+            self.simulation_time = None
+            self.simulation_thrust = None
+        else:
+            time = np.asarray(time_s, dtype=float)
+            thrust = np.asarray(thrust_N, dtype=float)
+            if len(time) != len(thrust):
+                raise ValueError("Simulation time and thrust arrays must have the same length.")
+            self.simulation_time = time
+            self.simulation_thrust = thrust
+
+        self._show_simulation = bool(visible)
+        self._update_simulation_curve()
+
+    def set_simulation_visible(self, visible):
+        """Toggle simulation visibility without rebuilding measured data or event annotations."""
+        self._show_simulation = bool(visible)
+        self._update_simulation_curve()
 
     def set_playback_position(self, position_s):
         """Show the shared playback position as a circular marker on the curve."""

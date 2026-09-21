@@ -21,6 +21,7 @@ class Header(QFrame):
     import_rmcs_requested = Signal()
     import_project_requested = Signal()
     import_other_csv_requested = Signal()
+    import_simulation_requested = Signal()
 
     def __init__(
         self,
@@ -140,6 +141,12 @@ class Header(QFrame):
             )
         )
 
+        self.simulation_action = (
+            self.import_menu.addAction(
+                "Simulation Data (.csv)"
+            )
+        )
+
         self.import_menu.addSeparator()
 
         self.other_csv_action = (
@@ -226,6 +233,10 @@ class Header(QFrame):
 
         self.project_action.triggered.connect(
             self.import_project_requested.emit
+        )
+
+        self.simulation_action.triggered.connect(
+            self.import_simulation_requested.emit
         )
 
         self.other_csv_action.triggered.connect(

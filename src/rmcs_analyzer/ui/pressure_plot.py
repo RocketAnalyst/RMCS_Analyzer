@@ -23,6 +23,10 @@ class PressurePlot(QFrame):
         self.stack.addWidget(self.plot)
 
         self._configure_plot()
+        self.simulation_curve = None
+        self.simulation_time = None
+        self.simulation_pressure = None
+        self._show_simulation = False
 
     def _create_placeholder(self):
         frame = QFrame()
@@ -71,7 +75,26 @@ class PressurePlot(QFrame):
             time,
             pressure,
             pen=pg.mkPen("#6fb7ff", width=2),
+            name="Recorded Pressure",
         )
+
+        if (
+            self._show_simulation
+            and self.simulation_time is not None
+            and self.simulation_pressure is not None
+            and len(self.simulation_time) == len(self.simulation_pressure)
+        ):
+            sim_mask = (
+                np.isfinite(self.simulation_time)
+                & np.isfinite(self.simulation_pressure)
+            )
+            if np.any(sim_mask):
+                self.plot.plot(
+                    self.simulation_time[sim_mask],
+                    self.simulation_pressure[sim_mask],
+                    pen=pg.mkPen("#ffb84d", width=2, style=Qt.PenStyle.DashLine),
+                    name="Simulation Pressure",
+                )
 
         if np.all(np.isfinite(pressure)):
             self.plot.addLine(y=0, pen=pg.mkPen("#526674", width=1))
@@ -92,6 +115,64 @@ class PressurePlot(QFrame):
 
         self.plot.enableAutoRange()
         self.stack.setCurrentWidget(self.plot)
+
+    def _update_simulation_curve(self):
+        """Add, remove, or refresh the simulation curve without rebuilding measured data or event markers."""
+        if self.simulation_curve is not None:
+            try:
+                self.plot.removeItem(self.simulation_curve)
+            except Exception:
+                pass
+            self.simulation_curve = None
+
+        if (
+            not self._show_simulation
+            or self.simulation_time is None
+            or self.simulation_pressure is None
+            or len(self.simulation_time) != len(self.simulation_pressure)
+        ):
+            return
+
+        sim_mask = (
+            np.isfinite(self.simulation_time)
+            & np.isfinite(self.simulation_pressure)
+        )
+
+        if not np.any(sim_mask):
+            return
+
+        self.simulation_curve = self.plot.plot(
+            self.simulation_time[sim_mask],
+            self.simulation_pressure[sim_mask],
+            pen=pg.mkPen(
+                "#ffb84d",
+                width=2,
+                style=Qt.PenStyle.DashLine,
+            ),
+            name="Simulation Pressure",
+        )
+        self.simulation_curve.setZValue(5)
+
+    def set_simulation(self, time_s=None, pressure_psi=None, visible=False):
+        """Set the optional project-level simulation pressure curve."""
+        if time_s is None or pressure_psi is None:
+            self.simulation_time = None
+            self.simulation_pressure = None
+        else:
+            time = np.asarray(time_s, dtype=float)
+            pressure = np.asarray(pressure_psi, dtype=float)
+            if len(time) != len(pressure):
+                raise ValueError("Simulation time and pressure arrays must have the same length.")
+            self.simulation_time = time
+            self.simulation_pressure = pressure
+
+        self._show_simulation = bool(visible)
+        self._update_simulation_curve()
+
+    def set_simulation_visible(self, visible):
+        """Toggle simulation visibility without rebuilding measured data or event markers."""
+        self._show_simulation = bool(visible)
+        self._update_simulation_curve()
 
     def clear(self):
         self.plot.clear()

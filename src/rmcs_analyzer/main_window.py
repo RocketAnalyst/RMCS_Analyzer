@@ -9,10 +9,12 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QDialog,
     QFrame,
+    QCheckBox,
     QHBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
+    QSizePolicy,
     QPushButton,
     QTabWidget,
     QVBoxLayout,
@@ -43,6 +45,8 @@ from .processing.event_model import (
 from .project import (
     TestSession,
 )
+
+from .simulation import SimulationImportError, import_simulation_csv
 
 from .project.project_file import (
     ProjectFile,
@@ -328,6 +332,19 @@ class MainWindow(QMainWindow):
 
         self.thrust_plot = ThrustPlot()
 
+        thrust_options = QHBoxLayout()
+        thrust_options.setContentsMargins(4, 0, 4, 0)
+        thrust_options.setSpacing(8)
+        thrust_options.addWidget(QLabel("Comparison:"))
+        self.thrust_simulation_check = QCheckBox("Show Simulation")
+        self.thrust_simulation_check.setEnabled(False)
+        self.thrust_simulation_check.setToolTip(
+            "Overlay the imported project-level simulation on the measured thrust curve."
+        )
+        thrust_options.addWidget(self.thrust_simulation_check)
+        thrust_options.addStretch(1)
+        thrust_layout.addLayout(thrust_options)
+
         self.playback = PlaybackControls()
 
         thrust_layout.addWidget(
@@ -349,10 +366,29 @@ class MainWindow(QMainWindow):
         # PRESSURE CURVE TAB
         # =========================================================
 
+        pressure_workspace = QWidget()
+        pressure_layout = QVBoxLayout(pressure_workspace)
+        pressure_layout.setContentsMargins(4, 4, 4, 4)
+        pressure_layout.setSpacing(8)
+
+        pressure_options = QHBoxLayout()
+        pressure_options.setContentsMargins(4, 0, 4, 0)
+        pressure_options.setSpacing(8)
+        pressure_options.addWidget(QLabel("Comparison:"))
+        self.pressure_simulation_check = QCheckBox("Show Simulation")
+        self.pressure_simulation_check.setEnabled(False)
+        self.pressure_simulation_check.setToolTip(
+            "Overlay the imported project-level simulation on the measured pressure curve."
+        )
+        pressure_options.addWidget(self.pressure_simulation_check)
+        pressure_options.addStretch(1)
+        pressure_layout.addLayout(pressure_options)
+
         self.pressure_plot = PressurePlot()
+        pressure_layout.addWidget(self.pressure_plot, 1)
 
         self.workspace_tabs.addTab(
-            self.pressure_plot,
+            pressure_workspace,
             "Pressure Curve",
         )
 
@@ -424,7 +460,7 @@ class MainWindow(QMainWindow):
         self.video_panel.setMinimumHeight(205)
         lower_panels.addWidget(
             self.video_panel,
-            3,
+            4,
         )
 
         # ---------------------------------------------------------
@@ -448,7 +484,7 @@ class MainWindow(QMainWindow):
         self.classification_panel.setMinimumHeight(205)
         lower_panels.addWidget(
             self.classification_panel,
-            2.5,
+            2,
         )
 
         center_layout.addLayout(
@@ -576,7 +612,7 @@ class MainWindow(QMainWindow):
         )
 
         version = QLabel(
-            "v0.3.0"
+            "v0.4.0"
         )
 
         version.setObjectName(
@@ -1012,6 +1048,17 @@ class MainWindow(QMainWindow):
             self.import_other_csv
         )
 
+        self.header.import_simulation_requested.connect(
+            self.import_simulation
+        )
+
+        self.thrust_simulation_check.toggled.connect(
+            self.on_thrust_simulation_toggled
+        )
+        self.pressure_simulation_check.toggled.connect(
+            self.on_pressure_simulation_toggled
+        )
+
         self.header.save_button.clicked.connect(
             self.save_project
         )
@@ -1046,8 +1093,20 @@ class MainWindow(QMainWindow):
         self.video_panel.overlay_changed.connect(
             self.on_video_overlay_changed
         )
+        self.video_panel.simulation_overlay_changed.connect(
+            self.on_video_simulation_overlay_changed
+        )
+        self.video_panel.pressure_overlay_changed.connect(
+            self.on_video_pressure_overlay_changed
+        )
+        self.video_panel.curve_mode_changed.connect(
+            self.on_video_curve_mode_changed
+        )
         self.video_panel.overlay_positions_changed.connect(
             self.on_video_overlay_positions_changed
+        )
+        self.video_panel.pressure_overlay_positions_changed.connect(
+            self.on_video_pressure_overlay_positions_changed
         )
         self.video_panel.overlay_event_positions_changed.connect(
             self.on_video_overlay_event_positions_changed
@@ -1225,6 +1284,101 @@ class MainWindow(QMainWindow):
                 "Import Completed with Errors",
                 message,
             )
+
+    # =============================================================
+    # IMPORT SIMULATION DATA
+    # =============================================================
+
+    def import_simulation(self):
+        """Import and store one project-level simulation dataset."""
+        if self.session.simulation is not None:
+            response = QMessageBox.question(
+                self,
+                "Replace Simulation",
+                "A simulation dataset is already loaded. Replace it with the selected simulation?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if response != QMessageBox.StandardButton.Yes:
+                return
+
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import Simulation Data",
+            "",
+            "Simulation CSV Files (*.csv *.CSV);;All Files (*.*)",
+        )
+        if not filename:
+            return
+
+        try:
+            simulation = import_simulation_csv(filename)
+        except SimulationImportError as error:
+            QMessageBox.critical(
+                self,
+                "Unable to Import Simulation",
+                str(error),
+            )
+            return
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "Unexpected Simulation Import Error",
+                f"An unexpected error occurred while importing the simulation:\n\n{error}",
+            )
+            return
+
+        self.session.simulation = simulation
+        self.project_modified = True
+        self._update_simulation_controls()
+
+        # Refresh the active test views immediately if one is loaded.
+        if self.session.active_test is not None:
+            self.display_active_test()
+
+        # Importing simulation data changes the project, so keep the normal
+        # project-dirty status rather than presenting the load operation as a
+        # separate transient state.
+        if self.session.active_test is not None:
+            self.update_status(self.session.active_test)
+        else:
+            self.header.set_status(
+                "MODIFIED — Unsaved project changes",
+                modified=True,
+            )
+
+    def _update_simulation_controls(self):
+        """Refresh simulation visibility controls and plot data."""
+        simulation = self.session.simulation
+        has_thrust = simulation is not None and simulation.has_thrust
+        has_pressure = simulation is not None and simulation.has_pressure
+
+        for checkbox, available in (
+            (self.thrust_simulation_check, has_thrust),
+            (self.pressure_simulation_check, has_pressure),
+        ):
+            checkbox.blockSignals(True)
+            checkbox.setEnabled(available)
+            if not available:
+                checkbox.setChecked(False)
+            checkbox.blockSignals(False)
+
+        self.thrust_plot.set_simulation(
+            simulation.time_s if has_thrust else None,
+            simulation.thrust_N if has_thrust else None,
+            visible=self.thrust_simulation_check.isChecked(),
+        )
+        self.pressure_plot.set_simulation(
+            simulation.time_s if has_pressure else None,
+            simulation.pressure_psi if has_pressure else None,
+            visible=self.pressure_simulation_check.isChecked(),
+        )
+
+    def on_thrust_simulation_toggled(self, checked):
+        self.thrust_plot.set_simulation_visible(bool(checked))
+
+    def on_pressure_simulation_toggled(self, checked):
+        self.pressure_plot.set_simulation_visible(bool(checked))
 
     # =============================================================
     # IMPORT OTHER CSV
@@ -1606,6 +1760,8 @@ class MainWindow(QMainWindow):
 
         self.session = loaded_session
 
+        self._update_simulation_controls()
+
         self.project_filename = filename
 
         self.project_modified = False
@@ -1671,6 +1827,20 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(
             f"{project_name} — RMCS Analyzer"
         )
+
+        if active_test is not None:
+
+            self.update_status(
+                active_test
+            )
+
+        # Opening an RMCS project always establishes a clean saved
+        # snapshot.  Rendering/restoring the active test can trigger
+        # UI callbacks, so explicitly re-synchronize the runtime
+        # modification flags immediately before the final status update.
+        for test in self.session.tests:
+            test.mark_saved()
+        self.project_modified = False
 
         if active_test is not None:
 
@@ -1969,6 +2139,19 @@ class MainWindow(QMainWindow):
                 test.data.time_s[-1]
             )
 
+        simulation = self.session.simulation
+        self.thrust_plot.set_simulation(
+            simulation.time_s if simulation is not None and simulation.has_thrust else None,
+            simulation.thrust_N if simulation is not None and simulation.has_thrust else None,
+            visible=self.thrust_simulation_check.isChecked(),
+        )
+
+        self.pressure_plot.set_simulation(
+            simulation.time_s if simulation is not None and simulation.has_pressure else None,
+            simulation.pressure_psi if simulation is not None and simulation.has_pressure else None,
+            visible=self.pressure_simulation_check.isChecked(),
+        )
+
         self.thrust_plot.set_data(
             test.data.time_s,
             test.data.thrust_N,
@@ -2032,6 +2215,8 @@ class MainWindow(QMainWindow):
             test.video.source_path,
             sync_offset_s=test.video.sync_offset_s,
             show_curve=test.video.show_curve_overlay,
+            show_pressure=test.video.show_pressure_overlay,
+            show_simulation=test.video.show_simulation_overlay,
             show_results=test.video.show_results_overlay,
             show_events=test.video.show_event_markers,
             curve_x=test.video.curve_overlay_x,
@@ -2040,10 +2225,15 @@ class MainWindow(QMainWindow):
             results_y=test.video.results_overlay_y,
             curve_w=test.video.curve_overlay_w,
             curve_h=test.video.curve_overlay_h,
+            pressure_x=test.video.pressure_overlay_x,
+            pressure_y=test.video.pressure_overlay_y,
+            pressure_w=test.video.pressure_overlay_w,
+            pressure_h=test.video.pressure_overlay_h,
             results_w=test.video.results_overlay_w,
             results_h=test.video.results_overlay_h,
             event_positions=test.video.normalized_event_positions(),
             curve_title=test.video.curve_title,
+            curve_mode=test.video.curve_mode,
             results_title=test.video.results_title,
             result_fields=test.video.result_fields,
             event_visibility=test.video.event_visibility,
@@ -2054,14 +2244,19 @@ class MainWindow(QMainWindow):
         self.video_panel.set_timeline_position(
             self.playback_timeline.position_s
         )
-        if test.analysis_results is not None:
-            self.video_panel.set_analysis(
-                test.data.time_s,
-                test.data.thrust_N,
-                test.analysis_results.thrust,
-                test.analysis_results.classification,
-                test.analysis_results.events,
-            )
+        analysis = test.analysis_results
+        simulation = self.session.simulation
+        self.video_panel.set_analysis(
+            test.data.time_s,
+            test.data.thrust_N,
+            test.data.pressure_psi,
+            analysis.thrust if analysis is not None else None,
+            analysis.classification if analysis is not None else None,
+            analysis.events if analysis is not None else None,
+            simulation.time_s if simulation is not None else None,
+            simulation.thrust_N if simulation is not None and simulation.has_thrust else None,
+            simulation.pressure_psi if simulation is not None and simulation.has_pressure else None,
+        )
         self.on_playback_position_changed(
             self.playback_timeline.position_s
         )
@@ -2228,6 +2423,48 @@ class MainWindow(QMainWindow):
         self.project_modified = True
         self.update_status(test)
 
+    def on_video_simulation_overlay_changed(self, visible):
+        test = self.session.active_test
+        if test is None:
+            return
+        test.video.show_simulation_overlay = bool(visible)
+        test.mark_modified()
+        self.project_modified = True
+        self.update_status(test)
+
+    def on_video_pressure_overlay_changed(self, visible):
+        test = self.session.active_test
+        if test is None:
+            return
+        test.video.show_pressure_overlay = bool(visible)
+        test.mark_modified()
+        self.project_modified = True
+        self.update_status(test)
+
+    def on_video_curve_mode_changed(self, mode):
+        test = self.session.active_test
+        if test is None:
+            return
+        mode = str(mode or "thrust").strip().lower()
+        if mode not in {"thrust", "pressure"}:
+            mode = "thrust"
+        test.video.curve_mode = mode
+
+        default_titles = {
+            "thrust": "Measured Thrust",
+            "pressure": "Measured Pressure",
+        }
+        current_title = str(test.video.curve_title or "").strip()
+        if current_title in {
+            "Measured Thrust",
+            "Measured Pressure",
+        }:
+            test.video.curve_title = default_titles[mode]
+
+        test.mark_modified()
+        self.project_modified = True
+        self.update_status(test)
+
     def on_video_overlay_positions_changed(
         self,
         curve_x, curve_y, results_x, results_y,
@@ -2244,6 +2481,24 @@ class MainWindow(QMainWindow):
         test.video.curve_overlay_h = float(curve_h)
         test.video.results_overlay_w = float(results_w)
         test.video.results_overlay_h = float(results_h)
+        test.mark_modified()
+        self.project_modified = True
+        self.update_status(test)
+
+    def on_video_pressure_overlay_positions_changed(
+        self,
+        pressure_x,
+        pressure_y,
+        pressure_w,
+        pressure_h,
+    ):
+        test = self.session.active_test
+        if test is None:
+            return
+        test.video.pressure_overlay_x = float(pressure_x)
+        test.video.pressure_overlay_y = float(pressure_y)
+        test.video.pressure_overlay_w = float(pressure_w)
+        test.video.pressure_overlay_h = float(pressure_h)
         test.mark_modified()
         self.project_modified = True
         self.update_status(test)
@@ -2596,8 +2851,16 @@ class MainWindow(QMainWindow):
 
         if self.has_unsaved_changes():
 
+            # Distinguish project-level changes (such as imported
+            # simulation data) from edits to an individual test.
+            # A project-level change does not modify the source CSV.
+            if self.session.has_modified_tests:
+                status_text = f"MODIFIED — {test.filename}"
+            else:
+                status_text = "MODIFIED — Unsaved project changes"
+
             self.header.set_status(
-                f"MODIFIED — {test.filename}",
+                status_text,
                 modified=True,
             )
 

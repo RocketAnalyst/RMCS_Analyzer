@@ -10,44 +10,39 @@ The application is being developed with Python, PySide6, PyQtGraph, NumPy, and P
 
 ## Current Development Status
 
-## v0.3.0
+## v0.4.0
 
-RMCS Analyzer v0.3.0 establishes **Campaign Analysis v1** as the next functional
-milestone after the v0.2.0 Compare and project-workflow release.
+RMCS Analyzer v0.4.0 establishes **Simulation Integration and Expanded Video
+Analysis** as the current functional milestone after the v0.3.0 Campaign
+Analysis release.
 
-### Completed in v0.3.0
+### Completed in v0.4.0
 
-- Campaign Analysis workspace for selecting multiple recorded tests.
-- Population statistics for Total Impulse, Peak Thrust, Burn Time, Average Thrust,
-  Isp, and C* when the underlying test results are available.
-- Mean, median, minimum, maximum, population standard deviation, and coefficient
-  of variation for campaign metrics.
-- Metric Distribution visualization for the selected campaign metric.
-- Campaign Thrust Curve visualization with absolute-time and normalized-burn-time
-  views.
-- Campaign thrust-curve population statistics including mean, median, standard
-  deviation, minimum, and maximum.
-- Campaign selections remain independent of the active individual test.
-- Campaign selections persist in `.rmcs` project files and are restored when a
-  project is reopened.
-- Tests without completed analysis results are excluded from campaign calculations
-  rather than being treated as zero-valued measurements.
-- Existing v0.2.0 Compare, metadata, import, pressure-curve, and project workflows
-  remain part of the current application.
+- Project-level simulation import from BurnSim/OpenMotor-style CSV data.
+- Simulator-independent simulation normalization for time, thrust, and pressure.
+- Simulation comparison on the Thrust Curve workspace.
+- Simulation comparison on the Pressure Curve workspace.
+- Persistence of imported simulation data inside `.rmcs` projects.
+- Independent video Thrust and Pressure graph overlays.
+- Simultaneous Thrust and Pressure video overlays.
+- Simulation curves on the corresponding video graph overlays.
+- Persistent video overlay positions, sizes, visibility, and related presentation
+  state.
+- Improved saved-project video source restoration.
+- Synthetic simulation fixtures for regression testing.
+- Continued Campaign Analysis v1 functionality from v0.3.0.
 
 RMCS Analyzer remains in active development.
 
-The project has completed the core analysis-engine foundation and the first
-functional video-analysis workflow. The authoritative analysis layer is
-separate from the GUI and is protected by standalone regression/reference
-tests. The current application also supports persistent RMCS projects,
-interactive thrust analysis, synchronized test video playback, and a
-functional configurable video-overlay system.
+The project has completed the core analysis-engine foundation and now has
+functional test, campaign, simulation-comparison, and synchronized video
+analysis workflows. The authoritative analysis layer remains separate from the
+GUI and is protected by standalone regression/reference tests.
 
-The current development priority is **functionality before visual polish**.
-The video overlay system is considered functional enough for the current
-milestone; final styling, rendered video export, and transparent overlay
-export are intentionally deferred.
+The current development priority remains **functionality before final visual
+polish**. Export functionality and final production-readiness refinement are
+the next major development milestones. Final rendered-video export and
+transparent overlay-video export remain separate future capabilities.
 
 The current architecture is:
 
@@ -135,6 +130,11 @@ The current codebase supports:
 - Campaign metric distribution visualization
 - Campaign thrust-curve population comparison
 - Persistent Campaign test selection
+- Project-level simulation import and persistence
+- BurnSim/OpenMotor-style simulation comparison
+- Thrust and pressure simulation overlays
+- Independent synchronized video Thrust and Pressure graph overlays
+- Persistent video overlay positions and configuration
 - Interactive thrust-curve visualization
 - Test metadata and test-file panels
 - Motor classification display
@@ -628,11 +628,12 @@ A project stores the working state needed to reopen a test, including:
 - Test metadata
 - Imported test data
 - Analysis results
+- Project-level simulation data, when imported
 - Video association/path
 - Video synchronization state
 - Playback position
 - Overlay visibility/configuration
-- Overlay positions and sizes
+- Independent Thrust and Pressure overlay positions and sizes
 - Overlay event positions/visibility
 - Overlay titles and selected result fields
 
@@ -660,7 +661,12 @@ the system develops:
 8. Global application settings remain appropriate for global/default
    configuration; test-specific video state belongs in the `.rmcs` project.
 9. No-video operation remains a supported analyzer workflow.
-10. Final rendered-video export and transparent overlay-video export are not
+10. The current video overlay system supports independent measured
+    Thrust and Pressure graph overlays.
+11. Thrust and Pressure overlays may be displayed simultaneously.
+12. When simulation data is loaded, the corresponding simulation curve may be
+    shown on the Thrust and Pressure overlays.
+13. Final rendered-video export and transparent overlay-video export are not
     yet implemented.
 
 ---
@@ -689,10 +695,10 @@ Development is intentionally proceeding in functional milestones.
 
 ### Immediate / next major milestone
 
-- Complete the **Compare** workflow
-- Compare measured tests without duplicating analysis logic
-- Treat simulation/reference data as optional additional curves on the Thrust Curve workspace
-- Preserve project/test state while switching between comparisons
+- Implement the planned engineering and interchange export functions.
+- Keep export calculations driven by the authoritative `AnalysisResults` and
+  project/test data rather than duplicating analysis logic.
+- Validate exported data against the existing RMCS analysis results.
 
 ### Analysis and data workflow
 
@@ -705,27 +711,42 @@ Development is intentionally proceeding in functional milestones.
 
 ### Simulation
 
-- Simulation-curve workflow
-- Measured-vs-simulation comparison
-- Simulation overlay integration when real simulation data is available
+The core simulation-import and comparison workflow is now functional.
 
-The simulation workflow should not be treated as complete until the project
-has real simulation data and a defined import/data model.
+Current simulation behavior:
+
+- Import one project-level simulation dataset from CSV.
+- Normalize imported time to seconds, thrust to Newtons, and pressure to psi.
+- Support BurnSim/OpenMotor-style column naming without making simulator identity
+  a requirement for parsing.
+- Preserve the imported simulation inside the `.rmcs` project.
+- Allow independent simulation visibility on the Thrust Curve and Pressure Curve
+  workspaces.
+- Allow simulation visibility on the corresponding video graph overlays.
 
 ### Export
 
-Future export work may include:
+The export panel is present, but the planned export implementations are the
+next major functional milestone.
 
-- Broader engineering-data export
-- RASP `.eng`
-- RockSim `.rse`
+Planned export work may include:
+
 - OpenRocket-compatible data
+- RockSim-compatible data
 - BurnSim-compatible workflows
-- OpenMotor-compatible workflows
+- Analysis CSV
+- PDF report
+- Additional engineering-data export as requirements are established
+
+Each export must use the authoritative analysis/result model and clearly
+distinguish measured data, calculated results, and exported metadata.
 
 ### Video
 
-After the underlying curve/analysis workflows are mature:
+The current synchronized video-analysis workflow is functional, including
+independent Thrust and Pressure graph overlays and optional simulation curves.
+
+Future video work includes:
 
 - Final rendered-video export at source resolution
 - Transparent overlay-video export for external video software such as OBS
@@ -742,6 +763,7 @@ After core functionality is established:
 - Results presentation refinement
 - Event presentation refinement
 - Broader GUI polish
+- Production-readiness review and cleanup
 
 ### Packaging
 

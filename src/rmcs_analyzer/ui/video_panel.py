@@ -2,12 +2,13 @@ from pathlib import Path
 
 import numpy as np
 
-from PySide6.QtCore import QPoint, QRect, QSize, Qt, QUrl, Signal
+from PySide6.QtCore import QPoint, QRect, QSize, Qt, QUrl, Signal, QTimer
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPen
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer, QVideoFrame, QVideoSink
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QCheckBox,
+    QComboBox,
     QDialog,
     QDoubleSpinBox,
     QFileDialog,
@@ -139,9 +140,11 @@ class VideoOverlayWidget(QWidget):
     overlay_positions_changed = Signal(
         float, float, float, float, float, float, float, float
     )
+    pressure_overlay_positions_changed = Signal(float, float, float, float)
     event_positions_changed = Signal(object)
 
     CURVE = QColor(77, 220, 255)
+    SIMULATION = QColor(255, 184, 77)
     WHITE = QColor(248, 252, 255)
     AXIS = QColor(226, 236, 242, 220)
     GRID = QColor(235, 245, 250, 58)
@@ -171,6 +174,12 @@ class VideoOverlayWidget(QWidget):
 
         self._times = None
         self._thrust = None
+        self._pressure = None
+        self._simulation_times = None
+        self._simulation_thrust = None
+        self._simulation_pressure = None
+        self._curve_mode = "thrust"
+        self._show_pressure_curve = False
         self._time = 0.0
         self._peak = None
         self._average = None
@@ -186,10 +195,12 @@ class VideoOverlayWidget(QWidget):
         self._event_data = {}
 
         self._show_curve = True
+        self._show_simulation = False
         self._show_results = True
         self._show_events = True
 
         self._curve = [0.06, 0.58, 0.58, 0.34]
+        self._pressure_curve = [0.06, 0.10, 0.58, 0.34]
         self._results = [0.70, 0.06, 0.25, 0.24]
         self._event_positions = {
             "ignition": [0.05, 0.78],
@@ -224,9 +235,38 @@ class VideoOverlayWidget(QWidget):
     # Analysis/configuration
     # ---------------------------------------------------------
 
-    def set_analysis(self, times, thrust, thrust_results=None, classification=None, events=None):
+    def set_analysis(
+        self,
+        times,
+        thrust,
+        pressure=None,
+        thrust_results=None,
+        classification=None,
+        events=None,
+        simulation_times=None,
+        simulation_thrust=None,
+        simulation_pressure=None,
+    ):
         self._times = np.asarray(times, dtype=float) if times is not None else None
         self._thrust = np.asarray(thrust, dtype=float) if thrust is not None else None
+        self._pressure = (
+            np.asarray(pressure, dtype=float) if pressure is not None else None
+        )
+        self._simulation_times = (
+            np.asarray(simulation_times, dtype=float)
+            if simulation_times is not None
+            else None
+        )
+        self._simulation_thrust = (
+            np.asarray(simulation_thrust, dtype=float)
+            if simulation_thrust is not None
+            else None
+        )
+        self._simulation_pressure = (
+            np.asarray(simulation_pressure, dtype=float)
+            if simulation_pressure is not None
+            else None
+        )
 
         if thrust_results is not None:
             self._peak = thrust_results.peak_thrust_N
@@ -263,7 +303,50 @@ class VideoOverlayWidget(QWidget):
 
         self.update()
 
+    def set_curve_mode(self, mode):
+        mode = str(mode or "thrust").strip().lower()
+        self._curve_mode = mode if mode in {"thrust", "pressure"} else "thrust"
+        self.update()
+
+    def curve_mode(self):
+        return self._curve_mode
+
+    def set_simulation_visible(self, visible):
+        self._show_simulation = bool(visible)
+        self.update()
+
+    def simulation_visible(self):
+        return self._show_simulation
+
+    def set_pressure_visible(self, visible):
+        self._show_pressure_curve = bool(visible)
+        self.update()
+
+    def pressure_visible(self):
+        return self._show_pressure_curve
+
+    def set_pressure_overlay_position(self, x, y, w=0.58, h=0.34):
+        self._pressure_curve = [
+            self._clamp01(x),
+            self._clamp01(y),
+            self._clamp_size(w),
+            self._clamp_size(h),
+        ]
+        self.update()
+
+    def pressure_overlay_position(self):
+        return tuple(self._pressure_curve)
+
+    def has_simulation_for_mode(self, mode=None):
+        mode = mode or self._curve_mode
+        return (
+            self._simulation_pressure is not None
+            if mode == "pressure"
+            else self._simulation_thrust is not None
+        )
+
     def apply_configuration(
+
         self,
         *,
         curve_title,
@@ -301,8 +384,9 @@ class VideoOverlayWidget(QWidget):
         self._time = float(position_s or 0.0)
         self.update()
 
-    def set_visibility(self, curve, results, events):
+    def set_visibility(self, curve, results, events, pressure=False):
         self._show_curve = bool(curve)
+        self._show_pressure_curve = bool(pressure)
         self._show_results = bool(results)
         self._show_events = bool(events)
         self.update()
@@ -380,22 +464,47 @@ class VideoOverlayWidget(QWidget):
     def _curve_rect(self):
         return self._rect(self._curve)
 
+    def _pressure_curve_rect(self):
+        return self._rect(self._pressure_curve)
+
     def _results_rect(self):
         return self._rect(self._results)
 
+    def _selected_measured_data(self):
+        values = self._pressure if self._curve_mode == "pressure" else self._thrust
+        if self._times is None or values is None:
+            return np.array([]), np.array([])
+        mask = np.isfinite(self._times) & np.isfinite(values)
+        return self._times[mask], values[mask]
+
+    def _selected_simulation_data(self):
+        values = (
+            self._simulation_pressure
+            if self._curve_mode == "pressure"
+            else self._simulation_thrust
+        )
+        if self._simulation_times is None or values is None:
+            return np.array([]), np.array([])
+        mask = np.isfinite(self._simulation_times) & np.isfinite(values)
+        return self._simulation_times[mask], values[mask]
+
     def _data(self):
+        return self._selected_measured_data()
+
+    def _thrust_data(self):
         if self._times is None or self._thrust is None:
             return np.array([]), np.array([])
         mask = np.isfinite(self._times) & np.isfinite(self._thrust)
         return self._times[mask], self._thrust[mask]
 
     def _current_thrust(self):
-        times, thrust = self._data()
+        times, thrust = self._thrust_data()
         if len(times) == 0 or self._time < times[0]:
             return None
         return float(np.interp(self._time, times, thrust))
 
-    def _format_metric(self, key):
+    def _format_metric(
+self, key):
         value = {
             "current_thrust": self._current_thrust(),
             "designation": self._designation,
@@ -431,18 +540,40 @@ class VideoOverlayWidget(QWidget):
         return f"{label}  {formatter(value)}"
 
     # ---------------------------------------------------------
-    # Painting
-    # ---------------------------------------------------------
+    def _graph_data(self, mode, simulation=False):
+        if simulation:
+            times = self._simulation_times
+            values = self._simulation_pressure if mode == "pressure" else self._simulation_thrust
+        else:
+            times = self._times
+            values = self._pressure if mode == "pressure" else self._thrust
+        if times is None or values is None:
+            return np.array([]), np.array([])
+        times = np.asarray(times, dtype=float)
+        values = np.asarray(values, dtype=float)
+        mask = np.isfinite(times) & np.isfinite(values)
+        return times[mask], values[mask]
 
     def paintEvent(self, event):
-        if self._times is None or self._thrust is None or len(self._times) < 2:
-            return
-
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         if self._show_curve:
-            self._paint_curve(painter)
+            self._paint_graph(
+                painter,
+                mode="thrust",
+                box=self._curve,
+                title=self._curve_title,
+            )
+
+        if self._show_pressure_curve:
+            self._paint_graph(
+                painter,
+                mode="pressure",
+                box=self._pressure_curve,
+                title="Measured Pressure",
+            )
+
         if self._show_results:
             self._paint_results(painter)
         if self._show_events:
@@ -451,28 +582,45 @@ class VideoOverlayWidget(QWidget):
 
         painter.end()
 
-    def _draw_shadow_text(self, painter, x, y, text, font, color=WHITE):
+    def _draw_shadow_text(self, painter, x, y, text, font, color=None):
+        if color is None:
+            color = self.WHITE
         painter.setFont(font)
         painter.setPen(self.SHADOW)
         painter.drawText(x + 2, y + 2, text)
         painter.setPen(color)
         painter.drawText(x, y, text)
 
-    def _paint_curve(self, painter):
-        times, thrust = self._data()
-        if len(times) < 2:
+    def _paint_graph(self, painter, *, mode, box, title):
+        measured_times, measured_values = self._graph_data(mode, simulation=False)
+        simulation_times, simulation_values = self._graph_data(mode, simulation=True)
+
+        measured_ok = len(measured_times) >= 2
+        simulation_ok = self._show_simulation and len(simulation_times) >= 2
+
+        if not measured_ok and not simulation_ok:
             return
 
-        t0 = float(times[0])
-        t1 = float(times[-1])
+        all_times = []
+        all_values = []
+        if measured_ok:
+            all_times.append(measured_times)
+            all_values.append(measured_values)
+        if simulation_ok:
+            all_times.append(simulation_times)
+            all_values.append(simulation_values)
+
+        t0 = min(float(values[0]) for values in all_times)
+        t1 = max(float(values[-1]) for values in all_times)
         if t1 <= t0:
             return
 
-        max_thrust = max(1.0, float(np.nanmax(thrust)))
-        r = self._curve_rect()
+        max_value = max(
+            1.0,
+            max(float(np.nanmax(values)) for values in all_values),
+        )
+        r = self._rect(box)
 
-        # Optional subtle chart background. This can be disabled in Settings
-        # when the video itself provides enough contrast.
         if self._curve_show_background:
             painter.fillRect(r, QColor(0, 0, 0, 52))
 
@@ -485,7 +633,7 @@ class VideoOverlayWidget(QWidget):
             painter,
             r.left() + int(r.width() * 0.035),
             r.top() + int(r.height() * 0.075),
-            self._curve_title,
+            title,
             title_font,
         )
 
@@ -514,38 +662,62 @@ class VideoOverlayWidget(QWidget):
             painter.drawLine(plot.left(), plot.top(), plot.left(), plot.bottom())
             painter.drawLine(plot.left(), plot.bottom(), plot.right(), plot.bottom())
 
-        path = QPainterPath()
-        for i, (t, value) in enumerate(zip(times, thrust)):
-            x = plot.left() + (float(t) - t0) / (t1 - t0) * plot.width()
-            y = plot.bottom() - float(value) / max_thrust * plot.height()
-            if i == 0:
-                path.moveTo(x, y)
-            else:
-                path.lineTo(x, y)
+        def draw_series(times, values, pen):
+            path = QPainterPath()
+            for i, (t, value) in enumerate(zip(times, values)):
+                x = plot.left() + (float(t) - t0) / (t1 - t0) * plot.width()
+                y = plot.bottom() - float(value) / max_value * plot.height()
+                if i == 0:
+                    path.moveTo(x, y)
+                else:
+                    path.lineTo(x, y)
+            # drawPath() uses the painter's current brush as its fill.
+            # The playback marker later uses a white brush, so explicitly
+            # disable the brush here; the graph must remain a line-only
+            # overlay for both thrust and pressure.
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(pen)
+            painter.drawPath(path)
 
-        painter.setPen(
-            QPen(
-                self.CURVE,
-                max(2, int(min(r.width(), r.height()) / 105)),
-                Qt.PenStyle.SolidLine,
-                Qt.PenCapStyle.RoundCap,
-                Qt.PenJoinStyle.RoundJoin,
+        width = max(2, int(min(r.width(), r.height()) / 105))
+        if measured_ok:
+            draw_series(
+                measured_times,
+                measured_values,
+                QPen(
+                    self.CURVE,
+                    width,
+                    Qt.PenStyle.SolidLine,
+                    Qt.PenCapStyle.RoundCap,
+                    Qt.PenJoinStyle.RoundJoin,
+                ),
             )
-        )
-        painter.drawPath(path)
 
-        # Y-axis labels are deliberately placed outside the plot area so
-        # they never sit on top of the thrust curve.
+        if simulation_ok:
+            draw_series(
+                simulation_times,
+                simulation_values,
+                QPen(
+                    self.SIMULATION,
+                    width,
+                    Qt.PenStyle.DashLine,
+                    Qt.PenCapStyle.RoundCap,
+                    Qt.PenJoinStyle.RoundJoin,
+                ),
+            )
+
+        unit = "psi" if mode == "pressure" else "N"
         axis_font = QFont(
             "Segoe UI",
             max(7, int(r.height() / 23)),
             QFont.Weight.Normal,
         )
         painter.setFont(axis_font)
+
         for fraction in (0.0, 0.5, 1.0):
-            value = max_thrust * fraction
+            value = max_value * fraction
             y = plot.bottom() - int(fraction * plot.height())
-            label = f"{value:.0f} N"
+            label = f"{value:.0f} {unit}"
             bounds = painter.fontMetrics().boundingRect(label)
             label_x = plot.left() - bounds.width() - 7
             label_y = y + int(bounds.height() * 0.35)
@@ -558,7 +730,6 @@ class VideoOverlayWidget(QWidget):
                 self.WHITE,
             )
 
-        # X-axis labels
         for fraction in (0.0, 0.5, 1.0):
             value = t0 + (t1 - t0) * fraction
             x = plot.left() + int(fraction * plot.width())
@@ -570,6 +741,7 @@ class VideoOverlayWidget(QWidget):
                 axis_font,
                 self.WHITE,
             )
+
         self._draw_shadow_text(
             painter,
             plot.right() - 28,
@@ -579,12 +751,11 @@ class VideoOverlayWidget(QWidget):
             self.WHITE,
         )
 
-        # Current playback marker.
-        if self._time >= t0:
-            tm = min(self._time, t1)
-            tv = float(np.interp(tm, times, thrust))
+        if self._time >= t0 and measured_ok:
+            tm = min(self._time, float(measured_times[-1]))
+            tv = float(np.interp(tm, measured_times, measured_values))
             x = plot.left() + (tm - t0) / (t1 - t0) * plot.width()
-            y = plot.bottom() - tv / max_thrust * plot.height()
+            y = plot.bottom() - tv / max_value * plot.height()
             radius = max(4, int(min(r.width(), r.height()) / 45))
             painter.setPen(QPen(self.WHITE, 2))
             painter.setBrush(self.WHITE)
@@ -630,15 +801,17 @@ class VideoOverlayWidget(QWidget):
             y += value_font.pointSize() + 5
 
     def _event_anchor(self, event_key, event_time, chart_rect):
-        times, thrust = self._data()
+        times, values = self._graph_data("thrust", simulation=False)
+        if len(times) < 2:
+            times, values = self._graph_data("thrust", simulation=True)
         if len(times) < 2:
             return None
         t0, t1 = float(times[0]), float(times[-1])
-        max_thrust = max(1.0, float(np.nanmax(thrust)))
+        max_value = max(1.0, float(np.nanmax(values)))
         tm = max(t0, min(float(event_time), t1))
-        tv = float(np.interp(tm, times, thrust))
+        tv = float(np.interp(tm, times, values))
         x = chart_rect.left() + (tm - t0) / (t1 - t0) * chart_rect.width()
-        y = chart_rect.bottom() - tv / max_thrust * chart_rect.height()
+        y = chart_rect.bottom() - tv / max_value * chart_rect.height()
         return QPoint(int(x), int(y))
 
     def _event_label_rect(self, event_key):
@@ -654,7 +827,11 @@ class VideoOverlayWidget(QWidget):
         if not self._event_data:
             return
 
-        chart = self._curve_rect()
+        chart = (
+            self._curve_rect()
+            if self._show_curve
+            else self._pressure_curve_rect()
+        )
         plot_left = chart.left() + int(chart.width() * 0.12)
         plot_top = chart.top() + int(chart.height() * 0.19)
         plot_right = chart.right() - int(chart.width() * 0.035)
@@ -707,6 +884,8 @@ class VideoOverlayWidget(QWidget):
 
         if self._selected == "curve":
             rect = self._curve_rect()
+        elif self._selected == "pressure":
+            rect = self._pressure_curve_rect()
         elif self._selected == "results":
             rect = self._results_rect()
         elif self._selected.startswith("event:"):
@@ -718,7 +897,7 @@ class VideoOverlayWidget(QWidget):
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRect(rect)
 
-        if self._selected in ("curve", "results"):
+        if self._selected in ("curve", "pressure", "results"):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(self.SELECTION)
             painter.drawRect(rect.right() - 7, rect.bottom() - 7, 7, 7)
@@ -733,15 +912,23 @@ class VideoOverlayWidget(QWidget):
                     if self._event_label_rect(key).contains(point):
                         return f"event:{key}"
 
+        if self._show_pressure_curve and self._pressure_curve_rect().contains(point):
+            return "pressure"
+
         if self._show_curve and self._curve_rect().contains(point):
             return "curve"
 
         return None
 
     def _resize_hit(self, point, target):
-        if target not in ("curve", "results"):
+        if target not in ("curve", "pressure", "results"):
             return False
-        rect = self._curve_rect() if target == "curve" else self._results_rect()
+        if target == "curve":
+            rect = self._curve_rect()
+        elif target == "pressure":
+            rect = self._pressure_curve_rect()
+        else:
+            rect = self._results_rect()
         return (
             abs(point.x() - rect.right()) <= 12
             and abs(point.y() - rect.bottom()) <= 12
@@ -770,12 +957,13 @@ class VideoOverlayWidget(QWidget):
             self._drag_target = target
             self._resize_target = None
 
-            if target in ("curve", "results"):
-                rect = (
-                    self._curve_rect()
-                    if target == "curve"
-                    else self._results_rect()
-                )
+            if target in ("curve", "pressure", "results"):
+                if target == "curve":
+                    rect = self._curve_rect()
+                elif target == "pressure":
+                    rect = self._pressure_curve_rect()
+                else:
+                    rect = self._results_rect()
             else:
                 rect = self._event_label_rect(
                     target.split(":", 1)[1]
@@ -796,11 +984,12 @@ class VideoOverlayWidget(QWidget):
             self._resize_target
             and event.buttons() & Qt.MouseButton.LeftButton
         ):
-            box = (
-                self._curve
-                if self._resize_target == "curve"
-                else self._results
-            )
+            if self._resize_target == "curve":
+                box = self._curve
+            elif self._resize_target == "pressure":
+                box = self._pressure_curve
+            else:
+                box = self._results
             left = box[0] * self.width()
             top = box[1] * self.height()
             box[2] = max(
@@ -818,7 +1007,7 @@ class VideoOverlayWidget(QWidget):
                 ),
             )
             self.update()
-            self._emit_positions()
+            self._emit_positions(self._resize_target)
             event.accept()
             return
 
@@ -828,8 +1017,13 @@ class VideoOverlayWidget(QWidget):
         ):
             target = self._drag_target
 
-            if target in ("curve", "results"):
-                box = self._curve if target == "curve" else self._results
+            if target in ("curve", "pressure", "results"):
+                if target == "curve":
+                    box = self._curve
+                elif target == "pressure":
+                    box = self._pressure_curve
+                else:
+                    box = self._results
                 x = (
                     point.x() - self._drag_offset.x()
                 ) / max(1, self.width())
@@ -858,6 +1052,8 @@ class VideoOverlayWidget(QWidget):
                 self.event_positions_changed.emit(self.event_positions())
 
             self.update()
+            if target in ("curve", "pressure", "results"):
+                self._emit_positions(target)
             event.accept()
             return
 
@@ -868,8 +1064,13 @@ class VideoOverlayWidget(QWidget):
             self.update()
             event.accept()
 
-    def _emit_positions(self):
-        self.overlay_positions_changed.emit(*self.overlay_positions())
+    def _emit_positions(self, target=None):
+        if target in (None, "curve", "results"):
+            self.overlay_positions_changed.emit(*self.overlay_positions())
+        if target in ("pressure", None):
+            self.pressure_overlay_positions_changed.emit(
+                *self.pressure_overlay_position()
+            )
 
 
 class VideoPopoutWindow(QDialog):
@@ -896,7 +1097,11 @@ class VideoPanel(QFrame):
     video_removed = Signal()
     sync_offset_changed = Signal(float)
     overlay_changed = Signal(bool, bool, bool)
+    pressure_overlay_changed = Signal(bool)
+    simulation_overlay_changed = Signal(bool)
+    curve_mode_changed = Signal(str)
     overlay_positions_changed = Signal(float, float, float, float, float, float, float, float)
+    pressure_overlay_positions_changed = Signal(float, float, float, float)
     overlay_event_positions_changed = Signal(object)
     overlay_configuration_changed = Signal(object)
     duration_changed = Signal(float)
@@ -918,6 +1123,8 @@ class VideoPanel(QFrame):
         self._video_name = ""
         self._popout = None
         self._has_analysis = False
+        self._priming_frame = False
+        self._priming_audio_volume = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 8, 10, 8)
@@ -951,7 +1158,7 @@ class VideoPanel(QFrame):
 
         self._video_container = VideoCanvas()
         self._video_container.setObjectName("videoPreview")
-        self._video_container.setMinimumHeight(150)
+        self._video_container.setMinimumHeight(82)
         self._video_container.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
@@ -964,15 +1171,28 @@ class VideoPanel(QFrame):
         self._video_container.overlay = self.overlay
         self._video_container.sync_overlay_geometry()
 
-        options = QHBoxLayout()
-        options.setSpacing(8)
-        self.curve_check = QCheckBox("Curve")
+        options_row = QHBoxLayout()
+        options_row.setSpacing(7)
+        self.curve_check = QCheckBox("Thrust")
+        self.pressure_check = QCheckBox("Pressure")
+        self.simulation_check = QCheckBox("Simulation")
         self.results_check = QCheckBox("Results")
         self.events_check = QCheckBox("Events")
-        for checkbox in (self.curve_check, self.results_check, self.events_check):
+        for checkbox in (
+            self.curve_check,
+            self.pressure_check,
+            self.simulation_check,
+            self.results_check,
+            self.events_check,
+        ):
             checkbox.setObjectName("videoOption")
-            options.addWidget(checkbox)
-        options.addStretch(1)
+            options_row.addWidget(checkbox)
+        options_row.addStretch(1)
+        layout.addLayout(options_row)
+
+        sync_row = QHBoxLayout()
+        sync_row.setSpacing(4)
+        sync_row.addStretch(1)
 
         self.sync_spin = QDoubleSpinBox()
         self.sync_spin.setObjectName("videoSyncSpin")
@@ -982,13 +1202,14 @@ class VideoPanel(QFrame):
         self.sync_spin.setSuffix(" s")
         self.sync_spin.setPrefix("Sync Start ")
         self.sync_spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        self.sync_spin.setFixedWidth(104)
         self.sync_spin.setToolTip("Video time at which RMCS analysis t = 0 begins.")
 
         self.sync_up_button = QPushButton("▲")
         self.sync_down_button = QPushButton("▼")
         for button in (self.sync_up_button, self.sync_down_button):
             button.setObjectName("videoSyncStepButton")
-            button.setFixedWidth(26)
+            button.setFixedWidth(22)
 
         sync = QHBoxLayout()
         sync.setContentsMargins(0, 0, 0, 0)
@@ -996,8 +1217,8 @@ class VideoPanel(QFrame):
         sync.addWidget(self.sync_spin)
         sync.addWidget(self.sync_up_button)
         sync.addWidget(self.sync_down_button)
-        options.addLayout(sync)
-        layout.addLayout(options)
+        sync_row.addLayout(sync)
+        layout.addLayout(sync_row)
 
         self.player = QMediaPlayer(self)
         self.audio = QAudioOutput(self)
@@ -1007,6 +1228,7 @@ class VideoPanel(QFrame):
         self.video_sink.videoFrameChanged.connect(self._on_video_frame)
         self.player.setVideoSink(self.video_sink)
         self.player.durationChanged.connect(self._duration_changed)
+        self.player.mediaStatusChanged.connect(self._media_status_changed)
         self.player.errorOccurred.connect(self._error_occurred)
 
         self.load_button.clicked.connect(self._choose_video)
@@ -1023,8 +1245,14 @@ class VideoPanel(QFrame):
         ):
             checkbox.toggled.connect(self._overlay_toggled)
 
+        self.pressure_check.toggled.connect(self._pressure_toggled)
+        self.simulation_check.toggled.connect(self._simulation_toggled)
+
         self.overlay.overlay_positions_changed.connect(
             self._overlay_position_changed
+        )
+        self.overlay.pressure_overlay_positions_changed.connect(
+            self._pressure_overlay_position_changed
         )
         self.overlay.event_positions_changed.connect(
             self._overlay_event_position_changed
@@ -1041,6 +1269,10 @@ class VideoPanel(QFrame):
         if self._popout is not None:
             self.close_popout()
 
+        self._priming_frame = False
+        if self._priming_audio_volume is not None:
+            self.audio.setVolume(self._priming_audio_volume)
+            self._priming_audio_volume = None
         self.player.stop()
         self.player.setSource(QUrl())
         self.status_label.setText("No video loaded")
@@ -1052,7 +1284,10 @@ class VideoPanel(QFrame):
         self._playing = False
         self.video_surface.clear_frame()
         self._has_analysis = False
-        self.overlay.set_analysis(None, None)
+        self.overlay.set_analysis(None, None, pressure=None)
+        self.simulation_check.setEnabled(False)
+        self.pressure_check.setEnabled(False)
+        self.overlay.set_visibility(False, False, False, pressure=False)
         self.overlay.hide()
         self.duration_changed.emit(0.0)
 
@@ -1061,18 +1296,25 @@ class VideoPanel(QFrame):
         source_path,
         sync_offset_s=0.0,
         show_curve=True,
+        show_pressure=False,
+        show_simulation=False,
         show_results=True,
         show_events=True,
         curve_x=0.06,
         curve_y=0.58,
+        pressure_x=0.06,
+        pressure_y=0.10,
         results_x=0.70,
         results_y=0.06,
         curve_w=0.58,
         curve_h=0.34,
+        pressure_w=0.58,
+        pressure_h=0.34,
         results_w=0.25,
         results_h=0.24,
         event_positions=None,
         curve_title="Measured Thrust",
+        curve_mode="thrust",
         results_title="Test Results",
         result_fields=None,
         event_visibility=None,
@@ -1085,8 +1327,12 @@ class VideoPanel(QFrame):
             self._sync_offset_s = float(sync_offset_s or 0.0)
             self.sync_spin.setValue(self._sync_offset_s)
             self.curve_check.setChecked(bool(show_curve))
+            self.pressure_check.setChecked(bool(show_pressure))
+            self.simulation_check.setChecked(bool(show_simulation))
             self.results_check.setChecked(bool(show_results))
             self.events_check.setChecked(bool(show_events))
+            # Older projects may still contain curve_mode; the new UI shows
+            # independent thrust and pressure overlays instead.
 
             self.overlay.set_overlay_positions(
                 curve_x,
@@ -1098,6 +1344,12 @@ class VideoPanel(QFrame):
                 results_w,
                 results_h,
                 event_positions,
+            )
+            self.overlay.set_pressure_overlay_position(
+                pressure_x,
+                pressure_y,
+                pressure_w,
+                pressure_h,
             )
             self.overlay.apply_configuration(
                 curve_title=curve_title,
@@ -1122,6 +1374,7 @@ class VideoPanel(QFrame):
                 show_curve,
                 show_results,
                 show_events,
+                pressure=show_pressure,
             )
 
             if source_path:
@@ -1135,26 +1388,58 @@ class VideoPanel(QFrame):
         self,
         times,
         thrust,
+        pressure,
         thrust_results,
         classification,
         events,
+        simulation_times=None,
+        simulation_thrust=None,
+        simulation_pressure=None,
     ):
         self._has_analysis = times is not None and thrust is not None
         self.overlay.set_analysis(
             times,
             thrust,
-            thrust_results,
-            classification,
-            events,
+            pressure=pressure,
+            thrust_results=thrust_results,
+            classification=classification,
+            events=events,
+            simulation_times=simulation_times,
+            simulation_thrust=simulation_thrust,
+            simulation_pressure=simulation_pressure,
         )
+
+        measured_pressure_available = (
+            pressure is not None
+            and np.asarray(pressure, dtype=float).size >= 2
+        )
+        simulation_pressure_available = self.overlay.has_simulation_for_mode("pressure")
+        self.pressure_check.setEnabled(
+            bool(measured_pressure_available or simulation_pressure_available)
+        )
+        if not self.pressure_check.isEnabled():
+            self.pressure_check.setChecked(False)
+
+        sim_available = (
+            self.overlay.has_simulation_for_mode("thrust")
+            or simulation_pressure_available
+        )
+        self.simulation_check.setEnabled(bool(sim_available))
+        if not sim_available:
+            self.simulation_check.setChecked(False)
+        self.overlay.set_simulation_visible(self.simulation_check.isChecked())
+
         self._update_overlay_time()
         self.overlay.set_visibility(
             self.curve_check.isChecked(),
             self.results_check.isChecked(),
             self.events_check.isChecked(),
+            pressure=self.pressure_check.isChecked(),
         )
         if self.is_loaded():
+            self._video_container.sync_overlay_geometry()
             self.overlay.show()
+            self.overlay.raise_()
         else:
             self.overlay.hide()
 
@@ -1167,6 +1452,10 @@ class VideoPanel(QFrame):
             return False
 
         self._playing = False
+        self._priming_frame = False
+        if self._priming_audio_volume is not None:
+            self.audio.setVolume(self._priming_audio_volume)
+            self._priming_audio_volume = None
         self.player.stop()
         self._video_duration_s = 0.0
         self.video_surface.clear_frame()
@@ -1205,7 +1494,9 @@ class VideoPanel(QFrame):
             self.results_check.isChecked(),
             self.events_check.isChecked(),
         )
-        self.overlay.set_visibility(*values)
+        self.overlay.set_visibility(
+            values[0], values[1], values[2], pressure=self.pressure_check.isChecked()
+        )
         if self.is_loaded():
             self.overlay.show()
         else:
@@ -1213,9 +1504,35 @@ class VideoPanel(QFrame):
         if not self._loading_state:
             self.overlay_changed.emit(*values)
 
+    def _pressure_toggled(self, checked):
+        self.overlay.set_pressure_visible(bool(checked))
+        if self.is_loaded():
+            self.overlay.show()
+        else:
+            self.overlay.hide()
+        if not self._loading_state:
+            self.pressure_overlay_changed.emit(bool(checked))
+
+    def _simulation_toggled(self, checked):
+        self.overlay.set_simulation_visible(bool(checked))
+        if not self._loading_state:
+            self.simulation_overlay_changed.emit(bool(checked))
+
+    def _curve_mode_changed(self, index):
+        # Retained for backward compatibility with older callers/projects.
+        mode = "pressure" if str(index).lower() == "pressure" else "thrust"
+        if not self._loading_state:
+            self.curve_mode_changed.emit(mode)
+
     def _overlay_position_changed(self, *values):
         if not self._loading_state:
             self.overlay_positions_changed.emit(*values)
+
+    def _pressure_overlay_position_changed(self, x, y, w, h):
+        if not self._loading_state:
+            self.pressure_overlay_positions_changed.emit(
+                float(x), float(y), float(w), float(h)
+            )
 
     def _overlay_event_position_changed(self, positions):
         if not self._loading_state:
@@ -1272,9 +1589,14 @@ class VideoPanel(QFrame):
 
     def _on_video_frame(self, frame):
         self.video_surface.set_frame(frame)
+        self._video_container.sync_overlay_geometry()
+
+        if self._priming_frame:
+            self._finish_priming_frame()
+
         if self._has_analysis and self.is_loaded():
             self.overlay.show()
-            self._video_container.sync_overlay_geometry()
+            self.overlay.raise_()
 
     def _choose_video(self):
         filename, _ = QFileDialog.getOpenFileName(
@@ -1297,6 +1619,55 @@ class VideoPanel(QFrame):
             self._timeline_position_s,
             force_video_seek=True,
         )
+
+    def _media_status_changed(self, status):
+        """Refresh the overlay geometry once Qt has loaded the video source."""
+        if status not in (
+            QMediaPlayer.MediaStatus.LoadedMedia,
+            QMediaPlayer.MediaStatus.BufferedMedia,
+        ):
+            return
+
+        self._video_container.sync_overlay_geometry()
+        if self._has_analysis and self.is_loaded():
+            self.overlay.show()
+            self.overlay.raise_()
+
+        # QMediaPlayer may not deliver a decoded frame while paused. The
+        # overlay needs the real video aspect ratio before its normalized
+        # objects can be positioned correctly, so briefly prime one frame.
+        if not self.video_surface._image.isNull():
+            self._refresh_loaded_video_geometry()
+        else:
+            self._prime_video_frame()
+
+    def _refresh_loaded_video_geometry(self):
+        if not self.is_loaded():
+            return
+        self._video_container.sync_overlay_geometry()
+        self.overlay.update()
+
+    def _prime_video_frame(self):
+        """Decode one frame so overlay geometry knows the video aspect ratio."""
+        if not self.is_loaded() or self._priming_frame:
+            return
+
+        self._priming_frame = True
+        self._priming_audio_volume = self.audio.volume()
+        self.audio.setVolume(0.0)
+        self.player.play()
+        QTimer.singleShot(750, self._finish_priming_frame)
+
+    def _finish_priming_frame(self):
+        if not self._priming_frame:
+            return
+        self._priming_frame = False
+        self.player.pause()
+        if self._priming_audio_volume is not None:
+            self.audio.setVolume(self._priming_audio_volume)
+            self._priming_audio_volume = None
+        self._video_container.sync_overlay_geometry()
+        self.overlay.update()
 
     def _error_occurred(self, error, error_string):
         if error_string:

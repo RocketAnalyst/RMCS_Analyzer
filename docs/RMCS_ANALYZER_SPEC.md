@@ -460,10 +460,13 @@ The current video state includes:
 - Video source path
 - Synchronization start/offset
 - Playback position
-- Curve overlay visibility
+- Thrust curve overlay visibility
+- Pressure curve overlay visibility
+- Simulation overlay visibility
 - Results overlay visibility
 - Event-marker visibility
-- Curve overlay position and size
+- Thrust curve overlay position and size
+- Pressure curve overlay position and size
 - Results overlay position and size
 - Events overlay position
 - Individual event positions and visibility
@@ -605,27 +608,72 @@ The following are intentionally deferred:
 These are presentation/export milestones and must not be allowed to
 destabilize the underlying synchronization or analysis behavior.
 
-### 20.10 Future overlay curves
+### 20.10 Synchronized curve overlays
 
-The overlay architecture is expected to support additional synchronized
-curves, including:
+The current functional overlay system supports two independent engineering
+curve overlays:
 
-- Pressure
-- Simulation
-- Measured versus simulation
+- Measured Thrust
+- Measured Pressure
 
-A simulation workflow should not be implemented as a completed feature
-until real simulation data and its import/model requirements are defined.
+The Thrust and Pressure graph overlays may be displayed simultaneously.
 
-### 20.11 Project persistence
+When a project-level simulation is loaded, the corresponding simulation
+channel may be displayed on each graph:
+
+- Simulation thrust on the Thrust overlay
+- Simulation pressure on the Pressure overlay
+
+Simulation curves are a comparison/reference layer. They do not replace the
+authoritative measured RMCS test data or the authoritative `AnalysisResults`.
+
+### 20.11 Simulation Data Integration
+
+RMCS Analyzer supports one optional project-level simulation dataset.
+
+Simulation data is imported from CSV and normalized into a simulator-independent
+runtime model. The current normalized channels are:
+
+- Time in seconds
+- Thrust in Newtons
+- Pressure in psi
+
+The importer recognizes common BurnSim/OpenMotor-style column names and units.
+Simulator identification is metadata only and does not determine the parsing
+rules.
+
+The normalized simulation model contains:
+
+- Time samples
+- Optional thrust samples
+- Optional pressure samples
+- Source metadata
+- Simulator metadata when it can be identified
+
+The imported simulation is stored inside the `.rmcs` project as project-level
+data. The original simulation CSV remains an external source file and is not
+required for the saved project's simulation curves after import.
+
+Simulation data is intentionally separate from individual test data because
+one imported simulation represents the project-level reference/comparison
+case rather than a measurement belonging to one particular firing.
+
+Simulation data may have a different sample rate or time grid from measured
+RMCS data. Plotting and video synchronization therefore use each source's
+own
+time axis rather than assuming sample-for-sample correspondence.
+
+### 20.12 Project persistence
 
 The following video/overlay state must survive test switching and
 `.rmcs` save/load:
 
+- Project-level simulation data, when imported
 - Video association
 - Sync Start
 - Playback position
-- Overlay visibility
+- Thrust and Pressure overlay visibility
+- Simulation overlay visibility
 - Overlay positions/sizes
 - Event visibility/positions
 - Overlay titles
@@ -981,13 +1029,13 @@ The current development sequence is:
         ↓
 6. Pressure-curve and broader analysis workflows
         ↓
-7. Simulation workflow when real simulation data is available
+7. Simulation import and comparison workflow
         ↓
-8. Broader data/export workflows
+8. Export workflows
         ↓
-9. Rendered-video and transparent-overlay export
+9. Final GUI / overlay / production-readiness refinement
         ↓
-10. Final GUI and overlay visual polish
+10. Rendered-video and transparent-overlay export
         ↓
 11. Continued reference and commercial-motor validation
 ```
@@ -996,12 +1044,13 @@ The current project is intentionally prioritizing usable functionality over
 final visual polish.
 
 The functional video/overlay milestone is established, and the Compare,
-Pressure Curve, and Campaign Analysis workflows are now functional.
+Pressure Curve, Campaign Analysis, and Simulation workflows are now functional.
 
-The current major functional milestone is **Campaign Analysis v1**. The next
-development areas include broader simulation/data workflows, export capability,
-final video/overlay export, GUI visual polish, and continued reference and
-commercial-motor validation.
+The current major functional milestone is **Simulation Integration and
+Expanded Video Analysis (v0.4.0)**. The next major development area is the
+export workflow, followed by final GUI/overlay and production-readiness
+refinement. Rendered-video and transparent-overlay export remain separate
+future capabilities.
 
 The analysis engine remains authoritative. New GUI workflows must consume the
 existing result model rather than duplicating engineering calculations.
@@ -1012,6 +1061,37 @@ documented methodology should be added to the validation suite.
 This document remains the project's source of truth for analysis
 methodology, architecture, current functional behavior, and development
 direction.
+
+## v0.4.0 Milestone
+
+Completed:
+
+- Project-level simulation import from BurnSim/OpenMotor-style CSV data.
+- Simulator-independent normalized simulation model.
+- Simulation comparison on the Thrust Curve workspace.
+- Simulation comparison on the Pressure Curve workspace.
+- Simulation persistence inside `.rmcs` project files.
+- Independent synchronized video Thrust and Pressure graph overlays.
+- Simultaneous Thrust and Pressure video overlays.
+- Simulation curves on the corresponding video overlays.
+- Persistent independent overlay positions and sizes.
+- Improved saved-project video source restoration.
+- Pressure overlay rendering corrected to remain line-based without unintended
+  area fill.
+- Saved `.rmcs` projects reopen as clean projects rather than falsely showing
+  `MODIFIED`.
+
+Project compatibility:
+
+- RMCS project format remains version **3**.
+- RMCS CSV format remains version **1.0**.
+
+Next:
+
+- Export workflows.
+- Final GUI/overlay and production-readiness refinement.
+- Rendered-video and transparent-overlay export.
+- Continued reference and commercial-motor validation.
 
 ## v0.3.0 Milestone
 
