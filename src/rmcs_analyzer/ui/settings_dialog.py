@@ -377,7 +377,7 @@ class SettingsDialog(QDialog):
     @staticmethod
     def _template_contents(template_type):
         if template_type == "test":
-            return """Format Version,1,,,,,
+            return """Format Version,1.0,,,,,
 Test Number,,,,,,
 Test Date,,,,,,
 Test Stand,,,,,,

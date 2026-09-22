@@ -10,7 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 REFERENCE_FILE = PROJECT_ROOT / "test_data" / "Zerox.csv"
 
 
-def main():
+def _script_regression():
     data = RMCSCSVReader().read(REFERENCE_FILE)
 
     processing = ProcessingPipeline().process(
@@ -53,5 +53,10 @@ def main():
     print("THRUST RATE METRICS REGRESSION PASSED")
 
 
+
+def test_script_regression():
+    _script_regression()
+
+
 if __name__ == "__main__":
-    main()
+    _script_regression()

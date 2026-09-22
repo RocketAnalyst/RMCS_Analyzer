@@ -43,7 +43,7 @@ def integrate_positive(time_s, thrust_N):
     return float(np.trapezoid(np.maximum(thrust_N, 0.0), time_s))
 
 
-def main():
+def _script_regression():
     print("RMCS Analyzer Zerox Reference Analysis")
     print("=" * 78)
 
@@ -126,5 +126,10 @@ def main():
     print("=" * 78)
 
 
+
+def test_script_regression():
+    _script_regression()
+
+
 if __name__ == "__main__":
-    main()
+    _script_regression()

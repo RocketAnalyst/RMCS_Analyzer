@@ -25,7 +25,7 @@ from ..processing.event_model import (
     EventType,
 )
 
-from .test_model import TestModel
+from .model import TestModel
 from .session import TestSession
 from .video_state import VideoState
 from ..simulation.models import SimulationData, SimulationMetadata

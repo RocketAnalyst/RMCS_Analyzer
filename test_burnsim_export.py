@@ -5,7 +5,7 @@ import numpy as np
 
 from rmcs_analyzer.data.models import TestData as RMCSData
 from rmcs_analyzer.export.burnsim import export_burnsim_csv
-from rmcs_analyzer.project.test_model import TestModel as RMCSTest
+from rmcs_analyzer.project.model import TestModel as RMCSTest
 
 
 def make_test():

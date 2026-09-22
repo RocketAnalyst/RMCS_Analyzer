@@ -10,8 +10,8 @@ Motor Type,Solid
 Manufacturer,Synthetic Test Data
 Builder,RMCS Test Dataset
 Case Material,Composite
-Motor Diameter (in),3.858
-Motor Length (in),48
+Motor Diameter (mm),98.0
+Motor Length (mm),1219.2
 Initial Mass (g),6240.000
 Propellant Mass (g),5990.000
 Propellant Type,Synthetic Reference
@@ -23,6 +23,7 @@ Load Cell Calibration,Synthetic / nominal
 Pressure Sensor,Synthetic
 Pressure Sensor Calibration,Synthetic / nominal
 Sample Rate (Hz),80
+case pressure limit (psi),
 
 Sample,Time(s),Time Cal (s),Raw Thrust (N),Prop Loss (kg),Thrust (N),Pressure (psi)
 0,0.000000,0.000000,0.0000,0.000000,0.0000,0.0000

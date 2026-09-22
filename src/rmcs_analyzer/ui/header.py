@@ -6,7 +6,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QMenu,
     QPushButton,
-    QVBoxLayout,
 )
 
 from .branding import Branding

@@ -124,3 +124,10 @@ class TestData:
             return 0.0
 
         return float(np.max(self.thrust_N))
+
+# Prevent pytest from treating the application model as a test class.
+TestData.__test__ = False
+
+
+# Prevent pytest from treating the application model as a test class.
+TestMetadata.__test__ = False

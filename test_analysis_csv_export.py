@@ -4,7 +4,7 @@ import csv
 from rmcs_analyzer.analysis import AnalysisEngine
 from rmcs_analyzer.data import RMCSCSVReader
 from rmcs_analyzer.export.analysis_csv import COLUMNS, export_analysis_csv
-from rmcs_analyzer.project.test_model import TestModel
+from rmcs_analyzer.project.model import TestModel
 
 
 def _load_test(path: Path):
@@ -27,6 +27,7 @@ def test_single_test_analysis_csv_uses_authoritative_results(tmp_path):
     assert len(row) == len(COLUMNS)
     assert row["Test Name"] == "Synthetic-Test-01.csv"
     assert float(row["Peak Thrust (N)"]) == test.analysis_results.thrust.peak_thrust_N
+    assert abs(float(row["Average Thrust (N)"]) - test.analysis_results.thrust.average_thrust_5pct_N) < 1e-6
     assert float(row["Total Impulse (N·s)"]) == test.analysis_results.thrust.total_impulse_valid_curve_Ns
     assert row["Motor Class"] == test.analysis_results.classification.motor_class
     assert row["Calculated Designation"] == test.analysis_results.thrust.designation

@@ -10,7 +10,7 @@ from src.rmcs_analyzer.export.pdf_report import (
 )
 from src.rmcs_analyzer.processing import ProcessingPipeline
 from src.rmcs_analyzer.project.session import TestSession as RMCS_TestSession
-from src.rmcs_analyzer.project.test_model import TestModel as RMCS_TestModel
+from src.rmcs_analyzer.project.model import TestModel as RMCS_TestModel
 from src.rmcs_analyzer.simulation import import_simulation_csv
 
 

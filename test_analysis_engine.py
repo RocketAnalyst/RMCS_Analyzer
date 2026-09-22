@@ -12,7 +12,7 @@ def print_header(title):
     print("=" * 70)
 
 
-def main():
+def _script_regression():
     print("RMCS Analyzer Analysis Engine Tests")
     print("=" * 70)
 
@@ -75,23 +75,23 @@ def main():
     print("Supplied events used: YES")
     print("Event handoff:        PASSED")
 
-    print_header("Legacy Phase 1 results")
+    print_header("Authoritative core performance results")
 
-    legacy_thrust = supplied_analysis.thrust
+    thrust = supplied_analysis.thrust
 
-    print(f"Peak thrust:          {legacy_thrust.peak_thrust_N:.3f} N")
-    print(f"Average thrust:       {legacy_thrust.average_thrust_N:.3f} N")
-    print(f"Total impulse:        {legacy_thrust.total_impulse_Ns:.3f} Ns")
-    print(f"Burn time:            {legacy_thrust.burn_time_s:.3f} s")
+    print(f"Peak thrust:          {thrust.peak_thrust_N:.3f} N")
+    print(f"Average thrust:       {thrust.average_thrust_N:.3f} N")
+    print(f"Total impulse:        {thrust.total_impulse_Ns:.3f} Ns")
+    print(f"Burn time:            {thrust.burn_time_s:.3f} s")
 
-    assert np.isclose(legacy_thrust.peak_thrust_N, 3230.33973, atol=0.001)
-    assert np.isclose(legacy_thrust.average_thrust_N, 1694.980595, atol=0.001)
-    assert np.isclose(legacy_thrust.total_impulse_Ns, 14471.744320, atol=0.001)
-    assert np.isclose(legacy_thrust.burn_time_s, 8.538, atol=0.001)
+    assert np.isclose(thrust.peak_thrust_N, 3230.33973, atol=0.001)
+    assert np.isclose(thrust.average_thrust_N, 2031.225247, atol=0.001)
+    assert np.isclose(thrust.total_impulse_Ns, 14471.744320, atol=0.001)
+    assert np.isclose(thrust.burn_time_s, 7.073116, atol=0.001)
 
-    print("Legacy results:      PASSED")
+    print("Core performance results: PASSED")
 
-    print_header("Standardized Phase 2 results")
+    print_header("Standardized performance results")
 
     thrust = supplied_analysis.thrust
 
@@ -192,5 +192,9 @@ def main():
     print("=" * 70)
 
 
+def test_script_regression():
+    _script_regression()
+
+
 if __name__ == "__main__":
-    main()
+    _script_regression()

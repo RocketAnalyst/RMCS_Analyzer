@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QApplication
 
 from rmcs_analyzer.project.project_file import ProjectFile
 from rmcs_analyzer.project.session import TestSession
-from rmcs_analyzer.project.test_model import TestModel
+from rmcs_analyzer.project.model import TestModel
 from rmcs_analyzer.data.models import TestData
 from rmcs_analyzer.ui.video_panel import VideoPanel
 

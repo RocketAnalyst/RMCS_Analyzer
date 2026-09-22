@@ -1,13 +1,12 @@
 import numpy as np
 
 from .events import EventDetector
-from .impulse import ThrustAnalyzer
 from .motor_class import MotorClassCalculator
 from .performance import PerformanceReducer
 from .performance_extensions import PerformanceExtensionCalculator
-from .results import AnalysisResults, EventResults
+from .results import AnalysisResults, ThrustResults
 from .statistics import StatisticsAnalyzer
-from ..processing.event_model import EventSet, EventType
+from ..processing.event_model import EventSet
 
 
 class AnalysisEngine:
@@ -15,13 +14,8 @@ class AnalysisEngine:
     Coordinate the complete analysis stack.
 
     The processing pipeline's EventSet is the authoritative event
-    representation. The Phase 2 PerformanceReducer is the authoritative
-    source for standardized motor-performance metrics.
-
-    The legacy ThrustAnalyzer remains available during the transition so
-    existing GUI/persistence consumers continue to receive the original
-    Phase 1 metrics. Standardized values are copied into ThrustResults
-    from PerformanceReducer.
+    representation. PerformanceReducer is the authoritative source for
+    standardized motor-performance metrics.
 
     The engine does not modify the supplied TestData.
     """
@@ -29,14 +23,12 @@ class AnalysisEngine:
     def __init__(
         self,
         event_detector=None,
-        thrust_analyzer=None,
         statistics_analyzer=None,
         motor_class_calculator=None,
         performance_reducer=None,
         performance_extension_calculator=None,
     ):
         self.event_detector = event_detector or EventDetector()
-        self.thrust_analyzer = thrust_analyzer or ThrustAnalyzer()
         self.statistics_analyzer = (
             statistics_analyzer or StatisticsAnalyzer()
         )
@@ -62,25 +54,33 @@ class AnalysisEngine:
         If an EventSet is supplied, it is authoritative and is used
         directly. Otherwise, events are detected once.
 
-        Legacy Phase 1 thrust results are still generated for compatibility.
-        Standardized Phase 2 performance results are then generated from the
-        same prepared TestData and copied into the result model.
+        PerformanceReducer supplies the authoritative standardized motor-
+        performance values used by the application and exporters.
         """
 
         if events is None:
             events = self.event_detector.detect_events(test_data)
 
-        legacy_events = self._event_set_to_legacy(events)
-
-        thrust_results = self.thrust_analyzer.analyze(
-            test_data,
-            legacy_events,
-        )
-
         standardized = self.performance_reducer.reduce(test_data)
 
-        # Keep the existing Phase 1 fields intact while making the
-        # standardized Phase 2 fields authoritative for those metrics.
+        # The standardized reduction is authoritative for the core
+        # performance fields. The explicit 5% fields remain available for
+        # callers that need to distinguish standardized burn-window metrics
+        # from the complete recorded curve.
+        thrust_results = ThrustResults(
+            peak_thrust_N=standardized.peak_thrust_N,
+            peak_thrust_time_s=standardized.peak_thrust_time_s,
+            average_thrust_N=standardized.average_thrust_N,
+            burn_time_s=standardized.burn_time_5pct_s,
+            total_impulse_Ns=standardized.total_impulse_Ns,
+            time_to_peak_s=(
+                standardized.peak_thrust_time_s - standardized.curve_start_time_s
+                if standardized.peak_thrust_time_s is not None
+                and standardized.curve_start_time_s is not None
+                else None
+            ),
+        )
+
         thrust_results.threshold_percent = (
             standardized.threshold_percent
         )
@@ -167,46 +167,4 @@ class AnalysisEngine:
             thrust=thrust_results,
             statistics=statistics,
             classification=classification,
-        )
-
-    @staticmethod
-    def _event_set_to_legacy(events: EventSet) -> EventResults:
-        """Convert the authoritative EventSet to the legacy result model."""
-
-        ignition = events.get(EventType.IGNITION)
-        burnout = events.get(EventType.BURNOUT)
-        peak = events.get(EventType.PEAK_THRUST)
-
-        detection_methods = [
-            event.notes.replace("Detection method: ", "", 1)
-            for event in (ignition, burnout, peak)
-            if event is not None and event.notes
-        ]
-
-        detection_method = (
-            detection_methods[0]
-            if detection_methods
-            else ""
-        )
-
-        return EventResults(
-            ignition_time_s=(
-                ignition.time_s if ignition is not None else None
-            ),
-            burnout_time_s=(
-                burnout.time_s if burnout is not None else None
-            ),
-            peak_time_s=(
-                peak.time_s if peak is not None else None
-            ),
-            ignition_index=(
-                ignition.sample_index if ignition is not None else None
-            ),
-            burnout_index=(
-                burnout.sample_index if burnout is not None else None
-            ),
-            peak_index=(
-                peak.sample_index if peak is not None else None
-            ),
-            detection_method=detection_method,
         )

@@ -46,6 +46,12 @@ class ComparePanel(QFrame):
     _TEST_COLORS = [
         "#38bdf8",
         "#f59e0b",
+        "#a78bfa",
+        "#34d399",
+        "#fb7185",
+        "#facc15",
+        "#22d3ee",
+        "#c084fc",
     ]
     # Match the event colors used by the individual Thrust/Pressure plots.
     _EVENT_COLORS = {
@@ -64,6 +70,9 @@ class ComparePanel(QFrame):
         self.checkboxes = []
         self._selected_sources = set()
         self._selected_test_cache = []
+        self._selection_order = []
+        self._refreshing = False
+        self._label_update_pending = False
         self._event_visibility = {
             "Ignition": True,
             "Peak": True,
@@ -92,7 +101,7 @@ class ComparePanel(QFrame):
         layout.addWidget(header)
 
         description = QLabel(
-            "Select two loaded tests to compare thrust and pressure behavior on synchronized plots."
+            "Select one or more loaded tests to compare thrust and pressure behavior on synchronized plots."
         )
         description.setObjectName("graphDescription")
         description.setWordWrap(True)
@@ -111,7 +120,7 @@ class ComparePanel(QFrame):
         controls = QHBoxLayout()
         controls.setContentsMargins(0, 0, 0, 0)
         controls.setSpacing(8)
-        self.status = QLabel("Load at least two tests to begin comparison.")
+        self.status = QLabel("Select loaded tests to begin comparison.")
         self.status.setObjectName("graphDescription")
         controls.addWidget(self.status, 1)
 
@@ -204,7 +213,7 @@ class ComparePanel(QFrame):
         # Keep the plotting rectangles vertically aligned despite different
         # Y-axis label widths (Thrust vs Pressure).
         plot.getPlotItem().getAxis("left").setWidth(78)
-        plot.getPlotItem().vb.sigRangeChanged.connect(self._update_event_labels)
+        plot.getPlotItem().vb.sigRangeChanged.connect(lambda *args: self._schedule_event_label_update())
 
         legend_layout = QHBoxLayout()
         legend_layout.setContentsMargins(4, 0, 4, 0)
@@ -230,12 +239,19 @@ class ComparePanel(QFrame):
                 checked = test.source_file in preserved_sources
             else:
                 checked = test is active_test and len(self.tests) > 1
-            checkbox.setChecked(checked)
-            checkbox.stateChanged.connect(self._refresh)
             checkbox.setProperty("test_index", index)
+            checkbox.setChecked(checked)
+            checkbox.stateChanged.connect(
+                lambda state, cb=checkbox: self._checkbox_changed(cb, state)
+            )
             self.selector_layout.addWidget(checkbox)
             self.checkboxes.append(checkbox)
         self.selector_layout.addStretch(1)
+        self._selection_order = [
+            int(cb.property("test_index"))
+            for cb in self.checkboxes
+            if cb.isChecked()
+        ]
         self._refresh()
 
     def _selected_tests_from_boxes(self):
@@ -246,18 +262,40 @@ class ComparePanel(QFrame):
         ]
         return selected
 
-    def _selected_tests(self):
-        selected = self._selected_tests_from_boxes()
-        if len(selected) > 2:
-            # Keep the two most recently checked boxes. This prevents a third
-            # curve from silently changing the two-test comparison design.
-            checked_boxes = [cb for cb in self.checkboxes if cb.isChecked()]
-            for cb in checked_boxes[:-2]:
-                cb.blockSignals(True)
-                cb.setChecked(False)
-                cb.blockSignals(False)
-            selected = self._selected_tests_from_boxes()
+    def _checkbox_changed(self, checkbox, state):
+        """Maintain selection order without imposing a test-count limit."""
+        if self._refreshing:
+            return
 
+        index = int(checkbox.property("test_index"))
+        checked = bool(state)
+
+        if checked:
+            self._selection_order = [i for i in self._selection_order if i != index]
+            self._selection_order.append(index)
+        else:
+            self._selection_order = [i for i in self._selection_order if i != index]
+
+        self._refresh()
+
+    def _selected_tests(self):
+        # Reconcile selection order with the actual checkbox state. This also
+        # handles programmatic setChecked() calls made while loading a project.
+        actual = [
+            int(cb.property("test_index"))
+            for cb in self.checkboxes
+            if cb.isChecked()
+        ]
+        self._selection_order = [i for i in self._selection_order if i in actual]
+        for index in actual:
+            if index not in self._selection_order:
+                self._selection_order.append(index)
+
+        selected = [
+            self.tests[index]
+            for index in self._selection_order
+            if 0 <= index < len(self.tests) and self.checkboxes[index].isChecked()
+        ]
         self._selected_sources = {
             test.source_file for test in selected if test.source_file
         }
@@ -271,20 +309,22 @@ class ComparePanel(QFrame):
         self.table.setRowCount(0)
 
         if not selected:
-            self.status.setText("Load a test to begin comparison.")
+            self.status.setText("Select loaded tests to begin comparison.")
             self._set_duration(0.0)
             return
 
         if len(selected) == 1:
-            self.status.setText("1 test loaded — select another test to compare.")
+            self.status.setText("1 test selected — select additional tests to compare.")
         else:
-            self.status.setText("Comparing 2 tests — shared time axis and playback.")
+            self.status.setText(
+                f"Comparing {len(selected)} tests — shared time axis and playback."
+            )
 
         self._duration_s = max(self._test_duration(test) for test in selected)
         self._set_duration(self._duration_s)
 
         for index, test in enumerate(selected):
-            color = self._TEST_COLORS[index]
+            color = self._TEST_COLORS[index % len(self._TEST_COLORS)]
             self._plot_test(test, color, index)
             self._add_table_row(test)
 
@@ -293,6 +333,19 @@ class ComparePanel(QFrame):
         self.pressure_plot.getViewBox().autoRange(padding=0.08)
         self._add_playback_lines()
         self._update_playback_position(0.0)
+        self._schedule_event_label_update()
+
+    def _schedule_event_label_update(self):
+        """Position scene labels only after pyqtgraph has completed its layout/range update."""
+        if self._label_update_pending:
+            return
+        self._label_update_pending = True
+
+        def apply():
+            self._label_update_pending = False
+            self._update_event_labels()
+
+        QTimer.singleShot(0, apply)
 
     def _clear_plots(self):
         # Event annotations are added directly to the PlotWidget scene rather

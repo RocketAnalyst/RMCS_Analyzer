@@ -130,6 +130,10 @@ def _test_value(test: Any, key: str) -> Any:
         "average_chamber_pressure_psi", "average_mass_flow_kg_per_s", "isp_s",
         "isp_status", "cstar_m_per_s", "cstar_status",
     }
+    if key == "average_thrust_N":
+        value = getattr(thrust, "average_thrust_5pct_N", None)
+        return value if value is not None else getattr(thrust, "average_thrust_N", None)
+
     if key in thrust_fields:
         return getattr(thrust, key, None)
 

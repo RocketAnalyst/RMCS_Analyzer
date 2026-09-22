@@ -24,7 +24,6 @@ from reportlab.lib.units import inch
 from reportlab.platypus import (
     HRFlowable,
     Image,
-    KeepTogether,
     PageBreak,
     Paragraph,
     SimpleDocTemplate,
@@ -146,7 +145,12 @@ def _metric_rows(test) -> list[tuple[str, str]]:
         ("Total Impulse", _fmt(_total_impulse_value(test), "N·s")),
         ("Normalized Impulse", _fmt(thrust.normalized_impulse_Ns, "N·s")),
         ("Peak Thrust", _fmt(thrust.peak_thrust_N, "N")),
-        ("Average Thrust", _fmt(thrust.average_thrust_N, "N")),
+        ("Average Thrust", _fmt(
+            thrust.average_thrust_5pct_N
+            if thrust.average_thrust_5pct_N is not None
+            else thrust.average_thrust_N,
+            "N",
+        )),
         ("Burn Time", _fmt(thrust.burn_time_5pct_s or thrust.burn_time_s, "s")),
         ("Time to Peak", _fmt(thrust.time_to_peak_s, "s")),
         ("Isp", _fmt(thrust.isp_s, "s")),

@@ -1,4 +1,4 @@
-"""Authoritative Phase 2 rocket-motor performance reduction.
+"""Authoritative standardized rocket-motor performance reduction.
 
 The reduction in this module follows the project specification and the
 NFPA-1125-based convention documented by ThrustCurve:

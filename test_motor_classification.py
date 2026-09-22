@@ -91,7 +91,7 @@ def run_analysis(engine, data):
     )
 
 
-def main():
+def _script_regression():
     calculator = MotorClassCalculator()
 
     print("RMCS Analyzer Motor Classification Validation")
@@ -234,5 +234,10 @@ def main():
     print("=" * 78)
 
 
+
+def test_script_regression():
+    _script_regression()
+
+
 if __name__ == "__main__":
-    main()
+    _script_regression()

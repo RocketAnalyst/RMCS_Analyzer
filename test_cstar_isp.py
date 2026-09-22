@@ -6,7 +6,7 @@ from src.rmcs_analyzer.analysis.performance_extensions import (
 from src.rmcs_analyzer.data.models import TestData, TestMetadata
 
 
-def main():
+def _script_regression():
     time_s = np.linspace(0.0, 2.0, 201)
     thrust_N = np.full_like(time_s, 100.0)
     pressure_psi = np.full_like(time_s, 500.0)
@@ -110,5 +110,10 @@ def main():
     print("C* / ISP REGRESSION PASSED")
 
 
+
+def test_script_regression():
+    _script_regression()
+
+
 if __name__ == "__main__":
-    main()
+    _script_regression()

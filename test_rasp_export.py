@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from rmcs_analyzer.data import RMCSCSVReader
 from rmcs_analyzer.analysis import AnalysisEngine
-from rmcs_analyzer.project.test_model import TestModel
+from rmcs_analyzer.project.model import TestModel
 from rmcs_analyzer.export.rasp import export_rasp_eng
 
 

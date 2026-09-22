@@ -1,5 +1,4 @@
 from pathlib import Path
-import sys
 
 import numpy as np
 
@@ -56,8 +55,8 @@ from .project.project_file import (
 
 from .ui.branding import Branding
 from .ui.header import Header
-from .ui.test_info_panel import TestInfoPanel
-from .ui.test_files_panel import TestFilesPanel
+from .ui.info_panel import TestInfoPanel
+from .ui.files_panel import TestFilesPanel
 from .ui.thrust_plot import ThrustPlot
 from .ui.pressure_plot import PressurePlot
 from .ui.compare_panel import ComparePanel
@@ -575,7 +574,7 @@ class MainWindow(QMainWindow):
         # EXPORT
         # ---------------------------------------------------------
 
-        self.export_panel = self.create_export_placeholder()
+        self.export_panel = self.create_export_panel()
 
         self.export_panel.setMinimumHeight(205)
         lower_panels.addWidget(
@@ -757,7 +756,7 @@ class MainWindow(QMainWindow):
         )
 
     # =============================================================
-    # PLACEHOLDER / SUPPORTING UI
+    # SUPPORTING UI
     # =============================================================
 
     def create_panel_header(
@@ -776,70 +775,6 @@ class MainWindow(QMainWindow):
 
         return label
 
-    def create_placeholder_page(
-        self,
-        title,
-        description,
-    ):
-        """
-        Create a placeholder workspace.
-
-        These pages establish the final application architecture
-        before their underlying functionality is implemented.
-        """
-
-        page = QFrame()
-
-        page.setObjectName(
-            "workspacePlaceholder"
-        )
-
-        layout = QVBoxLayout(
-            page
-        )
-
-        layout.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-
-        title_label = QLabel(
-            title
-        )
-
-        title_label.setObjectName(
-            "graphTitle"
-        )
-
-        title_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-
-        description_label = QLabel(
-            description
-        )
-
-        description_label.setObjectName(
-            "graphDescription"
-        )
-
-        description_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-
-        description_label.setWordWrap(
-            True
-        )
-
-        layout.addWidget(
-            title_label
-        )
-
-        layout.addWidget(
-            description_label
-        )
-
-        return page
-
     def _update_lower_supporting_panes(self, index):
         """Show supporting panes only for the two primary curve tabs."""
         show_supporting_panes = int(index) in (0, 1)
@@ -851,7 +786,7 @@ class MainWindow(QMainWindow):
         ):
             widget.setVisible(show_supporting_panes)
 
-    def create_export_placeholder(self):
+    def create_export_panel(self):
         """Create the compact export pane."""
 
         panel = QFrame()
@@ -1391,7 +1326,7 @@ class MainWindow(QMainWindow):
         return row
 
     def create_cstar_panel(self):
-        """Create the future C* analysis pane."""
+        """Create the C* analysis summary pane."""
 
         panel = QFrame()
 
@@ -1869,25 +1804,6 @@ class MainWindow(QMainWindow):
         self.pressure_plot.set_simulation_visible(bool(checked))
 
     # =============================================================
-    # IMPORT OTHER CSV
-    # =============================================================
-
-    def import_other_csv(self):
-        """
-        Placeholder for future non-RMCS CSV import support.
-        """
-
-        QMessageBox.information(
-            self,
-            "Non-RMCS CSV Import",
-            (
-                "Support for importing and mapping "
-                "non-RMCS test data is planned for "
-                "a future version."
-            ),
-        )
-
-    # =============================================================
     # OPEN PROJECT DIALOG
     # =============================================================
 
@@ -2070,7 +1986,7 @@ class MainWindow(QMainWindow):
                 test_data
             )
 
-            from .project.test_model import TestModel
+            from .project.model import TestModel
 
             test = TestModel(
                 data=processing_result.prepared_data
@@ -3490,31 +3406,3 @@ class MainWindow(QMainWindow):
                 f"READY — {test.filename}",
                 modified=False,
             )
-
-
-def main():
-    """Application entry point."""
-
-    app = QApplication(
-        sys.argv
-    )
-
-    app.setApplicationName(
-        "RMCS Analyzer"
-    )
-
-    app.setApplicationDisplayName(
-        "RMCS Analyzer"
-    )
-
-    window = MainWindow()
-
-    window.show()
-
-    sys.exit(
-        app.exec()
-    )
-
-
-if __name__ == "__main__":
-    main()

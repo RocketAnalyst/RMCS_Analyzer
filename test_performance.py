@@ -5,7 +5,7 @@ from src.rmcs_analyzer.data.csv_reader import RMCSCSVReader
 from src.rmcs_analyzer.data.models import TestData
 
 
-def main():
+def _script_regression():
     print("RMCS Analyzer Performance Reduction Tests")
     print("=" * 70)
 
@@ -158,5 +158,10 @@ def main():
     print("=" * 70)
 
 
+
+def test_script_regression():
+    _script_regression()
+
+
 if __name__ == "__main__":
-    main()
+    _script_regression()

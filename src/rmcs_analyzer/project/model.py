@@ -332,3 +332,6 @@ class TestModel:
         """
 
         self.modified = False
+
+# Prevent pytest from treating the application model as a test class.
+TestModel.__test__ = False

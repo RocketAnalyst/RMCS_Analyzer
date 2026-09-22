@@ -42,7 +42,7 @@ THRUST_N = np.array([
 ], dtype=float)
 
 
-def main():
+def _script_regression():
     print("RMCS Analyzer Independent ThrustCurve Reference Validation")
     print("=" * 78)
 
@@ -147,5 +147,10 @@ def main():
     print("=" * 78)
 
 
+
+def test_script_regression():
+    _script_regression()
+
+
 if __name__ == "__main__":
-    main()
+    _script_regression()

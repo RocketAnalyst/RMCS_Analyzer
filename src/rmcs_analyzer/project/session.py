@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from .test_model import TestModel
+from .model import TestModel
 
 
 class TestSession:
@@ -253,3 +253,6 @@ class TestSession:
             test.modified
             for test in self._tests
         )
+
+# Prevent pytest from treating the application model as a test class.
+TestSession.__test__ = False

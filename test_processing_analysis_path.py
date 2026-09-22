@@ -28,7 +28,7 @@ def assert_close(actual, expected, tolerance=1e-6, label="value"):
         )
 
 
-def main():
+def _script_regression():
     print("RMCS Analyzer Application Analysis Path Regression")
     print("=" * 70)
 
@@ -168,5 +168,10 @@ def main():
     print("=" * 70)
 
 
+
+def test_script_regression():
+    _script_regression()
+
+
 if __name__ == "__main__":
-    main()
+    _script_regression()
