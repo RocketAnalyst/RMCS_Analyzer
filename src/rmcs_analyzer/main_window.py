@@ -88,9 +88,9 @@ class MainWindow(QMainWindow):
     The UI is organized around the primary analysis workspaces:
         - Thrust Curve
         - Pressure Curve
-        - Analysis
         - Compare
         - Campaign
+        - Analysis
         - Data Table
     """
 
@@ -396,17 +396,6 @@ class MainWindow(QMainWindow):
         )
 
         # =========================================================
-        # ANALYSIS TAB
-        # =========================================================
-
-        self.analysis_panel = AnalysisPanel()
-
-        self.workspace_tabs.addTab(
-            self.analysis_panel,
-            "Analysis",
-        )
-
-        # =========================================================
         # COMPARE TAB
         # =========================================================
 
@@ -426,6 +415,17 @@ class MainWindow(QMainWindow):
         self.workspace_tabs.addTab(
             self.campaign_panel,
             "Campaign",
+        )
+
+        # =========================================================
+        # ANALYSIS TAB
+        # =========================================================
+
+        self.analysis_panel = AnalysisPanel()
+
+        self.workspace_tabs.addTab(
+            self.analysis_panel,
+            "Analysis",
         )
 
         # =========================================================
@@ -2571,6 +2571,8 @@ class MainWindow(QMainWindow):
                 analysis.statistics,
                 analysis.classification,
                 recorded_duration_s=test.data.duration_s,
+                metadata=test.data.metadata,
+                events=analysis.events,
             )
 
         duration_s = float(test.data.duration_s) if test.data.sample_count else 0.0
