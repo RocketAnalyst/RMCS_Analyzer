@@ -30,7 +30,7 @@ class TestFilesPanel(QFrame):
 
         layout.setContentsMargins(
             16,
-            0,
+            7,
             16,
             16,
         )

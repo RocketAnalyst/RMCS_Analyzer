@@ -722,11 +722,17 @@ class MainWindow(QMainWindow):
 
         panel = QFrame()
         panel.setObjectName("subPanel")
+        panel.setMinimumWidth(205)
+        panel.setMaximumWidth(220)
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(10, 8, 10, 8)
-        layout.setSpacing(3)
+        layout.setSpacing(4)
         layout.addWidget(self.create_panel_header("Export"))
+        # Add a little breathing room below the section title so the export
+        # buttons sit visually centered in the available pane height rather
+        # than appearing pressed against the header.
+        layout.addSpacing(7)
 
         self.burnsim_export_button = QPushButton("BurnSim")
         self.burnsim_export_button.setObjectName("exportButton")
@@ -735,19 +741,20 @@ class MainWindow(QMainWindow):
         )
         self.burnsim_export_button.clicked.connect(self.export_burnsim_csv)
 
-        self.rasp_export_button = QPushButton("RASP / .ENG Curve")
+        self.rasp_export_button = QPushButton("RASP / .ENG Motor Curve")
         self.rasp_export_button.setObjectName("exportButton")
         self.rasp_export_button.setToolTip(
-            "Export the selected Campaign tests as a RASP / .ENG motor-data file."
+            "Export the current single test or multi-test campaign as RASP / .ENG motor data."
         )
         self.rasp_export_button.clicked.connect(self.export_rasp_eng)
 
         self.analysis_csv_export_button = QPushButton("Analysis CSV")
         self.analysis_csv_export_button.setObjectName("exportButton")
-        self.analysis_csv_export_button.setEnabled(False)
+        self.analysis_csv_export_button.setEnabled(True)
         self.analysis_csv_export_button.setToolTip(
-            "Analysis CSV export is planned for a future export phase."
+            "Export analyzed test results as an Analysis CSV."
         )
+        self.analysis_csv_export_button.clicked.connect(self.export_analysis_csv)
 
         self.pdf_report_export_button = QPushButton("PDF Report")
         self.pdf_report_export_button.setObjectName("exportButton")
@@ -770,36 +777,26 @@ class MainWindow(QMainWindow):
         )
         self.overlay_export_button.clicked.connect(self.export_overlay_placeholder)
 
-        buttons = [
+        # Keep every export action in one vertical column.  The export pane
+        # is deliberately width-constrained so the RASP label cannot force
+        # the adjacent Motor Classification pane to collapse.
+        for button in (
             self.burnsim_export_button,
             self.rasp_export_button,
             self.analysis_csv_export_button,
             self.pdf_report_export_button,
             self.video_export_button,
             self.overlay_export_button,
-        ]
-        for button in buttons:
+        ):
             button.setFixedHeight(25)
+            button.setSizePolicy(
+                QSizePolicy.Policy.Expanding,
+                QSizePolicy.Policy.Fixed,
+            )
             layout.addWidget(button)
 
         layout.addStretch(1)
         return panel
-
-    def _selected_campaign_tests(self):
-        """Return the tests that define the current RASP campaign export.
-
-        With one loaded test, that test is exported directly. With multiple
-        loaded tests, the Campaign panel selection defines the campaign.
-        """
-        if self.session.test_count == 1:
-            return self.session.tests
-
-        selected_sources = self.campaign_panel.selected_sources()
-        return [
-            test
-            for test in self.session.tests
-            if test.source_file and test.source_file in selected_sources
-        ]
 
     def export_burnsim_csv(self):
         """Export the active measured test as a BurnSim test-data CSV."""
@@ -829,9 +826,17 @@ class MainWindow(QMainWindow):
 
         try:
             from .export import export_burnsim_csv
-            output_path = export_burnsim_csv(test, filename)
+
+            output_path = export_burnsim_csv(
+                test,
+                filename,
+            )
         except ValueError as error:
-            QMessageBox.warning(self, "BurnSim Export Unavailable", str(error))
+            QMessageBox.warning(
+                self,
+                "BurnSim Export Unavailable",
+                str(error),
+            )
             return
         except Exception as error:
             QMessageBox.critical(
@@ -848,10 +853,116 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.Ok,
         )
 
-    def export_rasp_eng(self):
-        """Export one test or the selected Campaign as a RASP .ENG file."""
 
-        selected_tests = self._selected_campaign_tests()
+    def _analysis_csv_export_tests(self):
+        """Return the test population used for the Analysis CSV export."""
+        if self.session.test_count == 0:
+            return []
+
+        if self.session.test_count == 1:
+            return list(self.session.tests)
+
+        selected_sources = self.campaign_panel.selected_sources()
+        return [
+            test
+            for test in self.session.tests
+            if test.source_file and test.source_file in selected_sources
+        ]
+
+    def export_analysis_csv(self):
+        """Export one analysis-summary row for each selected test."""
+        selected_tests = self._analysis_csv_export_tests()
+        if not selected_tests:
+            QMessageBox.information(
+                self,
+                "No Campaign Tests Selected",
+                (
+                    "Select at least one test in the Campaign tab before "
+                    "exporting the Analysis CSV."
+                ),
+            )
+            return
+
+        if len(selected_tests) == 1:
+            test = selected_tests[0]
+            stem = Path(test.filename).stem if test.filename else "RMCS_Test"
+            default_name = f"{stem}_Analysis.csv"
+            source_label = "test"
+        else:
+            default_name = "RMCS_Campaign_Analysis.csv"
+            source_label = f"{len(selected_tests)}-test campaign"
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Analysis CSV",
+            default_name,
+            "CSV Files (*.csv);;All Files (*.*)",
+        )
+        if not filename:
+            return
+
+        try:
+            from .export import export_analysis_csv
+
+            output_path = export_analysis_csv(
+                selected_tests,
+                filename,
+            )
+        except ValueError as error:
+            QMessageBox.warning(
+                self,
+                "Analysis CSV Export Unavailable",
+                str(error),
+            )
+            return
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "Analysis CSV Export Failed",
+                (
+                    "An unexpected error occurred while creating the "
+                    f"Analysis CSV:\n\n{error}"
+                ),
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Analysis CSV Created",
+            (
+                f"The Analysis CSV for the selected {source_label} "
+                "was created successfully.\n\n"
+                f"{output_path}"
+            ),
+            QMessageBox.StandardButton.Ok,
+        )
+
+
+    def _rasp_export_tests(self):
+        """Return the test population used for the RASP export.
+
+        RMCS treats a multi-test session as a campaign export.  When only one
+        test is loaded, that single test is exported.  When multiple tests are
+        loaded, the Campaign selection defines which tests are included.
+        """
+        if self.session.test_count == 0:
+            return []
+
+        if self.session.test_count == 1:
+            return list(self.session.tests)
+
+        selected_sources = self.campaign_panel.selected_sources()
+        selected_tests = [
+            test
+            for test in self.session.tests
+            if test.source_file and test.source_file in selected_sources
+        ]
+        return selected_tests
+
+    def export_rasp_eng(self):
+        """Export a single measured motor or the current Campaign as RASP .ENG."""
+
+        selected_tests = self._rasp_export_tests()
         if not selected_tests:
             QMessageBox.information(
                 self,
@@ -883,9 +994,17 @@ class MainWindow(QMainWindow):
 
         try:
             from .export import export_rasp_eng
-            output_path = export_rasp_eng(selected_tests, filename)
+
+            output_path = export_rasp_eng(
+                selected_tests,
+                filename,
+            )
         except ValueError as error:
-            QMessageBox.warning(self, "RASP Export Unavailable", str(error))
+            QMessageBox.warning(
+                self,
+                "RASP Export Unavailable",
+                str(error),
+            )
             return
         except Exception as error:
             QMessageBox.critical(
@@ -924,6 +1043,7 @@ class MainWindow(QMainWindow):
             "Future Feature",
             "Overlay export is not yet available.\n\nThis feature is planned for RMCS Analyzer v2.",
         )
+
 
     def export_pdf_report(self):
         """Generate the complete PDF report for the current campaign."""
@@ -1294,9 +1414,6 @@ class MainWindow(QMainWindow):
             self.remove_test
         )
 
-        self.test_info.metadata_changed.connect(
-            self.update_active_test_metadata
-        )
         self.test_info.edit_metadata_requested.connect(
             self.edit_active_test_metadata
         )
@@ -2824,10 +2941,10 @@ class MainWindow(QMainWindow):
         test.test_number = self.test_info.test_number.text().strip()
         test.motor_designation = self.test_info.motor.text().strip()
         test.test_date = self.test_info.date.text().strip()
-        test.motor_diameter_in = self.parse_optional_float(
+        test.motor_diameter_mm = self.parse_optional_float(
             self.test_info.diameter.text()
         )
-        test.motor_length_in = self.parse_optional_float(
+        test.motor_length_mm = self.parse_optional_float(
             self.test_info.length.text()
         )
         test.initial_mass_g = self.parse_optional_float(
