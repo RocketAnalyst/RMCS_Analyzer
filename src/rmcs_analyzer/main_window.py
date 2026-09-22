@@ -382,10 +382,12 @@ class MainWindow(QMainWindow):
             "Overlay the imported project-level simulation on the measured pressure curve."
         )
         pressure_options.addWidget(self.pressure_simulation_check)
+
+        self.pressure_plot = PressurePlot()
+        pressure_options.addWidget(self.pressure_plot.events_button)
         pressure_options.addStretch(1)
         pressure_layout.addLayout(pressure_options)
 
-        self.pressure_plot = PressurePlot()
         pressure_layout.addWidget(self.pressure_plot, 1)
 
         self.workspace_tabs.addTab(
@@ -2512,8 +2514,10 @@ class MainWindow(QMainWindow):
                 test.data.time_s,
                 test.data.pressure_psi,
                 ignition_time_s=ignition_time_s,
+                burn_time_s=burn_time_s,
                 burnout_time_s=burnout_time_s,
                 recording_end_time_s=recording_end_time_s,
+                case_pressure_limit_psi=test.data.metadata.case_pressure_limit_psi,
             )
         else:
             self.pressure_plot.clear()
@@ -2644,6 +2648,9 @@ class MainWindow(QMainWindow):
             analysis_position_s -= float(test.video.sync_offset_s)
 
         self.thrust_plot.set_playback_position(
+            analysis_position_s
+        )
+        self.pressure_plot.set_playback_position(
             analysis_position_s
         )
 
