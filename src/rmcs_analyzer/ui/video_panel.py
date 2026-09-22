@@ -195,6 +195,7 @@ class VideoOverlayWidget(QWidget):
         self._event_data = {}
 
         self._show_curve = True
+        self._show_pressure_curve = False
         self._show_simulation = False
         self._show_results = True
         self._show_events = True
@@ -1173,25 +1174,6 @@ class VideoPanel(QFrame):
         self._video_container.overlay = self.overlay
         self._video_container.sync_overlay_geometry()
 
-        options_row = QHBoxLayout()
-        options_row.setSpacing(7)
-        self.curve_check = QCheckBox("Thrust")
-        self.pressure_check = QCheckBox("Pressure")
-        self.simulation_check = QCheckBox("Simulation")
-        self.results_check = QCheckBox("Results")
-        self.events_check = QCheckBox("Events")
-        for checkbox in (
-            self.curve_check,
-            self.pressure_check,
-            self.simulation_check,
-            self.results_check,
-            self.events_check,
-        ):
-            checkbox.setObjectName("videoOption")
-            options_row.addWidget(checkbox)
-        options_row.addStretch(1)
-        layout.addLayout(options_row)
-
         sync_row = QHBoxLayout()
         sync_row.setSpacing(4)
         sync_row.addStretch(1)
@@ -1263,16 +1245,6 @@ class VideoPanel(QFrame):
         self.use_pdf_frame_button.clicked.connect(self.use_current_frame_for_pdf)
         self.clear_pdf_frame_button.clicked.connect(self.clear_pdf_frame)
 
-        for checkbox in (
-            self.curve_check,
-            self.results_check,
-            self.events_check,
-        ):
-            checkbox.toggled.connect(self._overlay_toggled)
-
-        self.pressure_check.toggled.connect(self._pressure_toggled)
-        self.simulation_check.toggled.connect(self._simulation_toggled)
-
         self.overlay.overlay_positions_changed.connect(
             self._overlay_position_changed
         )
@@ -1314,8 +1286,6 @@ class VideoPanel(QFrame):
         self.video_surface.clear_frame()
         self._has_analysis = False
         self.overlay.set_analysis(None, None, pressure=None)
-        self.simulation_check.setEnabled(False)
-        self.pressure_check.setEnabled(False)
         self.overlay.set_visibility(False, False, False, pressure=False)
         self.overlay.hide()
         self.duration_changed.emit(0.0)
@@ -1357,11 +1327,11 @@ class VideoPanel(QFrame):
             self._set_pdf_frame_position(pdf_frame_position_s, emit=False)
             self._sync_offset_s = float(sync_offset_s or 0.0)
             self.sync_spin.setValue(self._sync_offset_s)
-            self.curve_check.setChecked(bool(show_curve))
-            self.pressure_check.setChecked(bool(show_pressure))
-            self.simulation_check.setChecked(bool(show_simulation))
-            self.results_check.setChecked(bool(show_results))
-            self.events_check.setChecked(bool(show_events))
+            self._show_curve = bool(show_curve)
+            self._show_pressure_curve = bool(show_pressure)
+            self._show_simulation = bool(show_simulation)
+            self._show_results = bool(show_results)
+            self._show_events = bool(show_events)
             # Older projects may still contain curve_mode; the new UI shows
             # independent thrust and pressure overlays instead.
 
@@ -1445,27 +1415,23 @@ class VideoPanel(QFrame):
             and np.asarray(pressure, dtype=float).size >= 2
         )
         simulation_pressure_available = self.overlay.has_simulation_for_mode("pressure")
-        self.pressure_check.setEnabled(
-            bool(measured_pressure_available or simulation_pressure_available)
-        )
-        if not self.pressure_check.isEnabled():
-            self.pressure_check.setChecked(False)
+        if not (measured_pressure_available or simulation_pressure_available):
+            self._show_pressure_curve = False
 
         sim_available = (
             self.overlay.has_simulation_for_mode("thrust")
             or simulation_pressure_available
         )
-        self.simulation_check.setEnabled(bool(sim_available))
         if not sim_available:
-            self.simulation_check.setChecked(False)
-        self.overlay.set_simulation_visible(self.simulation_check.isChecked())
+            self._show_simulation = False
+        self.overlay.set_simulation_visible(self._show_simulation)
 
         self._update_overlay_time()
         self.overlay.set_visibility(
-            self.curve_check.isChecked(),
-            self.results_check.isChecked(),
-            self.events_check.isChecked(),
-            pressure=self.pressure_check.isChecked(),
+            self._show_curve,
+            self._show_results,
+            self._show_events,
+            pressure=self._show_pressure_curve,
         )
         if self.is_loaded():
             self._video_container.sync_overlay_geometry()
@@ -1521,35 +1487,51 @@ class VideoPanel(QFrame):
         if not self._loading_state:
             self.sync_offset_changed.emit(self._sync_offset_s)
 
-    def _overlay_toggled(self):
-        values = (
-            self.curve_check.isChecked(),
-            self.results_check.isChecked(),
-            self.events_check.isChecked(),
-        )
+    def set_overlay_visibility(
+        self,
+        *,
+        thrust=None,
+        pressure=None,
+        simulation=None,
+        results=None,
+        events=None,
+        emit=True,
+    ):
+        """Set overlay layer visibility without exposing controls in the video pane."""
+        if thrust is not None:
+            self._show_curve = bool(thrust)
+        if pressure is not None:
+            self._show_pressure_curve = bool(pressure)
+        if simulation is not None:
+            self._show_simulation = bool(simulation)
+        if results is not None:
+            self._show_results = bool(results)
+        if events is not None:
+            self._show_events = bool(events)
+
+        self.overlay.set_simulation_visible(self._show_simulation)
         self.overlay.set_visibility(
-            values[0], values[1], values[2], pressure=self.pressure_check.isChecked()
+            self._show_curve,
+            self._show_results,
+            self._show_events,
+            pressure=self._show_pressure_curve,
         )
         if self.is_loaded():
             self.overlay.show()
         else:
             self.overlay.hide()
-        if not self._loading_state:
-            self.overlay_changed.emit(*values)
 
-    def _pressure_toggled(self, checked):
-        self.overlay.set_pressure_visible(bool(checked))
-        if self.is_loaded():
-            self.overlay.show()
-        else:
-            self.overlay.hide()
-        if not self._loading_state:
-            self.pressure_overlay_changed.emit(bool(checked))
-
-    def _simulation_toggled(self, checked):
-        self.overlay.set_simulation_visible(bool(checked))
-        if not self._loading_state:
-            self.simulation_overlay_changed.emit(bool(checked))
+        if emit and not self._loading_state:
+            if thrust is not None or results is not None or events is not None:
+                self.overlay_changed.emit(
+                    self._show_curve,
+                    self._show_results,
+                    self._show_events,
+                )
+            if pressure is not None:
+                self.pressure_overlay_changed.emit(self._show_pressure_curve)
+            if simulation is not None:
+                self.simulation_overlay_changed.emit(self._show_simulation)
 
     def _curve_mode_changed(self, index):
         # Retained for backward compatibility with older callers/projects.
@@ -1792,13 +1774,35 @@ class VideoPanel(QFrame):
             curve_show_axes=configuration["curve_show_axes"],
             curve_show_background=configuration.get("curve_show_background", True),
         )
+        visibility = configuration.get("overlay_visibility", {})
+        self.set_overlay_visibility(
+            thrust=visibility.get("thrust", configuration.get("show_curve", self._show_curve)),
+            pressure=visibility.get("pressure", configuration.get("show_pressure", self._show_pressure_curve)),
+            simulation=visibility.get("simulation", configuration.get("show_simulation", self._show_simulation)),
+            results=visibility.get("results", configuration.get("show_results", self._show_results)),
+            events=visibility.get("events", configuration.get("show_events", self._show_events)),
+            emit=True,
+        )
         if not self._loading_state:
             self.overlay_configuration_changed.emit(
                 self.overlay.configuration()
             )
 
     def overlay_configuration(self):
-        return self.overlay.configuration()
+        configuration = self.overlay.configuration()
+        configuration["overlay_visibility"] = {
+            "thrust": self._show_curve,
+            "pressure": self._show_pressure_curve,
+            "simulation": self._show_simulation,
+            "results": self._show_results,
+            "events": self._show_events,
+        }
+        configuration["show_curve"] = self._show_curve
+        configuration["show_pressure"] = self._show_pressure_curve
+        configuration["show_simulation"] = self._show_simulation
+        configuration["show_results"] = self._show_results
+        configuration["show_events"] = self._show_events
+        return configuration
 
     def apply_event_positions(self, positions):
         self.overlay.set_overlay_positions(

@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -34,6 +34,7 @@ RESULT_OPTIONS = [
 
 
 class SettingsDialog(QDialog):
+    overlay_visibility_preview_changed = Signal(object)
     """Application settings dialog, beginning with per-test video overlay settings."""
 
     def __init__(self, video_configuration=None, parent=None):
@@ -65,27 +66,6 @@ class SettingsDialog(QDialog):
         intro.setObjectName("settingsIntro")
         general.addWidget(intro)
 
-        units_group = QGroupBox("Units")
-        units_layout = QFormLayout(units_group)
-
-        thrust_units = QComboBox()
-        thrust_units.addItems(["Newtons (N)"])
-        thrust_units.setEnabled(False)
-
-        pressure_units = QComboBox()
-        pressure_units.addItems(["psi"])
-        pressure_units.setEnabled(False)
-
-        mass_units = QComboBox()
-        mass_units.addItems(["grams / kilograms"])
-        mass_units.setEnabled(False)
-
-        units_layout.addRow("Thrust:", thrust_units)
-        units_layout.addRow("Pressure:", pressure_units)
-        units_layout.addRow("Mass:", mass_units)
-
-        general.addWidget(units_group)
-
         theme_group = QGroupBox("Appearance")
         theme_layout = QFormLayout(theme_group)
 
@@ -116,6 +96,52 @@ class SettingsDialog(QDialog):
         note.setWordWrap(True)
         note.setObjectName("settingsIntro")
         video_page.addWidget(note)
+
+        overlay_defaults = QGroupBox("Overlay Visibility")
+        overlay_defaults_layout = QVBoxLayout(overlay_defaults)
+
+        overlay_defaults_note = QLabel(
+            "Choose which overlay layers are enabled for the active test. "
+            "Changes preview immediately; click OK to keep them or Cancel to restore the previous settings."
+        )
+        overlay_defaults_note.setWordWrap(True)
+        overlay_defaults_note.setObjectName("settingsIntro")
+        overlay_defaults_layout.addWidget(overlay_defaults_note)
+
+        visibility = configuration.get("overlay_visibility", {})
+
+        self.show_thrust_check = QCheckBox("Thrust")
+        self.show_pressure_check = QCheckBox("Pressure")
+        self.show_simulation_check = QCheckBox("Simulation")
+        self.show_results_check = QCheckBox("Results")
+        self.show_events_check = QCheckBox("Events")
+
+        self.show_thrust_check.setChecked(
+            bool(visibility.get("thrust", configuration.get("show_curve", True)))
+        )
+        self.show_pressure_check.setChecked(
+            bool(visibility.get("pressure", configuration.get("show_pressure", False)))
+        )
+        self.show_simulation_check.setChecked(
+            bool(visibility.get("simulation", configuration.get("show_simulation", False)))
+        )
+        self.show_results_check.setChecked(
+            bool(visibility.get("results", configuration.get("show_results", True)))
+        )
+        self.show_events_check.setChecked(
+            bool(visibility.get("events", configuration.get("show_events", True)))
+        )
+
+        for checkbox in (
+            self.show_thrust_check,
+            self.show_pressure_check,
+            self.show_simulation_check,
+            self.show_results_check,
+            self.show_events_check,
+        ):
+            overlay_defaults_layout.addWidget(checkbox)
+
+        video_page.addWidget(overlay_defaults)
 
         titles = QGroupBox("Overlay Titles")
         titles_layout = QFormLayout(titles)
@@ -228,6 +254,15 @@ class SettingsDialog(QDialog):
 
         video_page.addWidget(events)
 
+        for checkbox in (
+            self.show_thrust_check,
+            self.show_pressure_check,
+            self.show_simulation_check,
+            self.show_results_check,
+            self.show_events_check,
+        ):
+            checkbox.toggled.connect(self._emit_visibility_preview)
+
         video_page.addStretch(1)
 
         video_page_widget = QWidgetLikeLayout(video_page)
@@ -243,6 +278,20 @@ class SettingsDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
+
+    def _visibility_configuration(self):
+        return {
+            "thrust": self.show_thrust_check.isChecked(),
+            "pressure": self.show_pressure_check.isChecked(),
+            "simulation": self.show_simulation_check.isChecked(),
+            "results": self.show_results_check.isChecked(),
+            "events": self.show_events_check.isChecked(),
+        }
+
+    def _emit_visibility_preview(self, _checked=False):
+        self.overlay_visibility_preview_changed.emit(
+            self._visibility_configuration()
+        )
 
     def configuration(self):
         fields = []
@@ -265,6 +314,19 @@ class SettingsDialog(QDialog):
             "curve_show_grid": self.grid_check.isChecked(),
             "curve_show_axes": self.axes_check.isChecked(),
             "curve_show_background": self.background_check.isChecked(),
+            "overlay_visibility": {
+                "thrust": self.show_thrust_check.isChecked(),
+                "pressure": self.show_pressure_check.isChecked(),
+                "simulation": self.show_simulation_check.isChecked(),
+                "results": self.show_results_check.isChecked(),
+                "events": self.show_events_check.isChecked(),
+            },
+            # Compatibility keys for the existing video-state model.
+            "show_curve": self.show_thrust_check.isChecked(),
+            "show_pressure": self.show_pressure_check.isChecked(),
+            "show_simulation": self.show_simulation_check.isChecked(),
+            "show_results": self.show_results_check.isChecked(),
+            "show_events": self.show_events_check.isChecked(),
         }
 
 

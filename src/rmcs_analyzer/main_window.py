@@ -396,6 +396,17 @@ class MainWindow(QMainWindow):
         )
 
         # =========================================================
+        # ANALYSIS TAB
+        # =========================================================
+
+        self.analysis_panel = AnalysisPanel()
+
+        self.workspace_tabs.addTab(
+            self.analysis_panel,
+            "Analysis",
+        )
+
+        # =========================================================
         # COMPARE TAB
         # =========================================================
 
@@ -426,17 +437,6 @@ class MainWindow(QMainWindow):
         self.workspace_tabs.addTab(
             self.data_table,
             "Data Table",
-        )
-
-        # =========================================================
-        # ANALYSIS TAB
-        # =========================================================
-
-        self.analysis_panel = AnalysisPanel()
-
-        self.workspace_tabs.addTab(
-            self.analysis_panel,
-            "Analysis",
         )
 
         center_layout.addWidget(
@@ -817,7 +817,7 @@ class MainWindow(QMainWindow):
             self.video_export_button,
             self.overlay_export_button,
         ):
-            button.setFixedHeight(28)
+            button.setFixedHeight(25)
             button.setSizePolicy(
                 QSizePolicy.Policy.Expanding,
                 QSizePolicy.Policy.Fixed,
@@ -2957,7 +2957,47 @@ class MainWindow(QMainWindow):
             video_configuration=configuration,
             parent=self,
         )
-        if dialog.exec() != QDialog.DialogCode.Accepted:
+
+        original_visibility = None
+        if configuration is not None:
+            original_visibility = dict(
+                configuration.get("overlay_visibility", {})
+            )
+
+        def preview_visibility(visibility):
+            self.video_panel.set_overlay_visibility(
+                thrust=visibility.get("thrust"),
+                pressure=visibility.get("pressure"),
+                simulation=visibility.get("simulation"),
+                results=visibility.get("results"),
+                events=visibility.get("events"),
+                emit=False,
+            )
+
+        dialog.overlay_visibility_preview_changed.connect(
+            preview_visibility
+        )
+
+        try:
+            result = dialog.exec()
+        finally:
+            try:
+                dialog.overlay_visibility_preview_changed.disconnect(
+                    preview_visibility
+                )
+            except (RuntimeError, TypeError):
+                pass
+
+        if result != QDialog.DialogCode.Accepted:
+            if test is not None and original_visibility is not None:
+                self.video_panel.set_overlay_visibility(
+                    thrust=original_visibility.get("thrust"),
+                    pressure=original_visibility.get("pressure"),
+                    simulation=original_visibility.get("simulation"),
+                    results=original_visibility.get("results"),
+                    events=original_visibility.get("events"),
+                    emit=False,
+                )
             return
         if test is None:
             return
