@@ -30,10 +30,8 @@ class ResultsPanel(QFrame):
         self.total_impulse = self.add_metric(layout, "Σ", "Total Impulse", "—", "N·s")
         self.burn_time = self.add_metric(layout, "◷", "Burn Time", "—", "s")
         self.time_to_peak = self.add_metric(layout, "△", "Time to Peak", "—", "s")
-        self.motor_class = self.add_metric(layout, "▣", "Motor Class", "—", "")
-        self.calculated_designation = self.add_metric(
-            layout, "", "Calculated Designation", "—", ""
-        )
+        self.specific_impulse = self.add_metric(layout, "◌", "Specific Impulse", "—", "s")
+        self.peak_pressure = self.add_metric(layout, "◉", "Peak Pressure", "—", "psi")
 
         layout.addSpacing(5)
 
@@ -120,10 +118,11 @@ class ResultsPanel(QFrame):
         self.burn_time.setText(self._format_number(thrust_results.burn_time_5pct_s))
         self.time_to_peak.setText(self._format_number(thrust_results.peak_thrust_time_s))
 
-        motor_class = thrust_results.impulse_class or classification.motor_class
-        self.motor_class.setText(motor_class if motor_class else "—")
-        self.calculated_designation.setText(
-            thrust_results.designation if thrust_results.designation else "—"
+        self.specific_impulse.setText(
+            self._format_number(thrust_results.isp_s)
+        )
+        self.peak_pressure.setText(
+            self._format_number(thrust_results.peak_pressure_psi)
         )
 
         ignition_event = events.ignition
@@ -147,8 +146,8 @@ class ResultsPanel(QFrame):
     def clear_results(self):
         for widget in (
             self.current_thrust, self.peak_thrust, self.average_thrust, self.total_impulse,
-            self.burn_time, self.time_to_peak, self.motor_class,
-            self.calculated_designation, self.ignition, self.peak_event,
+            self.burn_time, self.time_to_peak, self.specific_impulse,
+            self.peak_pressure, self.ignition, self.peak_event,
             self.burnout
         ):
             widget.setText("—")

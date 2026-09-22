@@ -844,6 +844,28 @@ class ProjectFile:
             test.analysis_results = analysis
 
             # -----------------------------------------------------
+            # Migrate projects created before peak pressure was
+            # persisted in analysis.json. The measurement data is
+            # already part of the project archive, so populate the
+            # newly introduced authoritative result without requiring
+            # the user to re-import the CSV.
+            # -----------------------------------------------------
+
+            if (
+                test.analysis_results.thrust.peak_pressure_psi is None
+                and test.data.pressure_psi is not None
+            ):
+                pressure = np.asarray(
+                    test.data.pressure_psi,
+                    dtype=float,
+                )
+                finite_pressure = pressure[np.isfinite(pressure)]
+                if finite_pressure.size:
+                    test.analysis_results.thrust.peak_pressure_psi = float(
+                        np.max(finite_pressure)
+                    )
+
+            # -----------------------------------------------------
             # Migrate legacy projects.
             #
             # Older projects stored:
@@ -1224,6 +1246,7 @@ class ProjectFile:
                 "cstar_m_per_s": analysis.thrust.cstar_m_per_s,
                 "cstar_status": analysis.thrust.cstar_status,
                 "average_chamber_pressure_psi": analysis.thrust.average_chamber_pressure_psi,
+                "peak_pressure_psi": analysis.thrust.peak_pressure_psi,
                 "average_mass_flow_kg_per_s": analysis.thrust.average_mass_flow_kg_per_s,
                 "total_impulse_valid_curve_Ns": analysis.thrust.total_impulse_valid_curve_Ns,
                 "normalized_impulse_Ns": analysis.thrust.normalized_impulse_Ns,
@@ -1371,6 +1394,7 @@ class ProjectFile:
             cstar_m_per_s=thrust_data.get("cstar_m_per_s"),
             cstar_status=thrust_data.get("cstar_status", "unavailable"),
             average_chamber_pressure_psi=thrust_data.get("average_chamber_pressure_psi"),
+            peak_pressure_psi=thrust_data.get("peak_pressure_psi"),
             average_mass_flow_kg_per_s=thrust_data.get("average_mass_flow_kg_per_s"),
             total_impulse_valid_curve_Ns=thrust_data.get("total_impulse_valid_curve_Ns"),
             normalized_impulse_Ns=thrust_data.get("normalized_impulse_Ns"),

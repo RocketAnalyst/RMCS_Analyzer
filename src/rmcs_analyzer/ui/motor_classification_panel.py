@@ -38,7 +38,7 @@ class MotorClassificationPanel(QFrame):
         self.impulse_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.impulse_label)
 
-        self.result_label = QLabel("Class —")
+        self.result_label = QLabel("—")
         self.result_label.setObjectName("motorClassificationResult")
         self.result_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.result_label)
@@ -49,7 +49,7 @@ class MotorClassificationPanel(QFrame):
         layout.addWidget(self.range_label)
 
         self.note_label = QLabel(
-            "Classification based on measured total impulse."
+            "Motor class based on measured total impulse."
         )
         self.note_label.setObjectName("motorClassificationNote")
         self.note_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -88,7 +88,7 @@ class MotorClassificationPanel(QFrame):
             names[index + 1] if index + 1 < len(names) else "—",
         )
 
-    def set_result(self, classification, impulse_Ns=None):
+    def set_result(self, classification, impulse_Ns=None, designation=None):
         current = classification.motor_class
         left, center, right = self._neighbors(current)
 
@@ -102,11 +102,11 @@ class MotorClassificationPanel(QFrame):
         )
 
         if current is None:
-            self.result_label.setText("Class —")
+            self.result_label.setText("—")
             self.range_label.setText("Range: —")
             return
 
-        self.result_label.setText(f"Class {current}")
+        self.result_label.setText(designation if designation else current)
 
         lower = classification.lower_limit_Ns
         upper = classification.upper_limit_Ns

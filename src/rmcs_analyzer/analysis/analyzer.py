@@ -1,3 +1,5 @@
+import numpy as np
+
 from .events import EventDetector
 from .impulse import ThrustAnalyzer
 from .motor_class import MotorClassCalculator
@@ -128,6 +130,21 @@ class AnalysisEngine:
         thrust_results.average_mass_flow_kg_per_s = (
             extensions.average_mass_flow_kg_per_s
         )
+
+        # Peak pressure is a primary measured result used by the dashboard.
+        # Keep it in the authoritative analysis result model so display
+        # panels do not perform their own engineering calculations.
+        pressure = test_data.pressure_psi
+        if pressure is not None:
+            pressure_array = np.asarray(pressure, dtype=float)
+            finite_pressure = pressure_array[np.isfinite(pressure_array)]
+            thrust_results.peak_pressure_psi = (
+                float(np.max(finite_pressure))
+                if finite_pressure.size
+                else None
+            )
+        else:
+            thrust_results.peak_pressure_psi = None
         thrust_results.total_impulse_valid_curve_Ns = (
             standardized.total_impulse_Ns
         )

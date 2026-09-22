@@ -455,7 +455,7 @@ QFrame#header {
 }
 #motorClassificationResult {
     color: #41e875;
-    font-size: 11pt;
+    font-size: 14pt;
     font-weight: 700;
 }
 #motorClassificationRange {

@@ -84,6 +84,7 @@ class ThrustResults:
     cstar_status: str = "unavailable"
 
     average_chamber_pressure_psi: Optional[float] = None
+    peak_pressure_psi: Optional[float] = None
     average_mass_flow_kg_per_s: Optional[float] = None
 
     total_impulse_valid_curve_Ns: Optional[float] = None
