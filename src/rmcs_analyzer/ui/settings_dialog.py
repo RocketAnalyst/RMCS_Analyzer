@@ -1,14 +1,19 @@
+from pathlib import Path
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
+    QMessageBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QListWidget,
     QListWidgetItem,
     QScrollArea,
@@ -82,6 +87,60 @@ class SettingsDialog(QDialog):
 
         theme_layout.addRow("Theme:", self.theme_combo)
         general.addWidget(theme_group)
+
+        # ---------------------------------------------------------
+        # Data Templates
+        # ---------------------------------------------------------
+        template_group = QGroupBox("Data Templates")
+        template_layout = QVBoxLayout(template_group)
+
+        template_note = QLabel(
+            "Download blank CSV templates showing the formats RMCS Analyzer "
+            "expects for test data and simulation imports. Simulation templates "
+            "are RMCS import-format examples; BurnSim and OpenMotor normally "
+            "produce these files directly."
+        )
+        template_note.setWordWrap(True)
+        template_note.setObjectName("settingsIntro")
+        template_layout.addWidget(template_note)
+
+        test_template_row = QHBoxLayout()
+        test_template_button = QPushButton("Download Test Data Template")
+        test_template_button.setToolTip(
+            "Save a blank RMCS test-data CSV template."
+        )
+        test_template_button.clicked.connect(
+            lambda: self._save_template("test")
+        )
+        test_template_row.addWidget(test_template_button)
+        test_template_row.addStretch(1)
+        template_layout.addLayout(test_template_row)
+
+        burnsim_template_row = QHBoxLayout()
+        burnsim_template_button = QPushButton("Download BurnSim Simulation Template")
+        burnsim_template_button.setToolTip(
+            "Save a blank CSV showing the BurnSim simulation import columns."
+        )
+        burnsim_template_button.clicked.connect(
+            lambda: self._save_template("burnsim")
+        )
+        burnsim_template_row.addWidget(burnsim_template_button)
+        burnsim_template_row.addStretch(1)
+        template_layout.addLayout(burnsim_template_row)
+
+        openmotor_template_row = QHBoxLayout()
+        openmotor_template_button = QPushButton("Download OpenMotor Simulation Template")
+        openmotor_template_button.setToolTip(
+            "Save a blank CSV showing the OpenMotor simulation import columns."
+        )
+        openmotor_template_button.clicked.connect(
+            lambda: self._save_template("openmotor")
+        )
+        openmotor_template_row.addWidget(openmotor_template_button)
+        openmotor_template_row.addStretch(1)
+        template_layout.addLayout(openmotor_template_row)
+
+        general.addWidget(template_group)
 
         general.addStretch(1)
 
@@ -314,6 +373,74 @@ class SettingsDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
+
+    @staticmethod
+    def _template_contents(template_type):
+        if template_type == "test":
+            return """Format Version,1,,,,,
+Test Number,,,,,,
+Test Date,,,,,,
+Test Stand,,,,,,
+Test Operator,,,,,,
+Location,,,,,,
+Notes,,,,,,
+Motor Designation,,,,,,
+Motor Type,,,,,,
+Manufacturer,,,,,,
+Builder,,,,,,
+Case Material,,,,,,
+Motor Diameter (mm),,,,,,
+Motor Length (mm),,,,,,
+Initial Mass (g),,,,,,
+Propellant Mass (g),,,,,,
+Propellant Type,,,,,,
+Nozzle Throat Diameter (in),,,,,,
+Nozzle Exit Diameter (in),,,,,,
+Nozzle Material,,,,,,
+Load Cell,,,,,,
+Load Cell Calibration,,,,,,
+Pressure Sensor,,,,,,
+Pressure Sensor Calibration,,,,,,
+Sample Rate (Hz),,,,,,
+case pressure limit (psi),,,,,,
+,,,,,,
+,,,,,,
+,,,,,,
+Sample,Time(s),Time Cal (s),Raw Thrust (N),Prop Loss (kg),Thrust (N),Pressure (psi)
+"""
+        if template_type == "burnsim":
+            return """Time (s),Pressure (psi),Thrust (N)\n"""
+        if template_type == "openmotor":
+            return """Time (s),Chamber Pressure (psi),Thrust (N),Kn (-),Mass Flow (kg/s),Mass Flux (kg/m^2/s),Regression (m),Web (m)\n"""
+        raise ValueError(f"Unknown template type: {template_type}")
+
+    def _save_template(self, template_type):
+        names = {
+            "test": ("RMCS Test Data Template.csv", "RMCS test-data CSV"),
+            "burnsim": ("RMCS BurnSim Simulation Template.csv", "BurnSim simulation CSV"),
+            "openmotor": ("RMCS OpenMotor Simulation Template.csv", "OpenMotor simulation CSV"),
+        }
+        default_name, description = names[template_type]
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            f"Save {description} Template",
+            default_name,
+            "CSV Files (*.csv);;All Files (*)",
+        )
+        if not path:
+            return
+        try:
+            Path(path).write_text(
+                self._template_contents(template_type),
+                encoding="utf-8",
+                newline="",
+            )
+        except OSError as exc:
+            QMessageBox.critical(
+                self,
+                "Template Download Failed",
+                f"Could not save the template file.\\n\\n{exc}",
+            )
 
     def _emit_theme_preview(self, _index=0):
         theme = str(self.theme_combo.currentData() or "dark")

@@ -10,11 +10,12 @@ The application is being developed with Python, PySide6, PyQtGraph, NumPy, and P
 
 ## Current Development Status
 
-### v0.4.0 — Feature-complete v1.0 foundation
+### v0.4.0 — Feature-complete v1.0 candidate
 
 RMCS Analyzer v0.4.0 contains the complete planned **v1.0 feature set**.
-The project is now entering a dedicated refinement phase rather than adding
-major v1.0 functionality.
+The feature set is now frozen for final code review, cleanup, regression/QA,
+and release preparation. No additional major v1.0 feature subsystem is
+currently planned before the v1.0 release.
 
 The v1.0 feature set includes:
 
@@ -30,14 +31,16 @@ The v1.0 feature set includes:
 - BurnSim CSV export
 - RASP / `.ENG` motor-curve export
 - Analysis CSV export
+- Downloadable blank test-data, BurnSim, and OpenMotor simulation import templates
+- Dark and Light application themes
+- Settings-based template downloads and video-overlay preferences
 - Regression/reference testing for the completed feature areas
 
-The next phase is **GUI refinement and production-readiness**, including
-workspace layout, chart presentation, tab-specific improvements, and a
-Settings system with user preferences such as display units.
+The next phase is **final code review, cleanup, regression/QA, and release
+preparation**. The major v1.0 feature set is frozen.
 
-The application release remains **v0.4.0** until the refinement phase is
-complete and the final v1.0 release is made.
+The application release remains **v0.4.0** until the final v1.0 release is
+made.
 
 ## v0.4.0
 
@@ -180,7 +183,6 @@ The current codebase supports:
 - BurnSim/OpenMotor-style simulation comparison
 - BurnSim measured-data CSV export
 - RASP / `.ENG` measured motor-curve export
-- RASP / `.ENG` measured motor-curve export
 - Multi-test campaign `.ENG` export with one entry per selected test
 - Thrust and pressure simulation overlays
 - Independent synchronized video Thrust and Pressure graph overlays
@@ -192,7 +194,9 @@ The current codebase supports:
 - Motor classification display
 - Analysis reference and edge-case validation
 
-The graphical interface is functional in its current foundation, while several workspace areas remain under development.
+The graphical interface is feature-complete for the planned v1.0 scope. Remaining
+work is code cleanup, regression/QA, documentation consistency, and final release
+preparation rather than adding another major workspace.
 
 ---
 
@@ -255,6 +259,52 @@ RASP export was validated using the Zerox single-test curve and a five-test
 synthetic campaign. Validation confirmed the expected header structure,
 separate campaign entries, increasing time values, and final zero-thrust
 points.
+
+## BurnSim CSV Export
+
+RMCS Analyzer can export the measured RMCS recording as a BurnSim-compatible CSV
+trace using the documented column order:
+
+```text
+Time,Pressure,Thrust
+```
+
+The export uses seconds, psi, and newtons and retains the complete recorded
+trace, including pre-ignition and post-burnout samples. This is intentionally
+different from the RASP `.eng` export, which uses the standardized measured
+engineering curve.
+
+The BurnSim exporter consumes measured source data and authoritative analysis
+state as appropriate; it does not introduce a separate GUI calculation path.
+
+## Analysis CSV Export
+
+RMCS Analyzer can export an engineering-summary CSV containing one row per
+selected analyzed test. The export combines project/test metadata with
+authoritative `AnalysisResults` values.
+
+The current schema includes:
+
+- test and source identification
+- motor and propellant metadata
+- nozzle and sensor metadata
+- recording/sample information
+- peak and average thrust
+- standardized burn time
+- time to peak
+- total and normalized impulse
+- initial thrust
+- thrust rise/decay rates
+- average chamber pressure
+- average mass flow
+- Isp and status
+- C* and status
+- motor class and class limits
+- ignition and burnout times
+- notes
+
+Campaign exports contain one row per selected test. RMCS Analyzer does not create
+an averaged campaign row in the Analysis CSV.
 
 ## PDF Reporting
 
@@ -375,6 +425,45 @@ Original `Time(s)` data is preserved.
 When a valid `Time Cal (s)` channel is supplied, it can be used as the analysis timeline while the original acquisition time remains available. When calibrated time is unavailable, the original time is used and the processing pipeline can perform its configured alignment.
 
 ---
+
+## Simulation CSV Import
+
+RMCS Analyzer imports simulation CSV output from BurnSim/OpenMotor-style sources
+into a simulator-independent internal representation.
+
+The importer recognizes:
+
+```text
+Time
+Thrust
+Pressure / Chamber Pressure
+```
+
+and supports the following units:
+
+- Time: seconds, milliseconds, microseconds
+- Thrust: newtons, lbf, kgf
+- Pressure: psi, Pa, kPa, MPa, bar, atm
+
+A simulation file must contain a recognizable time column and at least one
+recognizable thrust or pressure column. Simulation time must be monotonically
+non-decreasing.
+
+RMCS Analyzer uses the imported simulation as comparison/reference data; measured
+test analysis remains authoritative.
+
+### Simulation Templates
+
+The Settings dialog provides downloadable blank import-format templates for:
+
+- RMCS Test Data
+- BurnSim Simulation
+- OpenMotor Simulation
+
+The BurnSim and OpenMotor templates document the CSV structure RMCS Analyzer
+expects; they are not replacements for native BurnSim/OpenMotor project files.
+The normal workflow is to export simulation data from the external program and
+then import that CSV into RMCS Analyzer.
 
 ## Analysis Methodology
 
@@ -555,7 +644,10 @@ RMCS_Analyzer/
 ├── test_thrustcurve_reference.py
 ├── test_video_pdf_frame_selection.py
 ├── test_video_simulation_state.py
+├── test_analysis_csv_export.py
 ├── test_burnsim_export.py
+├── test_rasp_export.py
+├── test_csv_template.py
 │
 ├── .gitignore
 └── README.md
@@ -588,6 +680,10 @@ test_thrust_rate_metrics.py
 test_thrustcurve_reference.py
 test_video_pdf_frame_selection.py
 test_video_simulation_state.py
+test_analysis_csv_export.py
+test_burnsim_export.py
+test_csv_template.py
+test_rasp_export.py
 ```
 
 These tests cover:
@@ -616,6 +712,10 @@ These tests cover:
 - PDF report generation for single tests and multi-test campaigns
 - PDF video-frame selection and persistence
 - Video simulation-state persistence
+- Analysis CSV export schema and authoritative result mapping
+- BurnSim export behavior
+- RASP `.eng` export behavior
+- CSV template structure
 
 The test suite is intended to protect the authoritative analysis layer as the GUI and future features are developed.
 
@@ -645,8 +745,8 @@ The application provides the current workspace structure for:
 - Campaign
 
 Campaign Analysis is functional for comparing completed recorded test results
-at the population level. Additional campaign workflows and broader export and
-simulation capabilities remain future development areas.
+at the population level. Simulation comparison, reporting, and the implemented
+exports are part of the current feature-complete v1.0 scope.
 
 ### Campaign Analysis
 
@@ -710,6 +810,8 @@ When a test has an associated video, RMCS Analyzer supports:
 - Current-thrust display during playback
 - Results and event synchronization
 - Configurable video overlays
+- Independent measured and simulation Thrust/Pressure graph overlays
+- Persistent overlay configuration and positions
 
 The video timeline is the master timeline when video is loaded. The full
 video duration is preserved.
@@ -748,6 +850,7 @@ It currently supports:
 - Measured-thrust curve overlay
 - Results overlay
 - Individual event overlays/markers
+- Simulation curve overlays
 - Ignition, peak-thrust, and burnout event visibility
 - Draggable/resizable overlay objects
 - Persistent per-test overlay positions
@@ -761,10 +864,9 @@ It currently supports:
 Overlay state is stored with the individual test and persists when switching
 tests and when saving/loading an `.rmcs` project.
 
-The current overlay presentation is intentionally considered a functional
-v1 system rather than final visual polish. Chart styling, typography,
-spacing, event presentation, and other presentation refinements remain
-future work.
+The overlay system is part of the feature-complete v1.0 scope. Final code
+review and QA may still identify defects, but no additional major overlay
+feature is planned before v1.0.
 
 ### RMCS Project persistence
 
@@ -825,7 +927,7 @@ The GUI is being developed against a project visual reference established during
 
 The target dashboard uses:
 
-- A dark engineering-focused visual theme
+- A dark engineering-focused visual theme plus a functional Light theme
 - A three-column application layout
 - Test information and file navigation on the left
 - The primary analysis workspace in the center
@@ -837,71 +939,80 @@ The target dashboard uses:
 
 The mockup is the visual reference for layout and presentation. The authoritative analysis engine remains the source of all engineering values.
 
-## v1.0 Refinement Phase
+## v1.0 Final Review and Release Preparation
 
-The major v1.0 functionality is now complete. Remaining work is focused on
-refinement, consistency, usability, and production readiness rather than
-adding another major export or analysis subsystem.
+The planned v1.0 feature set is complete and the feature set is now frozen.
+Remaining work is focused on code quality, regression protection, documentation
+consistency, and production readiness.
 
-### GUI refinement
+### Final code review and cleanup
 
-Planned refinement areas include:
+The next development phase will audit:
 
-- Main-window layout and navigation
-- Analysis workspace presentation
-- Thrust Curve and Pressure Curve tab layout
-- Compare workspace presentation
-- Campaign workspace presentation
-- Video / Overlay workspace presentation
-- Export panel spacing and consistency
-- Chart colors, labels, legends, and visual hierarchy
-- Results presentation and engineering readability
-- Consistent spacing, sizing, typography, and tooltips
+- dead or obsolete code and imports
+- legacy state-machine remnants
+- duplicate calculations or presentation logic
+- plot/scene lifecycle and resource cleanup
+- signal/slot connections
+- project persistence and migration behavior
+- theme/style consistency
+- export and simulation boundaries
+- repository hygiene
+
+Cleanup should preserve the separation between the authoritative analysis layer,
+project/session state, and GUI presentation.
+
+### Regression and QA
+
+Before v1.0 release, the full automated regression suite and a representative
+manual end-to-end workflow will be run. QA will include:
+
+- Zerox reference analysis
+- single-test and multi-test projects
+- Compare and Campaign workflows
+- Thrust and Pressure workspaces
+- Analysis and Data Table
+- simulation import and visibility
+- video synchronization and overlays
+- PDF, BurnSim, RASP, and Analysis CSV exports
+- Settings and downloadable templates
+- Dark and Light themes
+- `.rmcs` save/load and legacy-project compatibility
 
 ### Settings
 
-A dedicated Settings system is planned for user-level application preferences.
+The current Settings dialog provides:
 
-The first major preference group is **Units**, allowing the user to choose
-preferred display units while keeping the engineering analysis layer in its
-canonical internal units.
+- Dark/Light application theme selection
+- Video Overlay preferences
+- Video display mode
+- Overlay visibility
+- Overlay titles
+- Chart grid/axis/background options
+- Downloadable blank input templates
 
-Candidate preferences include:
+The downloadable templates are intentionally user-facing format references and
+are not embedded project files.
 
-- Thrust / force
-- Pressure
-- Mass
-- Distance
-- Velocity
-- Temperature
-- Impulse
-- Density
+User display-unit preferences remain a possible future enhancement; the current
+application continues to use its established engineering units and does not
+change analysis calculations based on presentation preferences.
 
-Settings should affect presentation and conversion, not duplicate or alter
-the authoritative engineering calculations.
+### Final v1.0 release
 
-Other application preferences may be added during refinement where they provide
-clear value, such as chart defaults, export behavior, appearance, or video
-preferences.
+After code review and QA:
 
-### Final validation
-
-After refinement:
-
-- Run the full regression suite.
-- Review representative single-test and campaign projects.
-- Verify project save/load behavior.
-- Verify export outputs.
-- Verify legacy-project compatibility.
-- Review repository hygiene.
-- Update release documentation and version branding.
-- Establish the final v1.0 release/tag.
+- update release documentation and version branding
+- verify repository hygiene
+- confirm the working tree is clean
+- create the final v1.0 commit
+- create and push the v1.0.0 tag
 
 ### Deferred v2 functionality
 
 Video file export and rendered overlay export remain explicitly deferred to v2.
-They are represented in the GUI as future-feature placeholders and are not
-part of the v1.0 feature-complete milestone.
+They are represented in the GUI as future-feature placeholders and are not part
+of the v1.0 feature-complete scope.
 
 ## Development Environment
 

@@ -5,7 +5,7 @@
 ```text
 Project:              RMCS Analyzer
 Current release:      v0.4.0
-v1.0 status:           Feature-complete; refinement in progress
+v1.0 status:           Feature-complete; final code review and QA pending
 Project format:       .rmcs format 3
 Reference CSV format: 1.0
 Primary language:     Python
@@ -45,7 +45,6 @@ AnalysisResults
     +--> BurnSim CSV
     +--> RASP / .ENG
     +--> Analysis CSV
-    +--> RASP / .ENG
 ```
 
 Project/session state owns metadata overrides, campaign selections, video state,
@@ -71,7 +70,52 @@ Simulation data can be displayed on:
 Simulation state and video overlay presentation state persist in `.rmcs`
 projects.
 
-### 3.2 Video Analysis
+### 3.2 Simulation CSV Import Format
+
+RMCS Analyzer accepts simulator-independent CSV output from BurnSim/OpenMotor-style
+sources.
+
+Required structure:
+
+- recognizable time column
+- at least one recognizable thrust or pressure column
+- numeric data rows
+- monotonically non-decreasing time
+
+Recognized time units:
+
+```text
+s, ms, us
+```
+
+Recognized thrust units:
+
+```text
+N, lbf, kgf
+```
+
+Recognized pressure units:
+
+```text
+psi, Pa, kPa, MPa, bar, atm
+```
+
+The importer normalizes all simulation data internally to:
+
+```text
+time    = seconds
+thrust  = newtons
+pressure = psi
+```
+
+Simulator identification is metadata only and does not change parsing behavior.
+RMCS Analyzer provides blank BurnSim and OpenMotor simulation import templates
+through Settings to document the expected CSV structure.
+
+Measured test analysis remains authoritative when simulation and measured data
+are displayed together.
+
+### 3.3 Video Analysis
 
 Video analysis supports:
 
@@ -85,7 +129,7 @@ Video analysis supports:
 
 The full video timeline remains distinct from the RMCS analysis timeline.
 
-### 3.3 PDF Reporting
+### 3.4 PDF Reporting
 
 PDF reporting supports:
 
@@ -98,7 +142,7 @@ PDF reporting supports:
 
 Optional sections are omitted when the underlying data is unavailable.
 
-### 3.4 BurnSim CSV Export
+### 3.5 BurnSim CSV Export
 
 BurnSim export produces:
 
@@ -122,7 +166,7 @@ and Zerox reference data and against the documented BurnSim CSV structure.
 Direct import into BurnSim was not performed because BurnSim is not available
 in the development environment.
 
-### 3.5 RASP / `.ENG` Export
+### 3.6 RASP / `.ENG` Export
 
 RASP export produces the standard `.eng` motor-data format used by flight
 simulation software.
@@ -157,7 +201,17 @@ RASP export was validated using:
 
 Validation confirmed valid entry structure and separate campaign motor entries.
 
-### 3.6 Export Roadmap
+### 3.7 Analysis CSV Export
+
+Analysis CSV export produces one engineering-summary row per selected analyzed
+test. The schema combines test metadata with authoritative `AnalysisResults`
+values, including thrust, impulse, burn-time, Isp, C*, pressure, mass-flow,
+classification, and event information.
+
+A multi-test export contains one row per selected test. It does not create an
+averaged campaign row.
+
+### 3.8 Export Pane and Status
 
 Current Export pane:
 
@@ -174,7 +228,7 @@ Status:
 
 - BurnSim — complete
 - RASP / `.ENG` — complete
-- Analysis CSV — next functional export
+- Analysis CSV — complete
 - PDF Report — complete
 - Video — v2 future feature placeholder
 - Overlay — v2 future feature placeholder
@@ -183,7 +237,48 @@ OpenMotor export was removed from the roadmap because openMotor does not
 provide a meaningful direct experimental-test-data import workflow for RMCS
 test traces.
 
-## 4. Campaign Behavior
+## 4. Application Settings, Themes, and Templates
+
+The Settings dialog currently provides:
+
+- Dark/Light application theme selection
+- Video Overlay preferences
+- Video display mode
+- Overlay visibility
+- Overlay titles
+- Thrust chart grid/axis/background options
+- Downloadable blank input templates
+
+The Data Templates section is located under General → Appearance.
+
+Available templates:
+
+```text
+RMCS Test Data Template
+RMCS BurnSim Simulation Template
+RMCS OpenMotor Simulation Template
+```
+
+The simulation templates describe the CSV import format RMCS Analyzer expects;
+they are not native BurnSim/OpenMotor project files.
+
+The Light theme is a functional application-wide presentation theme. Theme
+selection persists across application launches. The engineering analysis layer
+is unaffected by theme selection.
+
+## 5. Compare Workspace Lifecycle
+
+The Compare workspace supports synchronized multi-test thrust and pressure
+visualization, event presentation, and comparison metrics.
+
+Event annotations are scene-owned graphical items and must be explicitly removed
+before comparison plots are refreshed. This prevents stale annotations from
+accumulating and appearing as duplicate or ghost labels after selection,
+visibility, or workspace refresh operations.
+
+Compare selection remains independent of the active individual test.
+
+## 6. Campaign Behavior
 
 Campaign selection is independent of the active individual test.
 
@@ -196,7 +291,7 @@ For RASP export:
 The campaign export therefore represents the actual tested population and does
 not hide firing-to-firing performance differences.
 
-## 5. Engineering Authority
+## 7. Engineering Authority
 
 The application must continue to use `AnalysisResults` as the engineering
 source of truth.
@@ -205,7 +300,7 @@ Exports must consume authoritative analysis results or measured source data
 according to the purpose of the format. They must not duplicate engineering
 calculations in the GUI.
 
-## 6. Versioning
+## 8. Versioning
 
 Current versions:
 
@@ -218,7 +313,7 @@ CSV format:      1.0
 An export feature addition does not automatically require a project-format
 change.
 
-## 7. v1.0 Feature-Complete Status
+## 9. v1.0 Feature-Complete Status
 
 The planned v1.0 engineering and data-analysis feature set is complete.
 
@@ -244,60 +339,53 @@ The authoritative engineering results remain in `AnalysisResults`. Exporters
 use authoritative analysis results or measured source data according to the
 purpose of the format.
 
-## 8. Refinement and Production Readiness
+## 10. Final Review and QA
 
-The next phase is focused on refining the completed application rather than
-adding major v1.0 functionality.
+The v1.0 feature set is complete and the feature set is now frozen. The remaining
+work is final code review, cleanup, regression/QA, and release preparation.
 
-Planned areas include:
+The code review will audit:
 
-- main-window layout and navigation
-- individual analysis workspace refinement
-- Thrust Curve and Pressure Curve presentation
-- Compare and Campaign workspace refinement
-- Video / Overlay presentation
-- Export-pane consistency
-- chart colors, labels, legends, and visual hierarchy
-- results and event presentation
-- Settings infrastructure
-- user-selectable display units
-- other application-level preferences where useful
-- final regression and compatibility validation
-- final v1.0 release/version branding
+- obsolete/unused code and imports
+- legacy state-machine remnants
+- duplicated calculations or state
+- plot and scene-item lifecycle
+- signal/slot connections
+- persistence and migration behavior
+- theme/style consistency
+- exporter boundaries
+- repository hygiene
 
-### User units
+QA will cover:
 
-User unit preferences should be implemented as presentation-layer settings.
-The analysis engine should retain canonical engineering units and should not
-be recalculated differently based on the user's display preferences.
+- Zerox reference analysis
+- single-test and multi-test workflows
+- Compare and Campaign
+- Thrust and Pressure workspaces
+- Analysis and Data Table
+- simulation import and comparison
+- synchronized video and overlays
+- PDF, BurnSim, RASP, and Analysis CSV exports
+- Settings and downloadable templates
+- Dark and Light themes
+- `.rmcs` save/load and legacy compatibility
 
-Candidate display preferences include:
+User-selectable display units are not part of the current v1.0 feature set.
+The analysis engine continues to use its established engineering units.
 
-- thrust / force
-- pressure
-- mass
-- distance
-- velocity
-- temperature
-- impulse
-- density
-
-The exact preference list and conversion behavior will be finalized during
-the Settings refinement work.
-
-## 9. Deferred v2 Functionality
+## 11. Deferred v2 Functionality
 
 Rendered video export and transparent overlay-video export remain deferred to
 v2. The existing Video and Overlay export controls are intentionally presented
 as future-feature placeholders.
 
-## 10. Versioning
+## 12. Versioning
 
 Current versions:
 
 ```text
 Application:     v0.4.0
-v1.0 status:     Feature-complete; refinement in progress
+v1.0 status:     Feature-complete; final code review and QA pending
 Project format:  3
 CSV format:      1.0
 ```

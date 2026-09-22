@@ -2,28 +2,48 @@
 
 All notable changes to RMCS Analyzer are documented here.
 
-## [Unreleased] — v1.0 Feature-Complete Checkpoint
+## [Unreleased] — v1.0.0 Finalization
 
 ### Completed
 
-- Completed the planned v1.0 engineering and data-analysis feature set.
-- Completed Analysis CSV export with one summary row per test.
-- Completed campaign Analysis CSV export with one row per selected Campaign test.
-- Confirmed Analysis CSV uses authoritative analysis results and does not
-  duplicate engineering calculations in the GUI.
-- Established the transition from feature development to v1.0 GUI refinement
-  and production-readiness work.
-- Defined Settings and user unit preferences as a planned refinement area.
-- Retained Video and Overlay file export as explicitly deferred v2 functionality.
+- Completed the planned v1.0 engineering, analysis, visualization, video,
+  simulation, reporting, and export feature set.
+- Completed Analysis CSV export with one authoritative engineering-summary row
+  per selected test.
+- Completed BurnSim CSV export from measured RMCS recordings.
+- Completed RASP / `.ENG` export for single tests and multi-test Campaigns.
+- Completed single-test and campaign PDF reporting.
+- Completed BurnSim/OpenMotor-style simulation CSV import and persistence.
+- Completed measured and simulation Thrust/Pressure visualization and video
+  overlays.
+- Completed synchronized video playback and persisted Sync Start behavior.
+- Completed Dark and Light application themes with persistent selection.
+- Added downloadable blank RMCS Test Data, BurnSim Simulation, and OpenMotor
+  Simulation import templates under Settings → General → Appearance.
+- Refined the Light theme for contrast, panel hierarchy, controls, and branding.
+- Fixed Compare event-label lifecycle handling so refreshed plots do not retain
+  duplicate or ghost annotations.
+- Preserved Video and Overlay file export as explicitly deferred v2
+  functionality.
 
-### Current Direction
+### Finalization
 
-The next development phase focuses on GUI/layout refinement, chart
-presentation, workspace-specific improvements, Settings, user unit
-preferences, consistency, and final regression/release validation.
+- Feature development for the planned v1.0 scope is frozen.
+- The next phase is final code review/cleanup, full regression/QA, documentation
+  verification, and final v1.0 release preparation.
 
 
 ## [0.4.0] - 2026-09-20
+
+### Settings / GUI Refinement
+
+- Added persistent Dark/Light application theme selection.
+- Refined Light-theme contrast, panel boundaries, controls, and RMCS branding.
+- Added a Settings → General → Appearance Data Templates section.
+- Added downloadable blank RMCS Test Data, BurnSim Simulation, and OpenMotor
+  Simulation import templates.
+- Fixed Compare scene-owned event labels so refreshed plots do not accumulate
+  duplicate/ghost annotations.
 
 ### RASP / `.ENG` Export
 
