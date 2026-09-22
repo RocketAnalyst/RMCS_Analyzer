@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
     QGridLayout,
+    QHeaderView,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -105,13 +106,18 @@ class CampaignPanel(QFrame):
         # ---------------------------------------------------------
         self.stats_table = QTableWidget(0, 8)
         self.stats_table.setHorizontalHeaderLabels([
-            "Metric", "Tests", "Mean", "Median", "Min", "Max", "Std Dev", "CV",
+            "Metric", "Tests", "Mean", "Median", "Min", "Max", "Std Dev", "CV (%)",
         ])
+        self.stats_table.horizontalHeaderItem(7).setToolTip(
+            "Coefficient of Variation: standard deviation / mean × 100%"
+        )
         self.stats_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.stats_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.stats_table.setMaximumHeight(180)
         self.stats_table.verticalHeader().setVisible(False)
-        self.stats_table.horizontalHeader().setStretchLastSection(True)
+        header = self.stats_table.horizontalHeader()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         layout.addWidget(self.stats_table)
 
         # ---------------------------------------------------------
@@ -391,7 +397,7 @@ class CampaignPanel(QFrame):
         bars = pg.BarGraphItem(
             x=x,
             height=np.asarray(values),
-            width=0.62,
+            width=0.55,
             brush=pg.mkBrush("#2aa9ff"),
             pen=pg.mkPen("#5bc0ff", width=1),
         )
@@ -410,10 +416,34 @@ class CampaignPanel(QFrame):
             )
 
         axis = self.metric_plot.getAxis("bottom")
-        axis.setTicks([[ (i, label) for i, label in enumerate(labels) ]])
+        axis.setTicks([[(i, label) for i, label in enumerate(labels)]])
         self.metric_plot.setLabel("left", metric, units=unit)
         self.metric_plot.setLabel("bottom", "Test")
-        self.metric_plot.getViewBox().autoRange(padding=0.12)
+
+        # Keep campaign bars visually proportional and leave useful breathing
+        # room around a single test. PyQtGraph's default auto-range can make a
+        # single bar expand to nearly the entire plot width.
+        count = len(values)
+        self.metric_plot.setXRange(-0.75, max(0.75, count - 0.25), padding=0.0)
+        finite_values = np.asarray(values, dtype=float)
+        finite_values = finite_values[np.isfinite(finite_values)]
+        if finite_values.size:
+            low = float(np.min(finite_values))
+            high = float(np.max(finite_values))
+            if low == high:
+                magnitude = max(abs(high), 1.0)
+                if low >= 0:
+                    low = 0.0
+                    high = magnitude * 1.12
+                else:
+                    span = magnitude * 0.12
+                    low -= span
+                    high += span
+            else:
+                span = high - low
+                low -= span * 0.08
+                high += span * 0.08
+            self.metric_plot.setYRange(low, high, padding=0.0)
 
     def _refresh_curve_plot(self):
         self.curve_plot.clear()
