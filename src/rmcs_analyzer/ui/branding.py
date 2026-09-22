@@ -271,7 +271,7 @@ class Branding(QFrame):
         )
 
         version = QLabel(
-            "v0.4.0"
+            "v1.0.0"
         )
 
         version.setObjectName(

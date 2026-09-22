@@ -10,12 +10,12 @@ The application is being developed with Python, PySide6, PyQtGraph, NumPy, and P
 
 ## Current Development Status
 
-### v0.4.0 — Feature-complete v1.0 candidate
+### v1.0.0 — Feature-complete release
 
-RMCS Analyzer v0.4.0 contains the complete planned **v1.0 feature set**.
-The feature set is now frozen for final code review, cleanup, regression/QA,
-and release preparation. No additional major v1.0 feature subsystem is
-currently planned before the v1.0 release.
+RMCS Analyzer v1.0.0 contains the complete planned **v1.0 feature set**.
+The feature set is frozen, the final code review and cleanup are complete,
+and the automated regression suite is passing. No additional major v1.0
+feature subsystem is planned for the v1.0 release.
 
 The v1.0 feature set includes:
 
@@ -36,11 +36,8 @@ The v1.0 feature set includes:
 - Settings-based template downloads and video-overlay preferences
 - Regression/reference testing for the completed feature areas
 
-The next phase is **final code review, cleanup, regression/QA, and release
-preparation**. The major v1.0 feature set is frozen.
-
-The application release remains **v0.4.0** until the final v1.0 release is
-made.
+The v1.0 release baseline is now established. Final release preparation
+consists of the remaining documentation and repository release steps.
 
 ## v0.4.0
 
@@ -89,7 +86,7 @@ does not provide a meaningful direct experimental-test-data import workflow.
 Video and Overlay file exports are intentionally represented as active v2
 future-feature placeholders.
 
-The current development priority is **refinement before final v1.0 release**:
+The current release priority is **documentation and release maintenance**:
 GUI/layout polish, chart presentation, Settings and user preferences,
 workspace-specific improvements, consistency, and final regression validation.
 
@@ -148,6 +145,11 @@ authoritative engineering results. Analysis is performed by the analysis
 layer and exposed through `AnalysisResults`.
 
 ---
+
+## Documentation
+
+- **[RMCS Analyzer User Guide](docs/RMCS_Analyzer_User_Guide.docx)** — Complete user documentation covering installation, workflow, analysis methodology, calculations, motor classification, simulation comparison, exports, troubleshooting, and engineering reference information.
+- **[RMCS Analyzer Specification](docs/RMCS_ANALYZER_SPEC.md)** — Technical specification and implementation reference.
 
 ## Current Features
 
@@ -941,72 +943,25 @@ The mockup is the visual reference for layout and presentation. The authoritativ
 
 ## v1.0 Final Review and Release Preparation
 
-The planned v1.0 feature set is complete and the feature set is now frozen.
-Remaining work is focused on code quality, regression protection, documentation
-consistency, and production readiness.
+The planned v1.0 feature set is complete and the feature set is frozen.
+Final code review, cleanup, regression testing, and representative manual
+QA have been completed for the v1.0.0 release baseline.
 
-### Final code review and cleanup
+### Release baseline
 
-The next development phase will audit:
-
-- dead or obsolete code and imports
-- legacy state-machine remnants
-- duplicate calculations or presentation logic
-- plot/scene lifecycle and resource cleanup
-- signal/slot connections
-- project persistence and migration behavior
-- theme/style consistency
-- export and simulation boundaries
-- repository hygiene
-
-Cleanup should preserve the separation between the authoritative analysis layer,
-project/session state, and GUI presentation.
-
-### Regression and QA
-
-Before v1.0 release, the full automated regression suite and a representative
-manual end-to-end workflow will be run. QA will include:
-
-- Zerox reference analysis
-- single-test and multi-test projects
-- Compare and Campaign workflows
-- Thrust and Pressure workspaces
-- Analysis and Data Table
-- simulation import and visibility
-- video synchronization and overlays
-- PDF, BurnSim, RASP, and Analysis CSV exports
-- Settings and downloadable templates
-- Dark and Light themes
-- `.rmcs` save/load and legacy-project compatibility
-
-### Settings
-
-The current Settings dialog provides:
-
-- Dark/Light application theme selection
-- Video Overlay preferences
-- Video display mode
-- Overlay visibility
-- Overlay titles
-- Chart grid/axis/background options
-- Downloadable blank input templates
-
-The downloadable templates are intentionally user-facing format references and
-are not embedded project files.
-
-User display-unit preferences remain a possible future enhancement; the current
-application continues to use its established engineering units and does not
-change analysis calculations based on presentation preferences.
+- Full automated regression suite: 48 tests passing.
+- Regression fixtures in `test_data/` and `sim_data/` are retained in source
+  control so the test suite is reproducible from a clean checkout.
+- Generated pytest and Python cache files remain excluded by `.gitignore`.
+- Application release version: **1.0.0**.
+- `.rmcs` project format remains version 3.
+- RMCS CSV format remains version 1.0.
 
 ### Final v1.0 release
 
-After code review and QA:
-
-- update release documentation and version branding
-- verify repository hygiene
-- confirm the working tree is clean
-- create the final v1.0 commit
-- create and push the v1.0.0 tag
+The remaining release steps are repository release administration: verify the
+final documentation, create the final v1.0.0 commit, create and push the
+`v1.0.0` tag, and publish the release.
 
 ### Deferred v2 functionality
 

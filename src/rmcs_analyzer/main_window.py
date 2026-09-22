@@ -734,7 +734,7 @@ class MainWindow(QMainWindow):
         )
 
         version = QLabel(
-            "v0.4.0"
+            "v1.0.0"
         )
 
         version.setObjectName(
@@ -1144,7 +1144,7 @@ class MainWindow(QMainWindow):
             output_path = generate_campaign_pdf_report(
                 self.session,
                 output_path=filename,
-                app_version="0.4.0",
+                app_version="1.0.0",
             )
         except ModuleNotFoundError as error:
             package = getattr(error, "name", "") or "required package"

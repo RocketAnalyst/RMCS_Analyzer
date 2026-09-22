@@ -2,7 +2,7 @@
 
 All notable changes to RMCS Analyzer are documented here.
 
-## [Unreleased] — v1.0.0 Finalization
+## [1.0.0] - 2026-09-22
 
 ### Completed
 
@@ -29,8 +29,11 @@ All notable changes to RMCS Analyzer are documented here.
 ### Finalization
 
 - Feature development for the planned v1.0 scope is frozen.
-- The next phase is final code review/cleanup, full regression/QA, documentation
-  verification, and final v1.0 release preparation.
+- Completed final code review and cleanup.
+- Completed the full automated regression suite with 48 passing tests.
+- Completed representative manual QA of the v1.0 application workflow.
+- Established application release version 1.0.0 while retaining project format 3
+  and CSV format 1.0.
 
 
 ## [0.4.0] - 2026-09-20

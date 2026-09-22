@@ -4,8 +4,8 @@
 
 ```text
 Project:              RMCS Analyzer
-Current release:      v0.4.0
-v1.0 status:           Feature-complete; final code review and QA pending
+Current release:      v1.0.0
+v1.0 status:           Feature-complete; final code review and QA complete
 Project format:       .rmcs format 3
 Reference CSV format: 1.0
 Primary language:     Python
@@ -305,7 +305,7 @@ calculations in the GUI.
 Current versions:
 
 ```text
-Application:     v0.4.0
+Application:     v1.0.0
 Project format:  3
 CSV format:      1.0
 ```
@@ -341,8 +341,10 @@ purpose of the format.
 
 ## 10. Final Review and QA
 
-The v1.0 feature set is complete and the feature set is now frozen. The remaining
-work is final code review, cleanup, regression/QA, and release preparation.
+The v1.0 feature set is complete and the feature set is now frozen. Final code
+review, cleanup, regression/QA, and representative manual QA are complete for
+the v1.0.0 release baseline. Remaining work is release administration and final
+documentation maintenance.
 
 The code review will audit:
 
@@ -384,8 +386,8 @@ as future-feature placeholders.
 Current versions:
 
 ```text
-Application:     v0.4.0
-v1.0 status:     Feature-complete; final code review and QA pending
+Application:     v1.0.0
+v1.0 status:     Feature-complete; final code review and QA complete
 Project format:  3
 CSV format:      1.0
 ```
