@@ -494,6 +494,21 @@ class MainWindow(QMainWindow):
             lower_panels
         )
 
+        # Supporting panes are intentionally available only on the
+        # primary curve workspaces. Analysis, Compare, Campaign, and
+        # Data Table reclaim this vertical space.
+        self._lower_supporting_panes = (
+            self.video_panel,
+            self.export_panel,
+            self.classification_panel,
+        )
+        self.workspace_tabs.currentChanged.connect(
+            self._update_lower_supporting_panes
+        )
+        self._update_lower_supporting_panes(
+            self.workspace_tabs.currentIndex()
+        )
+
         content_layout.addWidget(
             center_container,
             1,
@@ -719,6 +734,17 @@ class MainWindow(QMainWindow):
         )
 
         return page
+
+    def _update_lower_supporting_panes(self, index):
+        """Show supporting panes only for the two primary curve tabs."""
+        show_supporting_panes = int(index) in (0, 1)
+
+        for widget in getattr(
+            self,
+            "_lower_supporting_panes",
+            (),
+        ):
+            widget.setVisible(show_supporting_panes)
 
     def create_export_placeholder(self):
         """Create the compact export pane."""
@@ -2651,6 +2677,9 @@ class MainWindow(QMainWindow):
             analysis_position_s
         )
         self.pressure_plot.set_playback_position(
+            analysis_position_s
+        )
+        self.compare_panel.set_playback_position(
             analysis_position_s
         )
 
