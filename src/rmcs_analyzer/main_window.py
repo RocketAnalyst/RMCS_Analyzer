@@ -388,23 +388,17 @@ class MainWindow(QMainWindow):
         pressure_options.addStretch(1)
         pressure_layout.addLayout(pressure_options)
 
+        self.pressure_playback = PlaybackControls()
+
         pressure_layout.addWidget(self.pressure_plot, 1)
+        pressure_layout.addWidget(self.pressure_playback, 0)
 
         self.workspace_tabs.addTab(
             pressure_workspace,
             "Pressure Curve",
         )
 
-        # =========================================================
-        # ANALYSIS TAB
-        # =========================================================
 
-        self.analysis_panel = AnalysisPanel()
-
-        self.workspace_tabs.addTab(
-            self.analysis_panel,
-            "Analysis",
-        )
 
         # =========================================================
         # COMPARE TAB
@@ -426,6 +420,17 @@ class MainWindow(QMainWindow):
         self.workspace_tabs.addTab(
             self.campaign_panel,
             "Campaign",
+        )
+
+        # =========================================================
+        # ANALYSIS TAB
+        # =========================================================
+
+        self.analysis_panel = AnalysisPanel()
+
+        self.workspace_tabs.addTab(
+            self.analysis_panel,
+            "Analysis",
         )
 
         # =========================================================
@@ -1443,6 +1448,9 @@ class MainWindow(QMainWindow):
             self.edit_active_test_metadata
         )
 
+        self.video_panel.overlay_options_requested.connect(
+            lambda: self.open_settings(select_video_overlay=True)
+        )
         self.video_panel.video_changed.connect(
             self.on_video_changed
         )
@@ -1496,6 +1504,21 @@ class MainWindow(QMainWindow):
             self.on_scrub_started
         )
         self.playback.scrub_finished.connect(
+            self.on_scrub_finished
+        )
+        self.pressure_playback.play_requested.connect(
+            self.playback_timeline.toggle
+        )
+        self.pressure_playback.reset_requested.connect(
+            self.playback_timeline.stop
+        )
+        self.pressure_playback.seek_requested.connect(
+            self.playback_timeline.set_position
+        )
+        self.pressure_playback.scrub_started.connect(
+            self.on_scrub_started
+        )
+        self.pressure_playback.scrub_finished.connect(
             self.on_scrub_finished
         )
         self.playback_timeline.position_changed.connect(
@@ -2583,6 +2606,8 @@ class MainWindow(QMainWindow):
         )
         self.playback.set_duration(duration_s)
         self.playback.set_position(self.playback_timeline.position_s)
+        self.pressure_playback.set_duration(duration_s)
+        self.pressure_playback.set_position(self.playback_timeline.position_s)
 
         self.video_panel.set_video_state(
             test.video.source_path,
@@ -2614,6 +2639,7 @@ class MainWindow(QMainWindow):
             curve_show_axes=test.video.curve_show_axes,
             curve_show_background=test.video.curve_show_background,
             pdf_frame_position_s=test.video.pdf_frame_position_s,
+            display_mode=test.video.display_mode,
         )
         self.video_panel.set_timeline_position(
             self.playback_timeline.position_s
@@ -2662,6 +2688,7 @@ class MainWindow(QMainWindow):
 
         test.video.playback_position_s = float(position_s)
         self.playback.set_position(position_s)
+        self.pressure_playback.set_position(position_s)
         self.video_panel.set_timeline_position(position_s)
 
         # The playback timeline is video time when a video is loaded.
@@ -2713,6 +2740,7 @@ class MainWindow(QMainWindow):
 
     def on_playback_state_changed(self, playing):
         self.playback.set_playing(playing)
+        self.pressure_playback.set_playing(playing)
         self.video_panel.set_playing(playing)
 
     def on_playback_finished(self):
@@ -2794,6 +2822,8 @@ class MainWindow(QMainWindow):
             self.playback_timeline.set_position(position)
             self.playback.set_duration(duration)
             self.playback.set_position(position)
+            self.pressure_playback.set_duration(duration)
+            self.pressure_playback.set_position(position)
         elif not test.video.has_video:
             duration = (
                 float(test.data.duration_s)
@@ -2807,6 +2837,8 @@ class MainWindow(QMainWindow):
             )
             self.playback.set_duration(duration)
             self.playback.set_position(position)
+            self.pressure_playback.set_duration(duration)
+            self.pressure_playback.set_position(position)
 
     def on_video_overlay_changed(self, show_curve, show_results, show_events):
         test = self.session.active_test
@@ -2947,8 +2979,8 @@ class MainWindow(QMainWindow):
         self.project_modified = True
         self.update_status(test)
 
-    def open_settings(self):
-        """Open application settings, beginning with active-test video overlay options."""
+    def open_settings(self, select_video_overlay=False):
+        """Open application settings, optionally focused on Video Overlay."""
         test = self.session.active_test
         configuration = (
             self.video_panel.overlay_configuration()
@@ -2959,8 +2991,15 @@ class MainWindow(QMainWindow):
             video_configuration=configuration,
             parent=self,
         )
+        if select_video_overlay:
+            dialog.select_video_overlay_tab()
 
         original_visibility = None
+        original_display_mode = (
+            str(configuration.get("display_mode", "fit"))
+            if configuration is not None
+            else "fit"
+        )
         if configuration is not None:
             original_visibility = dict(
                 configuration.get("overlay_visibility", {})
@@ -2980,12 +3019,25 @@ class MainWindow(QMainWindow):
             preview_visibility
         )
 
+        def preview_display_mode(mode):
+            self.video_panel.set_display_mode(mode)
+
+        dialog.video_display_mode_preview_changed.connect(
+            preview_display_mode
+        )
+
         try:
             result = dialog.exec()
         finally:
             try:
                 dialog.overlay_visibility_preview_changed.disconnect(
                     preview_visibility
+                )
+            except (RuntimeError, TypeError):
+                pass
+            try:
+                dialog.video_display_mode_preview_changed.disconnect(
+                    preview_display_mode
                 )
             except (RuntimeError, TypeError):
                 pass
@@ -3000,6 +3052,7 @@ class MainWindow(QMainWindow):
                     events=original_visibility.get("events"),
                     emit=False,
                 )
+                self.video_panel.set_display_mode(original_display_mode)
             return
         if test is None:
             return

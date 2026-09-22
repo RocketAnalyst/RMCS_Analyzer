@@ -44,6 +44,10 @@ class VideoState:
     # None means the PDF exporter chooses a representative frame automatically.
     pdf_frame_position_s: float | None = None
 
+    # Video preview display mode. Fit is the default and preserves the full
+    # frame; Fill uses the available preview area and may crop the edges.
+    display_mode: str = "fit"
+
     # Normalized position and size for the editable overlay components.
     curve_overlay_x: float = 0.06
     curve_overlay_y: float = 0.58

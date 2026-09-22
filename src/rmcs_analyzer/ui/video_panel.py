@@ -31,6 +31,7 @@ class VideoFrameWidget(QWidget):
         self._scaled = QImage()
         self._scaled_size = QSize()
         self._content_rect = QRect()
+        self._display_mode = "fit"
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
@@ -49,6 +50,19 @@ class VideoFrameWidget(QWidget):
         self._recalculate_content_rect()
         self.update()
 
+    def set_display_mode(self, mode):
+        mode = str(mode or "fit").lower()
+        if mode not in ("fit", "fill"):
+            mode = "fit"
+        self._display_mode = mode
+        self._scaled = QImage()
+        self._scaled_size = QSize()
+        self._recalculate_content_rect()
+        self.update()
+
+    def display_mode(self):
+        return self._display_mode
+
     def clear_frame(self):
         self._image = QImage()
         self._scaled = QImage()
@@ -64,6 +78,13 @@ class VideoFrameWidget(QWidget):
             self._content_rect = self.rect()
             return
         source_ratio = self._image.width() / self._image.height()
+        if self._display_mode == "fill":
+            self._content_rect = self.rect()
+            return
+
+        # Fit: maximize the decoded frame inside the available area while
+        # preserving its aspect ratio. This supports both portrait and
+        # landscape video without distortion or cropping.
         target_w = float(self.width())
         target_h = target_w / source_ratio
         if target_h > self.height():
@@ -95,13 +116,27 @@ class VideoFrameWidget(QWidget):
             return
         rect = self._content_rect
         if self._scaled.isNull() or self._scaled_size != rect.size():
+            aspect_mode = (
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding
+                if self._display_mode == "fill"
+                else Qt.AspectRatioMode.KeepAspectRatio
+            )
             self._scaled = self._image.scaled(
                 rect.size(),
-                Qt.AspectRatioMode.KeepAspectRatio,
+                aspect_mode,
                 Qt.TransformationMode.SmoothTransformation,
             )
             self._scaled_size = rect.size()
-        painter.drawImage(rect.topLeft(), self._scaled)
+
+        if self._display_mode == "fill":
+            # Keep the image centered after expanding; this crops only the
+            # excess area needed to fill the preview.
+            x = max(0, (self._scaled.width() - rect.width()) // 2)
+            y = max(0, (self._scaled.height() - rect.height()) // 2)
+            source = QRect(x, y, rect.width(), rect.height())
+            painter.drawImage(rect.topLeft(), self._scaled, source)
+        else:
+            painter.drawImage(rect.topLeft(), self._scaled)
         painter.end()
 
 
@@ -1107,6 +1142,7 @@ class VideoPanel(QFrame):
     overlay_configuration_changed = Signal(object)
     duration_changed = Signal(float)
     pdf_frame_changed = Signal(object)
+    overlay_options_requested = Signal()
 
     SUPPORTED_FILTER = (
         "Video Files (*.mp4 *.mov *.m4v *.avi *.mkv *.wmv *.webm);;"
@@ -1128,6 +1164,7 @@ class VideoPanel(QFrame):
         self._priming_frame = False
         self._priming_audio_volume = None
         self._pdf_frame_position_s = None
+        self._display_mode = "fit"
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 8, 10, 8)
@@ -1146,6 +1183,13 @@ class VideoPanel(QFrame):
         self.status_label.setMaximumWidth(210)
         self.status_label.setToolTip("")
         header.addWidget(self.status_label)
+        self.overlay_options_button = QPushButton("Overlay Options…")
+        self.overlay_options_button.setObjectName("videoOverlayOptionsButton")
+        self.overlay_options_button.setToolTip(
+            "Open Video Overlay settings for the active test."
+        )
+        header.addWidget(self.overlay_options_button)
+
         self.load_button = QPushButton("Load Video…")
         self.load_button.setObjectName("loadVideoButton")
         header.addWidget(self.load_button)
@@ -1176,7 +1220,6 @@ class VideoPanel(QFrame):
 
         sync_row = QHBoxLayout()
         sync_row.setSpacing(4)
-        sync_row.addStretch(1)
 
         self.sync_spin = QDoubleSpinBox()
         self.sync_spin.setObjectName("videoSyncSpin")
@@ -1236,6 +1279,9 @@ class VideoPanel(QFrame):
         self.player.mediaStatusChanged.connect(self._media_status_changed)
         self.player.errorOccurred.connect(self._error_occurred)
 
+        self.overlay_options_button.clicked.connect(
+            self.overlay_options_requested.emit
+        )
         self.load_button.clicked.connect(self._choose_video)
         self.remove_button.clicked.connect(self.video_removed.emit)
         self.popout_button.clicked.connect(self.toggle_popout)
@@ -1321,10 +1367,12 @@ class VideoPanel(QFrame):
         curve_show_axes=True,
         curve_show_background=True,
         pdf_frame_position_s=None,
+        display_mode="fit",
     ):
         self._loading_state = True
         try:
             self._set_pdf_frame_position(pdf_frame_position_s, emit=False)
+            self.set_display_mode(display_mode)
             self._sync_offset_s = float(sync_offset_s or 0.0)
             self.sync_spin.setValue(self._sync_offset_s)
             self._show_curve = bool(show_curve)
@@ -1471,6 +1519,19 @@ class VideoPanel(QFrame):
         if emit_signal:
             self.video_changed.emit(str(path.resolve()))
         return True
+
+    def set_display_mode(self, mode):
+        mode = str(mode or "fit").lower()
+        if mode not in ("fit", "fill"):
+            mode = "fit"
+        self._display_mode = mode
+        self.video_surface.set_display_mode(mode)
+        self._video_container.sync_overlay_geometry()
+        self.overlay.update()
+
+    @property
+    def display_mode(self):
+        return self._display_mode
 
     def set_sync_offset(self, offset_s):
         self._loading_state = True
@@ -1765,6 +1826,7 @@ class VideoPanel(QFrame):
 
     def apply_overlay_configuration(self, configuration):
         """Apply settings-dialog configuration to the current overlay."""
+        self.set_display_mode(configuration.get("display_mode", self._display_mode))
         self.overlay.apply_configuration(
             curve_title=configuration["curve_title"],
             results_title=configuration["results_title"],
@@ -1802,6 +1864,7 @@ class VideoPanel(QFrame):
         configuration["show_simulation"] = self._show_simulation
         configuration["show_results"] = self._show_results
         configuration["show_events"] = self._show_events
+        configuration["display_mode"] = self._display_mode
         return configuration
 
     def apply_event_positions(self, positions):

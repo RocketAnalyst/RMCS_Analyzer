@@ -280,6 +280,16 @@ QFrame#header {
     color: #8fa5b4;
     font-size: 7pt;
 }
+#videoControlGroup {
+    background-color: #0d1922;
+    border: 1px solid #263d4b;
+    border-radius: 5px;
+}
+#videoControlLabel {
+    color: #8fa5b4;
+    font-size: 7pt;
+    font-weight: 600;
+}
 #videoSyncSpin {
     background-color: #0d1922;
     color: #b7c8d2;
@@ -543,6 +553,35 @@ QListWidget::item:hover {
 }
 QCheckBox {
     color: #aebfca;
+}
+#videoOverlayOptionsButton {
+    background-color: #101e28;
+    color: #8fa5b4;
+    border: 1px solid #29404e;
+    border-radius: 5px;
+    padding: 6px 9px;
+}
+#videoOverlayOptionsButton:hover {
+    background-color: #152b3a;
+    border-color: #218bd8;
+    color: #eef7fc;
+}
+#videoPdfFrameLabel {
+    color: #b7c8d2;
+    font-size: 7pt;
+}
+#videoPdfFrameButton {
+    background-color: #101e28;
+    color: #8fa5b4;
+    border: 1px solid #29404e;
+    border-radius: 4px;
+    padding: 3px 7px;
+    font-size: 7pt;
+}
+#videoPdfFrameButton:hover {
+    background-color: #183040;
+    border-color: #218bd8;
+    color: #ffffff;
 }
 #videoPopoutButton {
     background-color: #101e28;

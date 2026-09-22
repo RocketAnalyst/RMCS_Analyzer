@@ -35,6 +35,7 @@ RESULT_OPTIONS = [
 
 class SettingsDialog(QDialog):
     overlay_visibility_preview_changed = Signal(object)
+    video_display_mode_preview_changed = Signal(str)
     """Application settings dialog, beginning with per-test video overlay settings."""
 
     def __init__(self, video_configuration=None, parent=None):
@@ -44,6 +45,7 @@ class SettingsDialog(QDialog):
         self.resize(700, 620)
 
         configuration = video_configuration or {}
+        self._video_tab_index = 1
 
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 18, 18, 18)
@@ -142,6 +144,21 @@ class SettingsDialog(QDialog):
             overlay_defaults_layout.addWidget(checkbox)
 
         video_page.addWidget(overlay_defaults)
+
+        display = QGroupBox("Video Display")
+        display_layout = QFormLayout(display)
+        self.display_mode_combo = QComboBox()
+        self.display_mode_combo.addItem("Fit — show the entire video", "fit")
+        self.display_mode_combo.addItem("Fill — use the full preview area", "fill")
+        current_display_mode = str(configuration.get("display_mode", "fit")).lower()
+        index = self.display_mode_combo.findData(current_display_mode)
+        self.display_mode_combo.setCurrentIndex(index if index >= 0 else 0)
+        self.display_mode_combo.setToolTip(
+            "Fit preserves the full frame without cropping. Fill enlarges the video "
+            "to use the entire preview area and may crop the edges."
+        )
+        display_layout.addRow("Display mode:", self.display_mode_combo)
+        video_page.addWidget(display)
 
         titles = QGroupBox("Overlay Titles")
         titles_layout = QFormLayout(titles)
@@ -254,6 +271,10 @@ class SettingsDialog(QDialog):
 
         video_page.addWidget(events)
 
+        self.display_mode_combo.currentIndexChanged.connect(
+            self._emit_display_mode_preview
+        )
+
         for checkbox in (
             self.show_thrust_check,
             self.show_pressure_check,
@@ -293,6 +314,15 @@ class SettingsDialog(QDialog):
             self._visibility_configuration()
         )
 
+    def _emit_display_mode_preview(self, _index=0):
+        self.video_display_mode_preview_changed.emit(
+            str(self.display_mode_combo.currentData() or "fit")
+        )
+
+    def select_video_overlay_tab(self):
+        # The Video Overlay page is intentionally the second settings tab.
+        self.findChild(QTabWidget).setCurrentIndex(self._video_tab_index)
+
     def configuration(self):
         fields = []
         for index in range(self.result_list.count()):
@@ -327,6 +357,7 @@ class SettingsDialog(QDialog):
             "show_simulation": self.show_simulation_check.isChecked(),
             "show_results": self.show_results_check.isChecked(),
             "show_events": self.show_events_check.isChecked(),
+            "display_mode": str(self.display_mode_combo.currentData() or "fit"),
         }
 
 
