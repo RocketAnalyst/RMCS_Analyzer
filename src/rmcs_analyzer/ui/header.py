@@ -20,7 +20,6 @@ class Header(QFrame):
 
     import_rmcs_requested = Signal()
     import_project_requested = Signal()
-    import_other_csv_requested = Signal()
     import_simulation_requested = Signal()
 
     def __init__(
@@ -147,22 +146,6 @@ class Header(QFrame):
             )
         )
 
-        self.import_menu.addSeparator()
-
-        self.other_csv_action = (
-            self.import_menu.addAction(
-                "Other / Non-RMCS CSV"
-            )
-        )
-
-        self.other_csv_action.setEnabled(
-            False
-        )
-
-        self.other_csv_action.setToolTip(
-            "Coming soon — import and map non-RMCS test data."
-        )
-
         self.import_button.setMenu(
             self.import_menu
         )
@@ -221,10 +204,6 @@ class Header(QFrame):
 
         self.simulation_action.triggered.connect(
             self.import_simulation_requested.emit
-        )
-
-        self.other_csv_action.triggered.connect(
-            self.import_other_csv_requested.emit
         )
 
         # =========================================================

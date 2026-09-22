@@ -396,17 +396,6 @@ class MainWindow(QMainWindow):
         )
 
         # =========================================================
-        # ANALYSIS TAB
-        # =========================================================
-
-        self.analysis_panel = AnalysisPanel()
-
-        self.workspace_tabs.addTab(
-            self.analysis_panel,
-            "Analysis",
-        )
-
-        # =========================================================
         # COMPARE TAB
         # =========================================================
 
@@ -437,6 +426,17 @@ class MainWindow(QMainWindow):
         self.workspace_tabs.addTab(
             self.data_table,
             "Data Table",
+        )
+
+        # =========================================================
+        # ANALYSIS TAB
+        # =========================================================
+
+        self.analysis_panel = AnalysisPanel()
+
+        self.workspace_tabs.addTab(
+            self.analysis_panel,
+            "Analysis",
         )
 
         center_layout.addWidget(
@@ -817,7 +817,7 @@ class MainWindow(QMainWindow):
             self.video_export_button,
             self.overlay_export_button,
         ):
-            button.setFixedHeight(25)
+            button.setFixedHeight(28)
             button.setSizePolicy(
                 QSizePolicy.Policy.Expanding,
                 QSizePolicy.Policy.Fixed,
@@ -1411,10 +1411,6 @@ class MainWindow(QMainWindow):
 
         self.header.import_project_requested.connect(
             self.open_project_dialog
-        )
-
-        self.header.import_other_csv_requested.connect(
-            self.import_other_csv
         )
 
         self.header.import_simulation_requested.connect(
