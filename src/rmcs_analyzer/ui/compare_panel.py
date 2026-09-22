@@ -295,11 +295,22 @@ class ComparePanel(QFrame):
         self._update_playback_position(0.0)
 
     def _clear_plots(self):
+        # Event annotations are added directly to the PlotWidget scene rather
+        # than as PlotItems, so PlotWidget.clear() does not remove them.
+        # Explicitly remove the old graphics-text items before rebuilding the
+        # comparison. Otherwise every refresh leaves orphaned labels behind,
+        # which appear as duplicate/ghost annotations and may only repaint
+        # when the graphics scene receives mouse activity.
+        for label in self._event_labels:
+            scene = label.scene()
+            if scene is not None:
+                scene.removeItem(label)
+        self._event_labels.clear()
+        self._event_label_specs.clear()
+        self._label_offsets.clear()
+
         self.thrust_plot.clear()
         self.pressure_plot.clear()
-        self._event_labels = []
-        self._event_label_specs = {}
-        self._label_offsets = {}
         self._playback_lines = []
         self._rebuild_legends([])
 
@@ -333,7 +344,7 @@ class ComparePanel(QFrame):
         swatch = QLabel("●")
         swatch.setStyleSheet(f"color: {color}; font-size: 12px;")
         label = QLabel(name)
-        label.setStyleSheet("color: #cbd5df;")
+        label.setObjectName("compareLegendLabel")
         layout.addWidget(swatch)
         layout.addWidget(label)
 

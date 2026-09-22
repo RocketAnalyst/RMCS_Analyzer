@@ -3,9 +3,9 @@ import sys
 
 import numpy as np
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSettings, Qt
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
-    QApplication,
     QFileDialog,
     QDialog,
     QFrame,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QApplication,
     QMessageBox,
     QSizePolicy,
     QPushButton,
@@ -21,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .theme import APPLICATION_STYLE
+from .theme import application_style
 
 from .data import (
     CSVReadError,
@@ -134,10 +135,23 @@ class MainWindow(QMainWindow):
         self.project_filename = None
         self.project_modified = False
 
+        # Application-wide appearance preference.  QSettings keeps the
+        # selected theme across application restarts; it is intentionally
+        # separate from the per-project .rmcs video configuration.
+        self.settings = QSettings(
+            "ROCI",
+            "RMCS Analyzer",
+        )
+        self.current_theme = str(
+            self.settings.value("appearance/theme", "dark")
+        ).lower()
+        if self.current_theme not in ("dark", "light"):
+            self.current_theme = "dark"
+
         self.build_ui()
 
-        self.setStyleSheet(
-            APPLICATION_STYLE
+        self.apply_theme(
+            self.current_theme
         )
 
         self.connect_signals()
@@ -146,6 +160,92 @@ class MainWindow(QMainWindow):
             "READY — No test loaded",
             modified=False,
         )
+
+    def apply_theme(self, theme):
+        """Apply a complete application theme, including existing widgets and plots."""
+        theme = str(theme or "dark").lower()
+        if theme not in ("dark", "light"):
+            theme = "dark"
+
+        self.current_theme = theme
+        app = QApplication.instance()
+        if app is None:
+            return
+
+        # Use one complete stylesheet per theme.  The light stylesheet does
+        # not inherit the dark stylesheet, which avoids Qt stylesheet cascade
+        # precedence leaving dark rules active.
+        app.setStyleSheet(application_style(theme))
+
+        # Set the native Qt palette as a second layer for controls that do
+        # not have explicit stylesheet rules.
+        palette = QPalette()
+        if theme == "light":
+            palette.setColor(QPalette.ColorRole.Window, QColor("#f4f7fa"))
+            palette.setColor(QPalette.ColorRole.WindowText, QColor("#253844"))
+            palette.setColor(QPalette.ColorRole.Base, QColor("#ffffff"))
+            palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#f3f7fa"))
+            palette.setColor(QPalette.ColorRole.Text, QColor("#253844"))
+            palette.setColor(QPalette.ColorRole.Button, QColor("#f7f9fb"))
+            palette.setColor(QPalette.ColorRole.ButtonText, QColor("#334955"))
+            palette.setColor(QPalette.ColorRole.Highlight, QColor("#1683d2"))
+            palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
+            palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#ffffff"))
+            palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#253844"))
+            palette.setColor(QPalette.ColorRole.PlaceholderText, QColor("#7a8d99"))
+        else:
+            palette.setColor(QPalette.ColorRole.Window, QColor("#070c12"))
+            palette.setColor(QPalette.ColorRole.WindowText, QColor("#dbe7ef"))
+            palette.setColor(QPalette.ColorRole.Base, QColor("#081018"))
+            palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#0b151e"))
+            palette.setColor(QPalette.ColorRole.Text, QColor("#dbe7ef"))
+            palette.setColor(QPalette.ColorRole.Button, QColor("#0e1821"))
+            palette.setColor(QPalette.ColorRole.ButtonText, QColor("#c9d7e0"))
+            palette.setColor(QPalette.ColorRole.Highlight, QColor("#0d6fbd"))
+            palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
+            palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#101e28"))
+            palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#dbe7ef"))
+            palette.setColor(QPalette.ColorRole.PlaceholderText, QColor("#71899a"))
+        app.setPalette(palette)
+
+        plot_background = "#ffffff" if theme == "light" else "#080e13"
+        axis_color = "#607584" if theme == "light" else "#8396a5"
+
+        for widget in app.allWidgets():
+            # pyqtgraph PlotWidget is outside Qt's stylesheet system.
+            if hasattr(widget, "setBackground"):
+                try:
+                    widget.setBackground(plot_background)
+                    plot_item = widget.getPlotItem() if hasattr(widget, "getPlotItem") else None
+                    if plot_item is not None:
+                        for axis_name in ("left", "bottom", "right", "top"):
+                            try:
+                                axis = plot_item.getAxis(axis_name)
+                                axis.setPen(axis_color)
+                                axis.setTextPen(axis_color)
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+            style = app.style()
+            style.unpolish(widget)
+            style.polish(widget)
+            widget.update()
+
+        app.processEvents()
+
+    def _preview_theme(self, theme):
+        """Preview a theme immediately while the Settings dialog is open."""
+        self.apply_theme(theme)
+
+    def _save_theme_preference(self, theme):
+        """Persist the accepted application-wide theme preference."""
+        self.settings.setValue(
+            "appearance/theme",
+            theme,
+        )
+        self.settings.sync()
 
     # =============================================================
     # UI CONSTRUCTION
@@ -2987,9 +3087,15 @@ class MainWindow(QMainWindow):
             if test is not None
             else None
         )
+        original_theme = self.current_theme
+
         dialog = SettingsDialog(
             video_configuration=configuration,
+            current_theme=original_theme,
             parent=self,
+        )
+        dialog.theme_preview_changed.connect(
+            self._preview_theme
         )
         if select_video_overlay:
             dialog.select_video_overlay_tab()
@@ -3041,8 +3147,19 @@ class MainWindow(QMainWindow):
                 )
             except (RuntimeError, TypeError):
                 pass
+            try:
+                dialog.theme_preview_changed.disconnect(
+                    self._preview_theme
+                )
+            except (RuntimeError, TypeError):
+                pass
 
         if result != QDialog.DialogCode.Accepted:
+            # Theme selection is a preview while the dialog is open.
+            # Cancel must restore the theme that was active beforehand.
+            self.apply_theme(
+                original_theme
+            )
             if test is not None and original_visibility is not None:
                 self.video_panel.set_overlay_visibility(
                     thrust=original_visibility.get("thrust"),
@@ -3054,6 +3171,19 @@ class MainWindow(QMainWindow):
                 )
                 self.video_panel.set_display_mode(original_display_mode)
             return
+        accepted_theme = str(
+            dialog.configuration().get(
+                "theme",
+                original_theme,
+            )
+        ).lower()
+        self.apply_theme(
+            accepted_theme
+        )
+        self._save_theme_preference(
+            accepted_theme
+        )
+
         if test is None:
             return
         configuration = dialog.configuration()

@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QScrollArea,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -36,9 +37,10 @@ RESULT_OPTIONS = [
 class SettingsDialog(QDialog):
     overlay_visibility_preview_changed = Signal(object)
     video_display_mode_preview_changed = Signal(str)
+    theme_preview_changed = Signal(str)
     """Application settings dialog, beginning with per-test video overlay settings."""
 
-    def __init__(self, video_configuration=None, parent=None):
+    def __init__(self, video_configuration=None, current_theme="dark", parent=None):
         super().__init__(parent)
         self.setWindowTitle("RMCS Analyzer Settings")
         self.setMinimumSize(620, 560)
@@ -46,6 +48,8 @@ class SettingsDialog(QDialog):
 
         configuration = video_configuration or {}
         self._video_tab_index = 1
+        self._initial_theme = str(current_theme or "dark").lower()
+        self._theme_changed = False
 
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 18, 18, 18)
@@ -61,9 +65,7 @@ class SettingsDialog(QDialog):
         general = QVBoxLayout()
         general.setContentsMargins(16, 16, 16, 16)
 
-        intro = QLabel(
-            "Application-wide preferences will live here as RMCS Analyzer grows."
-        )
+        intro = QLabel("Application-wide preferences")
         intro.setWordWrap(True)
         intro.setObjectName("settingsIntro")
         general.addWidget(intro)
@@ -71,12 +73,14 @@ class SettingsDialog(QDialog):
         theme_group = QGroupBox("Appearance")
         theme_layout = QFormLayout(theme_group)
 
-        theme_combo = QComboBox()
-        theme_combo.addItems(["Dark"])
-        theme_combo.setEnabled(False)
-        theme_combo.setToolTip("Light mode will be added in a future settings pass.")
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItem("Dark", "dark")
+        self.theme_combo.addItem("Light", "light")
+        theme_index = self.theme_combo.findData(self._initial_theme)
+        self.theme_combo.setCurrentIndex(theme_index if theme_index >= 0 else 0)
+        self.theme_combo.currentIndexChanged.connect(self._emit_theme_preview)
 
-        theme_layout.addRow("Theme:", theme_combo)
+        theme_layout.addRow("Theme:", self.theme_combo)
         general.addWidget(theme_group)
 
         general.addStretch(1)
@@ -235,8 +239,14 @@ class SettingsDialog(QDialog):
             )
             self.result_list.addItem(item)
 
+        # The result list should display all available fields without its own
+        # nested scrollbar. The surrounding Video Overlay tab may scroll instead.
+        self.result_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.result_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.result_list.setMinimumHeight(300)
+        self.result_list.setSizeAdjustPolicy(QListWidget.SizeAdjustPolicy.AdjustToContents)
         results_layout.addWidget(self.result_list)
-        video_page.addWidget(results, 1)
+        video_page.addWidget(results)
 
         events = QGroupBox("Events — Visibility")
         events_layout = QHBoxLayout(events)
@@ -287,7 +297,12 @@ class SettingsDialog(QDialog):
         video_page.addStretch(1)
 
         video_page_widget = QWidgetLikeLayout(video_page)
-        tabs.addTab(video_page_widget, "Video Overlay")
+        video_scroll = QScrollArea()
+        video_scroll.setWidgetResizable(True)
+        video_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        video_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        video_scroll.setWidget(video_page_widget)
+        tabs.addTab(video_scroll, "Video Overlay")
 
         # ---------------------------------------------------------
         # Buttons
@@ -299,6 +314,11 @@ class SettingsDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
+
+    def _emit_theme_preview(self, _index=0):
+        theme = str(self.theme_combo.currentData() or "dark")
+        self._theme_changed = theme != self._initial_theme
+        self.theme_preview_changed.emit(theme)
 
     def _visibility_configuration(self):
         return {
@@ -358,6 +378,7 @@ class SettingsDialog(QDialog):
             "show_results": self.show_results_check.isChecked(),
             "show_events": self.show_events_check.isChecked(),
             "display_mode": str(self.display_mode_combo.currentData() or "fit"),
+            "theme": str(self.theme_combo.currentData() or "dark"),
         }
 
 

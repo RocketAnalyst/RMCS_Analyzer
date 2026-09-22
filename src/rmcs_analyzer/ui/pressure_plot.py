@@ -58,15 +58,6 @@ class PressurePlot(QFrame):
         self.events_button.setObjectName("eventsButton")
         self.events_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.events_button.clicked.connect(self._show_events_menu)
-        self.events_button.setStyleSheet(
-            "QPushButton#eventsButton {"
-            " background-color: #17232d; color: #d7e1e8;"
-            " border: 1px solid #40515e; border-radius: 4px;"
-            " padding: 4px 10px; font-weight: 600;"
-            "} QPushButton#eventsButton:hover {"
-            " background-color: #223442;"
-            "}"
-        )
         self.events_button.adjustSize()
 
         self.data_time = None
@@ -106,13 +97,6 @@ class PressurePlot(QFrame):
         )
         self.hover_readout = QLabel(self.plot)
         self.hover_readout.setObjectName("plotHoverReadout")
-        self.hover_readout.setStyleSheet(
-            "QLabel {"
-            " background: rgba(8, 14, 19, 220);"
-            " color: #d9e5ed; border: 1px solid #526674;"
-            " border-radius: 4px; padding: 5px 8px; font-size: 11px;"
-            "}"
-        )
         self.hover_readout.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.hover_readout.hide()
 

@@ -1,3 +1,4 @@
+from PySide6.QtGui import QFont
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
@@ -331,7 +332,7 @@ class Branding(QFrame):
             self.create_rocket_pixmap(
                 50,
                 82,
-                self.WHITE,
+                self.BLUE,
             )
         )
 
@@ -370,47 +371,20 @@ class Branding(QFrame):
         rmcs = QLabel(
             "RMCS"
         )
-
-        rmcs.setStyleSheet(
-            """
-            QLabel {
-                color: #F2F6FA;
-                font-size: 22px;
-                font-weight: 800;
-                letter-spacing: 2px;
-            }
-            """
-        )
+        rmcs.setObjectName("brandingRmcs")
+        rmcs.setFont(QFont("Segoe UI", 22, QFont.Weight.ExtraBold))
 
         analyzer = QLabel(
             "ANALYZER"
         )
-
-        analyzer.setStyleSheet(
-            """
-            QLabel {
-                color: #F2F6FA;
-                font-size: 22px;
-                font-weight: 800;
-                letter-spacing: 1px;
-            }
-            """
-        )
+        analyzer.setObjectName("brandingAnalyzer")
+        analyzer.setFont(QFont("Segoe UI", 22, QFont.Weight.ExtraBold))
 
         tagline = QLabel(
             "MEASURE  •  ANALYZE  •  ADVANCE"
         )
-
-        tagline.setStyleSheet(
-            """
-            QLabel {
-                color: #7FA4C8;
-                font-size: 7px;
-                font-weight: 600;
-                letter-spacing: 0.8px;
-            }
-            """
-        )
+        tagline.setObjectName("brandingTagline")
+        tagline.setFont(QFont("Segoe UI", 7, QFont.Weight.DemiBold))
 
         wordmark_layout.addWidget(
             rmcs
