@@ -59,13 +59,13 @@ class TestInfoPanel(QFrame):
 
         self.diameter = self.add_edit_row(
             layout,
-            "Diameter (in)",
+            "Diameter (mm)",
             "",
         )
 
         self.length = self.add_edit_row(
             layout,
-            "Length (in)",
+            "Length (mm)",
             "",
         )
 
@@ -341,12 +341,12 @@ class TestInfoPanel(QFrame):
 
         self._set_numeric_field(
             self.diameter,
-            test.motor_diameter_in,
+            test.motor_diameter_mm,
         )
 
         self._set_numeric_field(
             self.length,
-            test.motor_length_in,
+            test.motor_length_mm,
         )
 
         self._set_numeric_field(

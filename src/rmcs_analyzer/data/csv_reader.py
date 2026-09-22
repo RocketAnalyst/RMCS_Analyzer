@@ -47,10 +47,13 @@ class RMCSCSVReader:
         "Time(s)",
     )
 
-    OPTIONAL_COLUMNS = (
+    REQUIRED_DATA_COLUMNS = (
+        "Sample",
+        "Time(s)",
         "Time Cal (s)",
         "Raw Thrust (N)",
         "Prop Loss (kg)",
+        "Thrust (N)",
         "Pressure (psi)",
     )
 
@@ -68,8 +71,8 @@ class RMCSCSVReader:
         "Manufacturer": ("manufacturer", str),
         "Builder": ("builder", str),
         "Case Material": ("case_material", str),
-        "Motor Diameter (in)": ("motor_diameter", float),
-        "Motor Length (in)": ("motor_length", float),
+        "Motor Diameter (mm)": ("motor_diameter", float),
+        "Motor Length (mm)": ("motor_length", float),
         "Initial Mass (g)": ("initial_mass", float),
         "Propellant Mass (g)": ("propellant_mass", float),
         "Propellant Type": ("propellant_type", str),
@@ -84,18 +87,38 @@ class RMCSCSVReader:
             str,
         ),
         "Sample Rate (Hz)": ("sample_rate_hz", float),
+        "case pressure limit (psi)": ("case_pressure_limit_psi", float),
     }
 
-    # Legacy metadata names retained for compatibility with older
-    # standardized drafts.
-    LEGACY_METADATA_FIELDS = {
-        "RMCS Version": ("rmcs_version", str),
-        "Calibration Counts Per Newton": (
-            "calibration_counts_per_newton",
-            float,
-        ),
-        "Tare Raw": ("tare_raw", int),
-    }
+
+    REQUIRED_METADATA_FIELDS = (
+        "Format Version",
+        "Test Number",
+        "Test Date",
+        "Test Stand",
+        "Test Operator",
+        "Location",
+        "Notes",
+        "Motor Designation",
+        "Motor Type",
+        "Manufacturer",
+        "Builder",
+        "Case Material",
+        "Motor Diameter (mm)",
+        "Motor Length (mm)",
+        "Initial Mass (g)",
+        "Propellant Mass (g)",
+        "Propellant Type",
+        "Nozzle Throat Diameter (in)",
+        "Nozzle Exit Diameter (in)",
+        "Nozzle Material",
+        "Load Cell",
+        "Load Cell Calibration",
+        "Pressure Sensor",
+        "Pressure Sensor Calibration",
+        "Sample Rate (Hz)",
+        "case pressure limit (psi)",
+    )
 
     def read(self, filename) -> TestData:
         """Read and normalize one RMCS Analyzer CSV file."""
@@ -148,6 +171,12 @@ class RMCSCSVReader:
         header = self._normalize_header(
             rows[data_header_index]
         )
+
+        if header != list(self.REQUIRED_DATA_COLUMNS):
+            raise CSVReadError(
+                "The CSV measurement header does not match the required RMCS template. "
+                "Expected: " + ", ".join(self.REQUIRED_DATA_COLUMNS)
+            )
 
         missing_required = [
             column
@@ -229,47 +258,52 @@ class RMCSCSVReader:
         self,
         rows: List[List[str]],
     ) -> TestMetadata:
-        """Read Format 1.0 metadata rows before the data header."""
+        """Read the exact RMCS test-template metadata block."""
 
         values: Dict[str, str] = {}
+        seen: list[str] = []
+        data_header_index = None
 
         for row in rows:
             if not row:
                 continue
 
-            key = self._normalize_metadata_key(
-                row[0]
-            )
-
+            key = self._normalize_metadata_key(row[0])
             if not key:
                 continue
 
-            # Stop once the measurement table begins.
             if self._normalize_column_name(key) == "Sample":
+                data_header_index = len(seen)
                 break
 
-            if len(row) < 2:
-                value = ""
-            else:
-                value = row[1].strip()
+            if key not in self.METADATA_FIELDS:
+                raise CSVReadError(
+                    f"Unsupported RMCS metadata field: '{key}'."
+                )
 
-            if key in self.METADATA_FIELDS:
-                if key == "Format Version" and value == "1":
-                    value = "1.0"
-                values[key] = value
+            if key in values:
+                raise CSVReadError(
+                    f"Duplicate RMCS metadata field: '{key}'."
+                )
 
-            elif key in self.LEGACY_METADATA_FIELDS:
-                values[key] = value
+            value = row[1].strip() if len(row) >= 2 else ""
+            values[key] = value
+            seen.append(key)
+
+        missing = [key for key in self.REQUIRED_METADATA_FIELDS if key not in values]
+        if missing:
+            raise CSVReadError(
+                "The CSV file is missing required metadata field(s): "
+                + ", ".join(missing)
+            )
+
+        if seen != list(self.REQUIRED_METADATA_FIELDS):
+            raise CSVReadError(
+                "The CSV metadata does not match the required RMCS template order."
+            )
 
         metadata = TestMetadata()
-
-        # The source filename is filled by the caller-independent
-        # reader once the object exists.
-        self._assign_metadata_values(
-            metadata,
-            values,
-        )
-
+        self._assign_metadata_values(metadata, values)
         return metadata
 
     def _assign_metadata_values(
@@ -281,10 +315,7 @@ class RMCSCSVReader:
 
         for key, value in values.items():
 
-            field_info = (
-                self.METADATA_FIELDS.get(key)
-                or self.LEGACY_METADATA_FIELDS.get(key)
-            )
+            field_info = self.METADATA_FIELDS.get(key)
 
             if field_info is None:
                 continue

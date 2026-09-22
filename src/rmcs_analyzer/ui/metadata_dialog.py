@@ -65,8 +65,8 @@ class MetadataDialog(QDialog):
             host_layout,
             "Motor",
             [
-                ("motor_diameter_in", "Diameter (in)"),
-                ("motor_length_in", "Length (in)"),
+                ("motor_diameter_mm", "Diameter (mm)"),
+                ("motor_length_mm", "Length (mm)"),
                 ("initial_mass_g", "Initial Mass (g)"),
                 ("propellant_mass_g", "Propellant Mass (g)"),
                 ("propellant_type", "Propellant Type"),
@@ -92,6 +92,7 @@ class MetadataDialog(QDialog):
                 ("pressure_sensor", "Pressure Sensor"),
                 ("pressure_sensor_calibration", "Pressure Calibration"),
                 ("sample_rate_hz", "Sample Rate (Hz)"),
+                ("case_pressure_limit_psi", "Case Pressure Limit (psi)"),
             ],
         )
 
@@ -162,8 +163,8 @@ class MetadataDialog(QDialog):
             "test_stand": source.test_stand,
             "test_operator": source.test_operator,
             "location": source.location,
-            "motor_diameter_in": source.motor_diameter,
-            "motor_length_in": source.motor_length,
+            "motor_diameter_mm": source.motor_diameter,
+            "motor_length_mm": source.motor_length,
             "initial_mass_g": source.initial_mass,
             "propellant_mass_g": source.propellant_mass,
             "propellant_type": source.propellant_type,
@@ -175,6 +176,7 @@ class MetadataDialog(QDialog):
             "pressure_sensor": source.pressure_sensor,
             "pressure_sensor_calibration": source.pressure_sensor_calibration,
             "sample_rate_hz": source.sample_rate_hz,
+            "case_pressure_limit_psi": source.case_pressure_limit_psi,
         }
         for key, value in source_values.items():
             self.fields[key].setText(self._display(value))
@@ -207,25 +209,27 @@ class MetadataDialog(QDialog):
                         raise ValueError("Test Number must be a whole number.")
                     result[key] = value
             elif key in {
-                "motor_diameter_in",
-                "motor_length_in",
+                "motor_diameter_mm",
+                "motor_length_mm",
                 "initial_mass_g",
                 "propellant_mass_g",
                 "nozzle_throat_in",
                 "nozzle_exit_in",
                 "sample_rate_hz",
+                "case_pressure_limit_psi",
             }:
                 result[key] = self._optional_float(
                     value,
                     next(
                         label for k, label in (
-                            ("motor_diameter_in", "Diameter"),
-                            ("motor_length_in", "Length"),
+                            ("motor_diameter_mm", "Diameter"),
+                            ("motor_length_mm", "Length"),
                             ("initial_mass_g", "Initial Mass"),
                             ("propellant_mass_g", "Propellant Mass"),
                             ("nozzle_throat_in", "Nozzle Throat"),
                             ("nozzle_exit_in", "Nozzle Exit"),
                             ("sample_rate_hz", "Sample Rate"),
+                            ("case_pressure_limit_psi", "Case Pressure Limit"),
                         )
                         if k == key
                     ),

@@ -208,13 +208,13 @@ def _header_values(
     designation_override: str | None = None,
 ) -> tuple[str, float, float, str, float, float, str]:
     """Build one RASP header from one measured test."""
-    diameter_in = _finite_float(getattr(test, "motor_diameter_in", None))
-    length_in = _finite_float(getattr(test, "motor_length_in", None))
+    diameter_mm = _finite_float(getattr(test, "motor_diameter_mm", None))
+    length_mm = _finite_float(getattr(test, "motor_length_mm", None))
     propellant_g = _finite_float(getattr(test, "propellant_mass_g", None))
     initial_mass_g = _finite_float(getattr(test, "initial_mass_g", None))
 
-    diameter_mm = (diameter_in * 25.4) if diameter_in is not None and diameter_in > 0 else 0.0
-    length_mm = (length_in * 25.4) if length_in is not None and length_in > 0 else 0.0
+    diameter_mm = diameter_mm if diameter_mm is not None and diameter_mm > 0 else 0.0
+    length_mm = length_mm if length_mm is not None and length_mm > 0 else 0.0
     propellant_kg = (propellant_g / 1000.0) if propellant_g is not None and propellant_g > 0 else 0.0
     initial_mass_kg = (initial_mass_g / 1000.0) if initial_mass_g is not None and initial_mass_g > 0 else 0.0
 

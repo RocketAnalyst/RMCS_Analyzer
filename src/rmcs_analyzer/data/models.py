@@ -39,6 +39,7 @@ class TestMetadata:
     pressure_sensor: str = ""
     pressure_sensor_calibration: str = ""
     sample_rate_hz: Optional[float] = None
+    case_pressure_limit_psi: Optional[float] = None
 
     notes: str = ""
 

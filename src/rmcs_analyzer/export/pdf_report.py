@@ -113,8 +113,8 @@ def _metadata_rows(test) -> list[tuple[str, str]]:
         ("Test Stand", test.test_stand),
         ("Test Operator", test.test_operator),
         ("Location", test.location),
-        ("Motor Diameter", _fmt(test.motor_diameter_in, "in")),
-        ("Motor Length", _fmt(test.motor_length_in, "in")),
+        ("Motor Diameter", _fmt(test.motor_diameter_mm, "mm")),
+        ("Motor Length", _fmt(test.motor_length_mm, "mm")),
         ("Initial Mass", _fmt(test.initial_mass_g, "g")),
         ("Propellant Mass", _fmt(test.propellant_mass_g, "g")),
         ("Propellant Type", test.propellant_type),
@@ -125,6 +125,7 @@ def _metadata_rows(test) -> list[tuple[str, str]]:
         ("Load Cell Calibration", test.load_cell_calibration),
         ("Pressure Sensor", test.pressure_sensor),
         ("Pressure Calibration", test.pressure_sensor_calibration),
+        ("Case Pressure Limit", _fmt(test.case_pressure_limit_psi, "psi")),
         ("Sample Rate", _fmt(test.sample_rate_hz, "SPS", 2)),
     ]
     for label, value in pairs:

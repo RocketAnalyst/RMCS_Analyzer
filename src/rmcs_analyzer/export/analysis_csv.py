@@ -30,8 +30,8 @@ COLUMNS = [
     ("Manufacturer", "manufacturer"),
     ("Builder", "builder"),
     ("Case Material", "case_material"),
-    ("Motor Diameter (in)", "motor_diameter_in"),
-    ("Motor Length (in)", "motor_length_in"),
+    ("Motor Diameter (mm)", "motor_diameter_mm"),
+    ("Motor Length (mm)", "motor_length_mm"),
     ("Initial Mass (g)", "initial_mass_g"),
     ("Propellant Mass (g)", "propellant_mass_g"),
     ("Propellant Type", "propellant_type"),
@@ -43,6 +43,7 @@ COLUMNS = [
     ("Pressure Sensor", "pressure_sensor"),
     ("Pressure Sensor Calibration", "pressure_sensor_calibration"),
     ("Sample Rate (Hz)", "sample_rate_hz"),
+    ("Case Pressure Limit (psi)", "case_pressure_limit_psi"),
     ("Sample Count", "sample_count"),
     ("Recording Duration (s)", "recording_duration_s"),
     ("Peak Thrust (N)", "peak_thrust_N"),
@@ -105,11 +106,11 @@ def _test_value(test: Any, key: str) -> Any:
     test_fields = {
         "test_date", "test_stand", "test_operator", "location",
         "motor_designation", "motor_type", "manufacturer", "builder",
-        "case_material", "motor_diameter_in", "motor_length_in",
+        "case_material", "motor_diameter_mm", "motor_length_mm",
         "initial_mass_g", "propellant_mass_g", "propellant_type",
         "nozzle_throat_in", "nozzle_exit_in", "nozzle_material", "load_cell",
         "load_cell_calibration", "pressure_sensor", "pressure_sensor_calibration",
-        "sample_rate_hz", "notes",
+        "sample_rate_hz", "case_pressure_limit_psi", "notes",
     }
     if key in test_fields:
         return getattr(test, key, None)

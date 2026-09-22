@@ -40,8 +40,8 @@ class TestModel:
     test_operator: str = ""
     location: str = ""
 
-    motor_diameter_in: Optional[float] = None
-    motor_length_in: Optional[float] = None
+    motor_diameter_mm: Optional[float] = None
+    motor_length_mm: Optional[float] = None
 
     initial_mass_g: Optional[float] = None
     propellant_mass_g: Optional[float] = None
@@ -57,6 +57,7 @@ class TestModel:
     pressure_sensor: str = ""
     pressure_sensor_calibration: str = ""
     sample_rate_hz: Optional[float] = None
+    case_pressure_limit_psi: Optional[float] = None
 
     notes: str = ""
 
@@ -148,13 +149,13 @@ class TestModel:
         if not self.location:
             self.location = metadata.location or ""
 
-        if self.motor_diameter_in is None:
-            self.motor_diameter_in = (
+        if self.motor_diameter_mm is None:
+            self.motor_diameter_mm = (
                 metadata.motor_diameter
             )
 
-        if self.motor_length_in is None:
-            self.motor_length_in = (
+        if self.motor_length_mm is None:
+            self.motor_length_mm = (
                 metadata.motor_length
             )
 
@@ -195,6 +196,9 @@ class TestModel:
         if self.sample_rate_hz is None:
             self.sample_rate_hz = metadata.sample_rate_hz
 
+        if self.case_pressure_limit_psi is None:
+            self.case_pressure_limit_psi = metadata.case_pressure_limit_psi
+
 
 
     def reset_metadata_to_source(self):
@@ -215,8 +219,8 @@ class TestModel:
         self.test_stand = metadata.test_stand or ""
         self.test_operator = metadata.test_operator or ""
         self.location = metadata.location or ""
-        self.motor_diameter_in = metadata.motor_diameter
-        self.motor_length_in = metadata.motor_length
+        self.motor_diameter_mm = metadata.motor_diameter
+        self.motor_length_mm = metadata.motor_length
         self.initial_mass_g = metadata.initial_mass
         self.propellant_mass_g = metadata.propellant_mass
         self.propellant_type = metadata.propellant_type or ""
@@ -228,6 +232,7 @@ class TestModel:
         self.pressure_sensor = metadata.pressure_sensor or ""
         self.pressure_sensor_calibration = metadata.pressure_sensor_calibration or ""
         self.sample_rate_hz = metadata.sample_rate_hz
+        self.case_pressure_limit_psi = metadata.case_pressure_limit_psi
         self.notes = metadata.notes or ""
 
     def analysis_data(self) -> TestData:
@@ -247,8 +252,8 @@ class TestModel:
             test_stand=self.test_stand,
             test_operator=self.test_operator,
             location=self.location,
-            motor_diameter=self.motor_diameter_in,
-            motor_length=self.motor_length_in,
+            motor_diameter=self.motor_diameter_mm,
+            motor_length=self.motor_length_mm,
             initial_mass=self.initial_mass_g,
             propellant_mass=self.propellant_mass_g,
             propellant_type=self.propellant_type,
@@ -260,6 +265,7 @@ class TestModel:
             pressure_sensor=self.pressure_sensor,
             pressure_sensor_calibration=self.pressure_sensor_calibration,
             sample_rate_hz=self.sample_rate_hz,
+            case_pressure_limit_psi=self.case_pressure_limit_psi,
             notes=self.notes,
         )
 

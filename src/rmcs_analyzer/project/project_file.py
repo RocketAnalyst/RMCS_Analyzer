@@ -399,8 +399,8 @@ class ProjectFile:
             "test_stand": test.test_stand,
             "test_operator": test.test_operator,
             "location": test.location,
-            "motor_diameter_in": test.motor_diameter_in,
-            "motor_length_in": test.motor_length_in,
+            "motor_diameter_mm": test.motor_diameter_mm,
+            "motor_length_mm": test.motor_length_mm,
             "initial_mass_g": test.initial_mass_g,
             "propellant_mass_g": test.propellant_mass_g,
             "propellant_type": test.propellant_type,
@@ -412,6 +412,7 @@ class ProjectFile:
             "pressure_sensor": test.pressure_sensor,
             "pressure_sensor_calibration": test.pressure_sensor_calibration,
             "sample_rate_hz": test.sample_rate_hz,
+            "case_pressure_limit_psi": test.case_pressure_limit_psi,
             "notes": test.notes,
             "source_file": test.source_file,
             "video": {
@@ -676,11 +677,11 @@ class ProjectFile:
                 "location",
                 "",
             ),
-            motor_diameter_in=metadata.get(
-                "motor_diameter_in"
+            motor_diameter_mm=metadata.get(
+                "motor_diameter_mm"
             ),
-            motor_length_in=metadata.get(
-                "motor_length_in"
+            motor_length_mm=metadata.get(
+                "motor_length_mm"
             ),
             initial_mass_g=metadata.get(
                 "initial_mass_g"
@@ -720,6 +721,9 @@ class ProjectFile:
             ),
             sample_rate_hz=metadata.get(
                 "sample_rate_hz"
+            ),
+            case_pressure_limit_psi=metadata.get(
+                "case_pressure_limit_psi"
             ),
             notes=metadata.get(
                 "notes",
@@ -1075,6 +1079,7 @@ class ProjectFile:
             "pressure_sensor": metadata.pressure_sensor,
             "pressure_sensor_calibration": metadata.pressure_sensor_calibration,
             "sample_rate_hz": metadata.sample_rate_hz,
+            "case_pressure_limit_psi": metadata.case_pressure_limit_psi,
             "notes": metadata.notes,
         }
 
@@ -1119,6 +1124,7 @@ class ProjectFile:
                 "pressure_sensor_calibration", ""
             ),
             sample_rate_hz=data.get("sample_rate_hz"),
+            case_pressure_limit_psi=data.get("case_pressure_limit_psi"),
             notes=data.get("notes", ""),
         )
 

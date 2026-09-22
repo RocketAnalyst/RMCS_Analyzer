@@ -2944,10 +2944,10 @@ class MainWindow(QMainWindow):
         test.test_number = self.test_info.test_number.text().strip()
         test.motor_designation = self.test_info.motor.text().strip()
         test.test_date = self.test_info.date.text().strip()
-        test.motor_diameter_in = self.parse_optional_float(
+        test.motor_diameter_mm = self.parse_optional_float(
             self.test_info.diameter.text()
         )
-        test.motor_length_in = self.parse_optional_float(
+        test.motor_length_mm = self.parse_optional_float(
             self.test_info.length.text()
         )
         test.initial_mass_g = self.parse_optional_float(
