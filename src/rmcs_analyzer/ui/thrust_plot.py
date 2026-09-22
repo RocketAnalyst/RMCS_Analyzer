@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QLabel,
     QMenu,
+    QPushButton,
     QStackedLayout,
     QVBoxLayout,
     QGraphicsTextItem,
@@ -98,10 +99,12 @@ class ThrustPlot(QFrame):
         self.post_burn_curve = None
         self.zero_line = None
         self.ignition_line = None
+        self.burn_time_line = None
         self.burnout_line = None
         self.recording_end_line = None
         self.peak_marker = None
         self.ignition_label = None
+        self.burn_time_label = None
         self.burnout_label = None
         self.recording_end_label = None
         self.peak_label = None
@@ -111,6 +114,31 @@ class ThrustPlot(QFrame):
         # pixels so manual positioning survives zooming and panning.
         self._label_offsets = {}
         self._show_event_markers = True
+        self._event_visibility = {
+            "ignition": True,
+            "peak": True,
+            "burn_time": True,
+            "burnout": True,
+            "recording_end": True,
+        }
+
+        # The Events control belongs to the plot itself so it remains
+        # visibly overlaid on the graph instead of being covered by the
+        # stacked plot widget.
+        self.events_button = QPushButton("Events ▾")
+        self.events_button.setObjectName("eventsButton")
+        self.events_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.events_button.clicked.connect(self._show_events_menu)
+        self.events_button.setStyleSheet(
+            "QPushButton#eventsButton {"
+            " background-color: #17232d; color: #d7e1e8;"
+            " border: 1px solid #40515e; border-radius: 4px;"
+            " padding: 4px 10px; font-weight: 600;"
+            "} QPushButton#eventsButton:hover {"
+            " background-color: #223442;"
+            "}"
+        )
+        self.events_button.adjustSize()
 
         # Keep event annotations synchronized with zooming, panning,
         # and resizing. Labels are screen-positioned so they cannot
@@ -221,6 +249,7 @@ class ThrustPlot(QFrame):
         self._event_labels = []
 
         self.ignition_label = None
+        self.burn_time_label = None
         self.burnout_label = None
         self.recording_end_label = None
         self.peak_label = None
@@ -270,6 +299,7 @@ class ThrustPlot(QFrame):
         label_items = (
             ("ignition", self.ignition_label),
             ("peak", self.peak_label),
+            ("burn_time", self.burn_time_label),
             ("burnout", self.burnout_label),
             ("recording_end", self.recording_end_label),
         )
@@ -280,8 +310,9 @@ class ThrustPlot(QFrame):
         preferred_rows = {
             "ignition": 0,
             "peak": 1,
-            "burnout": 0,
-            "recording_end": 1,
+            "burn_time": 0,
+            "burnout": 1,
+            "recording_end": 2,
         }
 
         for name, item in label_items:
@@ -441,8 +472,9 @@ class ThrustPlot(QFrame):
         preferred_rows = {
             "ignition": 0,
             "peak": 1,
-            "burnout": 0,
-            "recording_end": 1,
+            "burn_time": 0,
+            "burnout": 1,
+            "recording_end": 2,
         }
 
         row = preferred_rows.get(name, 0)
@@ -459,54 +491,85 @@ class ThrustPlot(QFrame):
             float(position.y() - default_y),
         )
 
-    def _show_plot_context_menu(self, position):
-        """Show marker visibility and label-position controls."""
+    def _event_items(self, name):
+        """Return the graph items associated with an event name."""
+        mapping = {
+            "ignition": (self.ignition_line, self.ignition_label),
+            "peak": (self.peak_marker, self.peak_label),
+            "burn_time": (self.burn_time_line, self.burn_time_label),
+            "burnout": (self.burnout_line, self.burnout_label),
+            "recording_end": (self.recording_end_line, self.recording_end_label),
+        }
+        return mapping.get(name, (None, None))
 
-        menu = QMenu(self.plot)
+    def _set_event_visibility(self, name, visible):
+        """Show or hide one event's marker and label."""
+        self._event_visibility[name] = bool(visible)
+        line, label = self._event_items(name)
+        for item in (line, label):
+            if item is not None:
+                item.setVisible(bool(visible) and self._show_event_markers)
+        if visible:
+            self._update_event_labels()
 
-        toggle_action = menu.addAction(
-            "Show Event Markers"
-        )
-        toggle_action.setCheckable(True)
-        toggle_action.setChecked(
-            self._show_event_markers
-        )
+    def _set_all_event_visibility(self, visible):
+        """Show or hide all event annotations."""
+        for name in self._event_visibility:
+            self._event_visibility[name] = bool(visible)
+        for name in self._event_visibility:
+            self._set_event_visibility(name, visible)
+
+    def _show_events_menu(self):
+        """Show the explicit per-event visibility menu."""
+        menu = QMenu(self.events_button)
+        labels = [
+            ("ignition", "Ignition"),
+            ("peak", "Peak Thrust"),
+            ("burn_time", "Burn Time"),
+            ("burnout", "Burnout"),
+            ("recording_end", "End of Data"),
+        ]
+
+        actions = []
+        for name, label in labels:
+            action = menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(self._event_visibility.get(name, True))
+            line, marker_label = self._event_items(name)
+            action.setEnabled(line is not None or marker_label is not None)
+            action.toggled.connect(
+                lambda checked, event_name=name: self._set_event_visibility(
+                    event_name, checked
+                )
+            )
+            actions.append(action)
 
         menu.addSeparator()
-
-        reset_action = menu.addAction(
-            "Reset Marker Positions"
-        )
+        show_all = menu.addAction("Show All")
+        hide_all = menu.addAction("Hide All")
+        menu.addSeparator()
+        reset_action = menu.addAction("Reset Marker Positions")
 
         chosen = menu.exec(
-            self.plot.mapToGlobal(position)
+            self.events_button.mapToGlobal(
+                self.events_button.rect().bottomLeft()
+            )
         )
 
-        if chosen is toggle_action:
-            self._show_event_markers = (
-                toggle_action.isChecked()
-            )
-
-            for item in (
-                self.ignition_line,
-                self.burnout_line,
-                self.recording_end_line,
-                self.peak_marker,
-            ):
-                if item is not None:
-                    item.setVisible(
-                        self._show_event_markers
-                    )
-
-            for item in self._event_labels:
-                item.setVisible(
-                    self._show_event_markers
-                )
-
-            if self._show_event_markers:
-                self._update_event_labels()
-
+        if chosen is show_all:
+            self._set_all_event_visibility(True)
+        elif chosen is hide_all:
+            self._set_all_event_visibility(False)
         elif chosen is reset_action:
+            self._label_offsets = {}
+            self._update_event_labels()
+
+    def _show_plot_context_menu(self, position):
+        """Show marker-position controls from the plot context menu."""
+        menu = QMenu(self.plot)
+        reset_action = menu.addAction("Reset Marker Positions")
+        chosen = menu.exec(self.plot.mapToGlobal(position))
+        if chosen is reset_action:
             self._label_offsets = {}
             self._update_event_labels()
 
@@ -515,6 +578,8 @@ class ThrustPlot(QFrame):
 
         super().resizeEvent(event)
 
+        if hasattr(self, "events_button"):
+            self.events_button.adjustSize()
         if hasattr(self, "_event_labels"):
             self._update_event_labels()
 
@@ -725,6 +790,7 @@ class ThrustPlot(QFrame):
         time,
         thrust,
         ignition_time_s=None,
+        burn_time_s=None,
         burnout_time_s=None,
         recording_end_time_s=None,
         peak_time_s=None,
@@ -745,18 +811,19 @@ class ThrustPlot(QFrame):
             Optional detected ignition time in the same time coordinate
             system as ``time``.
 
-        burnout_time_s:
-            Optional standardized burn-end time in the same time
-            coordinate system as ``time``. The current application
-            supplies the authoritative 5% burn-end time here.
+        burn_time_s:
+            Optional standardized 5% burn-time endpoint in the same
+            time coordinate system as ``time``. This is the Burn Time
+            result used by the performance reduction.
 
-            When supplied, data after this boundary is retained on
-            the plot as a separate post-burn recording rather than
-            being presented as motor thrust.
+        burnout_time_s:
+            Optional detected physical burnout event in the same time
+            coordinate system as ``time``. This is an event annotation;
+            it is not the standardized 5% Burn Time.
 
         recording_end_time_s:
-            Optional end-of-recording time. When omitted, the final
-            finite sample time is used.
+            Optional end-of-data time. When omitted, the final finite
+            sample time is used.
         """
 
         time = np.asarray(
@@ -804,6 +871,13 @@ class ThrustPlot(QFrame):
             and np.isfinite(ignition_time_s)
             and ignition_time_s >= time[0]
             and ignition_time_s <= time[-1]
+        )
+
+        valid_burn_time = (
+            burn_time_s is not None
+            and np.isfinite(burn_time_s)
+            and burn_time_s >= time[0]
+            and burn_time_s <= time[-1]
         )
 
         valid_burnout = (
@@ -923,8 +997,14 @@ class ThrustPlot(QFrame):
             style=Qt.PenStyle.DashLine,
         )
 
-        burnout_pen = pg.mkPen(
+        burn_time_pen = pg.mkPen(
             color="#ff4b4b",
+            width=1,
+            style=Qt.PenStyle.DashLine,
+        )
+
+        burnout_pen = pg.mkPen(
+            color="#ff9f43",
             width=1,
             style=Qt.PenStyle.DashLine,
         )
@@ -961,6 +1041,30 @@ class ThrustPlot(QFrame):
                 "ignition",
             )
 
+        if valid_burn_time:
+            self.burn_time_line = pg.InfiniteLine(
+                pos=float(burn_time_s),
+                angle=90,
+                pen=burn_time_pen,
+            )
+            self.plot.addItem(
+                self.burn_time_line,
+                ignoreBounds=True,
+            )
+
+            self._event_x["burn_time"] = float(
+                burn_time_s
+            )
+
+            self.burn_time_label = self._create_event_label(
+                (
+                    "Burn Time\n"
+                    f"{float(burn_time_s):.3f} s"
+                ),
+                "#ff4b4b",
+                "burn_time",
+            )
+
         if valid_burnout:
             self.burnout_line = pg.InfiniteLine(
                 pos=float(burnout_time_s),
@@ -978,47 +1082,38 @@ class ThrustPlot(QFrame):
 
             self.burnout_label = self._create_event_label(
                 (
-                    "5% Burn End\n"
+                    "Burnout\n"
                     f"{float(burnout_time_s):.3f} s"
                 ),
-                "#ff4b4b",
+                "#ff9f43",
                 "burnout",
             )
 
         if valid_recording_end:
-            same_as_burnout = (
-                valid_burnout
-                and abs(
-                    float(recording_end_time_s)
-                    - float(burnout_time_s)
-                ) < 1e-6
+            self.recording_end_line = pg.InfiniteLine(
+                pos=float(recording_end_time_s),
+                angle=90,
+                pen=recording_pen,
+            )
+            self.plot.addItem(
+                self.recording_end_line,
+                ignoreBounds=True,
             )
 
-            if not same_as_burnout:
-                self.recording_end_line = pg.InfiniteLine(
-                    pos=float(recording_end_time_s),
-                    angle=90,
-                    pen=recording_pen,
-                )
-                self.plot.addItem(
-                    self.recording_end_line,
-                    ignoreBounds=True,
-                )
+            self._event_x["recording_end"] = float(
+                recording_end_time_s
+            )
 
-                self._event_x["recording_end"] = float(
-                    recording_end_time_s
+            self.recording_end_label = (
+                self._create_event_label(
+                    (
+                        "End of Data\n"
+                        f"{float(recording_end_time_s):.3f} s"
+                    ),
+                    "#b06cff",
+                    "recording_end",
                 )
-
-                self.recording_end_label = (
-                    self._create_event_label(
-                        (
-                            "End of Recording\n"
-                            f"{float(recording_end_time_s):.3f} s"
-                        ),
-                        "#b06cff",
-                        "recording_end",
-                    )
-                )
+            )
 
         # ---------------------------------------------------------
         # Peak thrust marker
@@ -1106,23 +1201,15 @@ class ThrustPlot(QFrame):
 
         # Respect the user's marker visibility preference when a new
         # test is loaded.
-        marker_items = (
-            self.ignition_line,
-            self.burnout_line,
-            self.recording_end_line,
-            self.peak_marker,
-        )
-
-        for item in marker_items:
-            if item is not None:
-                item.setVisible(
-                    self._show_event_markers
-                )
-
-        for item in self._event_labels:
-            item.setVisible(
+        for name in self._event_visibility:
+            line, label = self._event_items(name)
+            visible = (
                 self._show_event_markers
+                and self._event_visibility.get(name, True)
             )
+            for item in (line, label):
+                if item is not None:
+                    item.setVisible(visible)
 
         self.stack.setCurrentWidget(
             self.plot
@@ -1284,10 +1371,12 @@ class ThrustPlot(QFrame):
         self.post_burn_curve = None
         self.zero_line = None
         self.ignition_line = None
+        self.burn_time_line = None
         self.burnout_line = None
         self.recording_end_line = None
         self.peak_marker = None
         self.ignition_label = None
+        self.burn_time_label = None
         self.burnout_label = None
         self.recording_end_label = None
         self.peak_label = None

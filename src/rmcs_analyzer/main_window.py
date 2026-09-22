@@ -342,6 +342,7 @@ class MainWindow(QMainWindow):
             "Overlay the imported project-level simulation on the measured thrust curve."
         )
         thrust_options.addWidget(self.thrust_simulation_check)
+        thrust_options.addWidget(self.thrust_plot.events_button)
         thrust_options.addStretch(1)
         thrust_layout.addLayout(thrust_options)
 
@@ -1414,9 +1415,6 @@ class MainWindow(QMainWindow):
             self.remove_test
         )
 
-        self.test_info.metadata_changed.connect(
-            self.update_active_test_metadata
-        )
         self.test_info.edit_metadata_requested.connect(
             self.edit_active_test_metadata
         )
@@ -2446,6 +2444,7 @@ class MainWindow(QMainWindow):
         )
 
         ignition_time_s = None
+        burn_time_s = None
         burnout_time_s = None
         recording_end_time_s = None
         peak_time_s = None
@@ -2460,12 +2459,14 @@ class MainWindow(QMainWindow):
             if ignition_event is not None:
                 ignition_time_s = ignition_event.time_s
 
-            # The graph's red Burnout marker represents the
-            # standardized 5% burn-end, not the physical event
-            # detector's recorded-data endpoint.
-            burnout_time_s = (
-                analysis.thrust.burn_end_5pct_time_s
-            )
+            # Burn Time is the standardized 5% threshold-derived
+            # performance metric. Burnout remains the separate
+            # detected physical event.
+            burn_time_s = analysis.thrust.burn_time_5pct_s
+
+            burnout_event = analysis.events.burnout
+            if burnout_event is not None:
+                burnout_time_s = burnout_event.time_s
 
             peak_time_s = (
                 analysis.thrust.peak_thrust_time_s
@@ -2499,6 +2500,7 @@ class MainWindow(QMainWindow):
             test.data.time_s,
             test.data.thrust_N,
             ignition_time_s=ignition_time_s,
+            burn_time_s=burn_time_s,
             burnout_time_s=burnout_time_s,
             recording_end_time_s=recording_end_time_s,
             peak_time_s=peak_time_s,
