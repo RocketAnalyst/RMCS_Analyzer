@@ -4,11 +4,15 @@
 
 RMCS Analyzer is a standalone Windows desktop application for analyzing rocket motor static-test data. It is designed to turn standardized test-stand measurements into traceable motor-performance results through an engineering-focused interface.
 
-The application is being developed with Python, PySide6, PyQtGraph, NumPy, and Pandas. The long-term goal is a packaged Windows application that can be used without requiring Python or a development environment.
+The application is developed with Python, PySide6, PyQtGraph, NumPy, and Pandas and is intended to be distributed as a packaged Windows application that does not require Python or a development environment.
 
 ---
 
 ## Current Development Status
+
+### v1.0.1 — Patch release
+
+RMCS Analyzer v1.0.1 is a compatibility and playback patch based on the v1.0.0 feature-complete release. It fixes simulation/video timeline interaction and playback scrubbing without changing the engineering analysis methodology.
 
 ### v1.0.0 — Feature-complete release
 
@@ -945,7 +949,7 @@ The mockup is the visual reference for layout and presentation. The authoritativ
 
 The planned v1.0 feature set is complete and the feature set is frozen.
 Final code review, cleanup, regression testing, and representative manual
-QA have been completed for the v1.0.0 release baseline.
+QA have been completed for the v1.0.0 release baseline, followed by a v1.0.1 playback/simulation patch.
 
 ### Release baseline
 
@@ -953,15 +957,13 @@ QA have been completed for the v1.0.0 release baseline.
 - Regression fixtures in `test_data/` and `sim_data/` are retained in source
   control so the test suite is reproducible from a clean checkout.
 - Generated pytest and Python cache files remain excluded by `.gitignore`.
-- Application release version: **1.0.0**.
+- Application release version: **1.0.1**.
 - `.rmcs` project format remains version 3.
 - RMCS CSV format remains version 1.0.
 
-### Final v1.0 release
+### v1.0.1 Patch Release
 
-The remaining release steps are repository release administration: verify the
-final documentation, create the final v1.0.0 commit, create and push the
-`v1.0.0` tag, and publish the release.
+Version 1.0.1 is a targeted post-release patch. It preserves the v1.0.0 engineering and project formats while correcting video/simulation playback behavior and scrub/reset synchronization.
 
 ### Deferred v2 functionality
 

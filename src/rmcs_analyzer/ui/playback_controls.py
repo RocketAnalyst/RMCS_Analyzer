@@ -94,6 +94,7 @@ class PlaybackControls(QFrame):
             return
         position = (value / 1000.0) * self._duration_s
         self.time_label.setText(f"{position:.3f} / {self._duration_s:.3f} s")
+        self.seek_requested.emit(position)
 
     def _slider_released(self):
         was_playing = self._was_playing_before_scrub

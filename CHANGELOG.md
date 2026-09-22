@@ -2,6 +2,17 @@
 
 All notable changes to RMCS Analyzer are documented here.
 
+## [1.0.1] - 2026-09-22
+
+### Video and Simulation Playback Fixes
+
+- Fixed simulation import so it refreshes simulation/overlay data without rebuilding the active test or reloading the associated video.
+- Preserved the independent full-video playback timeline when simulation data is added.
+- Fixed playback scrubbing so the video and analysis markers follow the slider while it is being dragged.
+- Fixed playback reset so the associated video is explicitly returned to its first frame.
+- Added regression coverage for live playback scrubbing behavior.
+- Retained the v1.0.0 engineering analysis, project format, and CSV format unchanged.
+
 ## [1.0.0] - 2026-09-22
 
 ### Completed

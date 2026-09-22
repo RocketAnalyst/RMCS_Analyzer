@@ -734,7 +734,7 @@ class MainWindow(QMainWindow):
         )
 
         version = QLabel(
-            "v1.0.0"
+            "v1.0.1"
         )
 
         version.setObjectName(
@@ -1144,7 +1144,7 @@ class MainWindow(QMainWindow):
             output_path = generate_campaign_pdf_report(
                 self.session,
                 output_path=filename,
-                app_version="1.0.0",
+                app_version="1.0.1",
             )
         except ModuleNotFoundError as error:
             package = getattr(error, "name", "") or "required package"
@@ -1530,7 +1530,7 @@ class MainWindow(QMainWindow):
             self.playback_timeline.toggle
         )
         self.playback.reset_requested.connect(
-            self.playback_timeline.stop
+            self.on_playback_reset
         )
         self.playback.seek_requested.connect(
             self.playback_timeline.set_position
@@ -1545,7 +1545,7 @@ class MainWindow(QMainWindow):
             self.playback_timeline.toggle
         )
         self.pressure_playback.reset_requested.connect(
-            self.playback_timeline.stop
+            self.on_playback_reset
         )
         self.pressure_playback.seek_requested.connect(
             self.playback_timeline.set_position
@@ -1755,9 +1755,11 @@ class MainWindow(QMainWindow):
         self.project_modified = True
         self._update_simulation_controls()
 
-        # Refresh the active test views immediately if one is loaded.
+        # Refresh only the simulation/overlay data. Do not rebuild the active
+        # test or reload the video; simulation time is independent of video
+        # playback time and must not reset the video timeline.
         if self.session.active_test is not None:
-            self.display_active_test()
+            self._update_video_analysis()
 
         # Importing simulation data changes the project, so keep the normal
         # project-dirty status rather than presenting the load operation as a
@@ -2660,6 +2662,18 @@ class MainWindow(QMainWindow):
         self.video_panel.set_timeline_position(
             self.playback_timeline.position_s
         )
+        self._update_video_analysis()
+
+        self.update_status(
+            test
+        )
+
+    def _update_video_analysis(self):
+        """Refresh video overlay analysis data without reloading the video."""
+        test = self.session.active_test
+        if test is None:
+            return
+
         analysis = test.analysis_results
         simulation = self.session.simulation
         self.video_panel.set_analysis(
@@ -2677,13 +2691,18 @@ class MainWindow(QMainWindow):
             self.playback_timeline.position_s
         )
 
-        self.update_status(
-            test
-        )
-
     # =============================================================
     # PLAYBACK / VIDEO
     # =============================================================
+
+    def on_playback_reset(self):
+        """Reset the shared timeline and force the video back to its first frame."""
+        self.playback_timeline.stop()
+        self.video_panel.set_playing(False)
+        self.video_panel.set_timeline_position(
+            0.0,
+            force_video_seek=True,
+        )
 
     def on_scrub_started(self, was_playing):
         """Pause the master timeline while the user drags the slider."""
