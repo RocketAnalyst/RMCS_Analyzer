@@ -62,3 +62,11 @@ test_csv_reader.py
 BurnSim exports/
 PDF exports/
 RASP Exports/
+
+
+
+
+# Local v1.0.1 release artifacts
+RMCS_Analyzer_v1.0.1_Setup.exe
+RMCS_Analyzer_v1.0.1_QA_Build.zip
+RMCS_Analyzer_v1.0.1_SHA256.txt
