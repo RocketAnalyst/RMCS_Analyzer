@@ -45,14 +45,14 @@ QFrame#header {
     color: #71899a;
     font-size: 9pt;
 }
-#rociWordmark {
+#appWordmark {
     color: #f0f4f7;
     font-size: 16pt;
     font-weight: 800;
     letter-spacing: 4px;
     padding-left: 8px;
 }
-#rociTagline {
+#appTagline {
     color: #7890a0;
     font-size: 6pt;
     font-weight: 600;
@@ -690,7 +690,7 @@ QFrame#header {
     font-size: 9pt;
 }
 
-#rociWordmark {
+#appWordmark {
     color: #162b39;
     font-size: 16pt;
     font-weight: 800;
@@ -698,7 +698,7 @@ QFrame#header {
     padding-left: 8px;
 }
 
-#rociTagline {
+#appTagline {
     color: #4d6573;
     font-size: 6pt;
     font-weight: 600;

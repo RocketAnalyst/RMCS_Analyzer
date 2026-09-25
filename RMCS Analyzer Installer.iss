@@ -1,6 +1,6 @@
 #define MyAppName "RMCS Analyzer"
 #define MyAppVersion "1.0.1"
-#define MyAppPublisher "ROCI"
+#define MyAppPublisher "Rocket Analyst"
 #define MyAppExeName "RMCS Analyzer.exe"
 
 [Setup]

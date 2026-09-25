@@ -63,7 +63,7 @@ class Header(QFrame):
         )
 
         # Keep the header focused on the RMCS Analyzer brand.
-        # The application descriptor and ROCI tagline are intentionally
+        # The application descriptor and Rocket Analyst tagline are intentionally
         # omitted to match the current dashboard direction.
         layout.addStretch(1)
 

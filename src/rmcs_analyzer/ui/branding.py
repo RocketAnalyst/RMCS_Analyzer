@@ -2,6 +2,8 @@ from PySide6.QtGui import QFont
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
+from ..app_info import APP_VERSION
+
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -271,7 +273,7 @@ class Branding(QFrame):
         )
 
         version = QLabel(
-            "v1.0.1"
+            f"v{APP_VERSION}"
         )
 
         version.setObjectName(

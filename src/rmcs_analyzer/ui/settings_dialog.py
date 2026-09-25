@@ -1,6 +1,8 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
+
+from ..app_info import APP_VERSION
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -43,6 +45,7 @@ class SettingsDialog(QDialog):
     overlay_visibility_preview_changed = Signal(object)
     video_display_mode_preview_changed = Signal(str)
     theme_preview_changed = Signal(str)
+    check_updates_requested = Signal()
     """Application settings dialog, beginning with per-test video overlay settings."""
 
     def __init__(self, video_configuration=None, current_theme="dark", parent=None):
@@ -141,6 +144,36 @@ class SettingsDialog(QDialog):
         template_layout.addLayout(openmotor_template_row)
 
         general.addWidget(template_group)
+
+        # ---------------------------------------------------------
+        # Updates
+        # ---------------------------------------------------------
+        update_group = QGroupBox("Updates")
+        update_layout = QVBoxLayout(update_group)
+
+        update_note = QLabel(
+            "Check GitHub for the latest RMCS Analyzer release. "
+            "Automatic update checks also run when the application starts."
+        )
+        update_note.setWordWrap(True)
+        update_note.setObjectName("settingsIntro")
+        update_layout.addWidget(update_note)
+
+        update_row = QHBoxLayout()
+        version_label = QLabel(f"Current version: v{APP_VERSION}")
+        version_label.setObjectName("settingsIntro")
+        update_row.addWidget(version_label)
+        update_row.addStretch(1)
+
+        check_updates_button = QPushButton("Check for Updates")
+        check_updates_button.setToolTip(
+            "Check whether a newer RMCS Analyzer release is available."
+        )
+        check_updates_button.clicked.connect(self.check_updates_requested.emit)
+        update_row.addWidget(check_updates_button)
+        update_layout.addLayout(update_row)
+
+        general.addWidget(update_group)
 
         general.addStretch(1)
 

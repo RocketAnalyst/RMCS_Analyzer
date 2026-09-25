@@ -2,7 +2,7 @@ from pathlib import Path
 
 import numpy as np
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QSettings, QTimer, Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -22,6 +22,8 @@ from PySide6.QtWidgets import (
 )
 
 from .theme import application_style
+from .app_info import APP_VERSION
+from .update_manager import UpdateManager
 
 from .data import (
     CSVReadError,
@@ -138,7 +140,7 @@ class MainWindow(QMainWindow):
         # selected theme across application restarts; it is intentionally
         # separate from the per-project .rmcs video configuration.
         self.settings = QSettings(
-            "ROCI",
+            "Rocket Analyst",
             "RMCS Analyzer",
         )
         self.current_theme = str(
@@ -146,6 +148,8 @@ class MainWindow(QMainWindow):
         ).lower()
         if self.current_theme not in ("dark", "light"):
             self.current_theme = "dark"
+
+        self.update_manager = UpdateManager(self)
 
         self.build_ui()
 
@@ -159,6 +163,10 @@ class MainWindow(QMainWindow):
             "READY — No test loaded",
             modified=False,
         )
+
+        # Give the main window a moment to render before performing the
+        # automatic update check. The check itself runs in a worker thread.
+        QTimer.singleShot(1200, self._startup_update_check)
 
     def apply_theme(self, theme):
         """Apply a complete application theme, including existing widgets and plots."""
@@ -734,7 +742,7 @@ class MainWindow(QMainWindow):
         )
 
         version = QLabel(
-            "v1.0.1"
+            f"v{APP_VERSION}"
         )
 
         version.setObjectName(
@@ -1144,7 +1152,7 @@ class MainWindow(QMainWindow):
             output_path = generate_campaign_pdf_report(
                 self.session,
                 output_path=filename,
-                app_version="1.0.1",
+                app_version=APP_VERSION,
             )
         except ModuleNotFoundError as error:
             package = getattr(error, "name", "") or "required package"
@@ -3014,6 +3022,14 @@ class MainWindow(QMainWindow):
         self.project_modified = True
         self.update_status(test)
 
+    def _startup_update_check(self):
+        """Check for a newer release after the main window has opened."""
+        self.update_manager.check_for_updates(self, manual=False)
+
+    def check_for_updates(self):
+        """Run an explicit user-requested update check."""
+        self.update_manager.check_for_updates(self, manual=True)
+
     def open_settings(self, select_video_overlay=False):
         """Open application settings, optionally focused on Video Overlay."""
         test = self.session.active_test
@@ -3031,6 +3047,9 @@ class MainWindow(QMainWindow):
         )
         dialog.theme_preview_changed.connect(
             self._preview_theme
+        )
+        dialog.check_updates_requested.connect(
+            self.check_for_updates
         )
         if select_video_overlay:
             dialog.select_video_overlay_tab()
@@ -3085,6 +3104,12 @@ class MainWindow(QMainWindow):
             try:
                 dialog.theme_preview_changed.disconnect(
                     self._preview_theme
+                )
+            except (RuntimeError, TypeError):
+                pass
+            try:
+                dialog.check_updates_requested.disconnect(
+                    self.check_for_updates
                 )
             except (RuntimeError, TypeError):
                 pass
