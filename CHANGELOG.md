@@ -2,6 +2,26 @@
 
 All notable changes to RMCS Analyzer are documented here.
 
+## [1.1.0] - 2026-09-24
+
+### Added
+
+- Added automatic update checking against published GitHub Releases at application startup.
+- Added a manual **Check for Updates** action in Settings.
+- Added user choice to install an available update now or continue using the current version.
+- Added platform-specific update package selection for Windows and macOS.
+- Added centralized application version information for consistent UI and updater behavior.
+
+### Changed
+
+- Updated application documentation and release metadata for v1.1.0.
+- Updated Windows packaging configuration for the 1.1.0 release.
+- Prepared the release workflow for separate Windows and macOS packaging.
+- Kept generated packaging artifacts and user-facing example data outside the source repository.
+- Preserved the `.rmcs` project format at version 3 and the standardized CSV format at version 1.0.
+
+
+
 ## [1.0.1] - 2026-09-22
 
 ### Video and Simulation Playback Fixes

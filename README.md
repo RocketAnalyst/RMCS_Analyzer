@@ -2,17 +2,37 @@
 
 **Rocket Motor Characterization System Data Analysis Software**
 
-RMCS Analyzer is a standalone Windows desktop application for analyzing rocket motor static-test data. It is designed to turn standardized test-stand measurements into traceable motor-performance results through an engineering-focused interface.
+RMCS Analyzer is a standalone desktop application for Windows and macOS for analyzing rocket motor static-test data. It is designed to turn standardized test-stand measurements into traceable motor-performance results through an engineering-focused interface.
 
-The application is developed with Python, PySide6, PyQtGraph, NumPy, and Pandas and is intended to be distributed as a packaged Windows application that does not require Python or a development environment.
+The application is developed with Python, PySide6, PyQtGraph, NumPy, and Pandas and is distributed as a packaged desktop application that does not require Python or a development environment.
 
 ---
 
 ## Current Development Status
 
+### v1.1.0 — Release preparation
+
+RMCS Analyzer v1.1.0 builds on the v1.0.1 feature-complete application with
+centralized version information, integrated application updating, release
+maintenance, and Windows/macOS packaging preparation.
+
+The v1.1.0 updater:
+
+- Checks for a newer published GitHub Release at application startup.
+- Performs the update check without blocking the application interface.
+- Provides a manual **Check for Updates** action in Settings.
+- Shows the available version and release information when an update is found.
+- Lets the user choose whether to install the update now or later.
+- Downloads the appropriate published update package and starts the platform
+  installation process.
+- Ignores draft and prerelease GitHub Releases.
+
+The v1.1.0 release does not change the `.rmcs` project format or the
+standardized CSV format.
+
 ### v1.0.1 — Patch release
 
-RMCS Analyzer v1.0.1 is a compatibility and playback patch based on the v1.0.0 feature-complete release. It fixes simulation/video timeline interaction and playback scrubbing without changing the engineering analysis methodology.
+RMCS Analyzer v1.0.1 was a compatibility and playback patch based on the v1.0.0 feature-complete release. It fixed simulation/video timeline interaction and playback scrubbing without changing the engineering analysis methodology.
 
 ### v1.0.0 — Feature-complete release
 
@@ -150,6 +170,35 @@ layer and exposed through `AnalysisResults`.
 
 ---
 
+## System Requirements
+
+### Windows
+
+- Windows 10 or later, 64-bit
+- Modern x64 processor
+- 4 GB RAM recommended
+- Approximately 500 MB of available disk space for the application and normal working files
+
+Python is **not required** to run the packaged Windows application.
+
+### macOS
+
+- **macOS 13 Ventura or later**
+- **Intel processor**
+- 4 GB RAM recommended
+- Approximately 500 MB of available disk space for the application and normal working files
+
+Python is **not required** to run the packaged macOS application.
+
+The v1.1.0 macOS release is built and validated for Intel Macs. Apple Silicon is
+not part of the v1.1.0 release target.
+
+### Internet Connection
+
+An internet connection is required only for online features such as the
+in-application update checker. Locally stored test data can otherwise be
+analyzed without an internet connection.
+
 ## Documentation
 
 - **[RMCS Analyzer User Guide](docs/RMCS_Analyzer_User_Guide.docx)** — Complete user documentation covering installation, workflow, analysis methodology, calculations, motor classification, simulation comparison, exports, troubleshooting, and engineering reference information.
@@ -205,6 +254,27 @@ work is code cleanup, regression/QA, documentation consistency, and final releas
 preparation rather than adding another major workspace.
 
 ---
+
+## Application Updates
+
+RMCS Analyzer v1.1.0 includes an integrated updater.
+
+### Automatic startup check
+
+When the application starts, it checks for a newer published GitHub Release in
+the background. If no newer release is available, the application continues
+normally.
+
+If a newer release is available, RMCS Analyzer displays the available version
+and release information and gives the user the choice to install it now or
+continue using the current version.
+
+### Manual check
+
+Open **Settings** and select **Check for Updates** to perform an immediate
+check.
+
+Draft and prerelease GitHub Releases are ignored.
 
 ## PDF Report Video Frame Selection
 
@@ -945,31 +1015,34 @@ The target dashboard uses:
 
 The mockup is the visual reference for layout and presentation. The authoritative analysis engine remains the source of all engineering values.
 
-## v1.0 Final Review and Release Preparation
+## v1.1.0 Release Preparation
 
-The planned v1.0 feature set is complete and the feature set is frozen.
-Final code review, cleanup, regression testing, and representative manual
-QA have been completed for the v1.0.0 release baseline, followed by a v1.0.1 playback/simulation patch.
+The planned v1.0 feature set remains complete. v1.1.0 focuses on release
+infrastructure, application updating, documentation consistency, and packaging.
 
 ### Release baseline
 
-- Full automated regression suite: 48 tests passing.
-- Regression fixtures in `test_data/` and `sim_data/` are retained in source
-  control so the test suite is reproducible from a clean checkout.
-- Generated pytest and Python cache files remain excluded by `.gitignore`.
-- Application release version: **1.0.1**.
+- Application release version: **1.1.0**.
 - `.rmcs` project format remains version 3.
 - RMCS CSV format remains version 1.0.
+- Generated packaging artifacts and user-facing release assets are maintained
+  outside the source repository.
 
-### v1.0.1 Patch Release
+### v1.1.0 Update System
 
-Version 1.0.1 is a targeted post-release patch. It preserves the v1.0.0 engineering and project formats while correcting video/simulation playback behavior and scrub/reset synchronization.
+The application checks GitHub Releases for a newer published version at startup.
+The check runs in the background so normal application startup remains responsive.
+
+Users can also select **Settings → Check for Updates** for a manual check.
+
+When a newer release is available, RMCS Analyzer displays the available version
+and release information and allows the user to choose whether to install the
+update or continue using the current version.
 
 ### Deferred v2 functionality
 
 Video file export and rendered overlay export remain explicitly deferred to v2.
-They are represented in the GUI as future-feature placeholders and are not part
-of the v1.0 feature-complete scope.
+They are represented in the GUI as future-feature placeholders.
 
 ## Development Environment
 
@@ -985,7 +1058,7 @@ Current development uses:
 - Git
 - GitHub Desktop
 
-The project is currently developed and executed from the local Python environment.
+The source project is developed and tested in a local Python environment; packaged releases do not require Python.
 
 The virtual environment is intentionally excluded from source control.
 

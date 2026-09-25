@@ -4,8 +4,8 @@
 
 ```text
 Project:              RMCS Analyzer
-Current release:      v1.0.0
-v1.0 status:           Feature-complete; final code review and QA complete
+Current release:      v1.1.0
+v1.0 status:           Feature-complete; v1.1.0 adds release/update infrastructure
 Project format:       .rmcs format 3
 Reference CSV format: 1.0
 Primary language:     Python
@@ -262,7 +262,26 @@ RMCS OpenMotor Simulation Template
 The simulation templates describe the CSV import format RMCS Analyzer expects;
 they are not native BurnSim/OpenMotor project files.
 
-The Light theme is a functional application-wide presentation theme. Theme
+The Light theme is a functional application-wide presentation theme.
+
+### 4.1 Application Updates
+
+RMCS Analyzer v1.1.0 includes a GitHub Releases-based update system.
+
+The application:
+
+- Checks for a newer published release at startup.
+- Performs the check without blocking the Qt interface.
+- Ignores draft and prerelease releases.
+- Compares the published release version with the centralized application version.
+- Selects the appropriate published update package for the running platform.
+- Presents the available version and release information to the user.
+- Allows the user to install the update immediately or continue using the current version.
+- Supports a manual update check from the Settings dialog.
+
+The application version is centralized in `src/rmcs_analyzer/app_info.py`.
+
+ Theme
 selection persists across application launches. The engineering analysis layer
 is unaffected by theme selection.
 
@@ -305,7 +324,7 @@ calculations in the GUI.
 Current versions:
 
 ```text
-Application:     v1.0.0
+Application:     v1.1.0
 Project format:  3
 CSV format:      1.0
 ```
@@ -339,41 +358,25 @@ The authoritative engineering results remain in `AnalysisResults`. Exporters
 use authoritative analysis results or measured source data according to the
 purpose of the format.
 
-## 10. Final Review and QA
+## 10. Release and Packaging Requirements
 
-The v1.0 feature set is complete and the feature set is now frozen. Final code
-review, cleanup, regression/QA, and representative manual QA are complete for
-the v1.0.0 release baseline. Remaining work is release administration and final
-documentation maintenance.
+The v1.0 feature set is complete. v1.1.0 focuses on release administration,
+application update delivery, documentation consistency, and platform packaging.
 
-The code review will audit:
+Before a final v1.1.0 release build:
 
-- obsolete/unused code and imports
-- legacy state-machine remnants
-- duplicated calculations or state
-- plot and scene-item lifecycle
-- signal/slot connections
-- persistence and migration behavior
-- theme/style consistency
-- exporter boundaries
-- repository hygiene
+1. Set the centralized application version to `1.1.0`.
+2. Update user-facing documentation and changelog.
+3. Update platform packaging configuration.
+4. Commit and push the source release state.
+5. Build and QA the Windows and macOS packages from that source revision.
+6. Publish the final release assets after both platforms have been validated.
 
-QA will cover:
+The `.rmcs` project format remains version 3 and the standardized CSV format
+remains version 1.0.
 
-- Zerox reference analysis
-- single-test and multi-test workflows
-- Compare and Campaign
-- Thrust and Pressure workspaces
-- Analysis and Data Table
-- simulation import and comparison
-- synchronized video and overlays
-- PDF, BurnSim, RASP, and Analysis CSV exports
-- Settings and downloadable templates
-- Dark and Light themes
-- `.rmcs` save/load and legacy compatibility
-
-User-selectable display units are not part of the current v1.0 feature set.
-The analysis engine continues to use its established engineering units.
+Generated packaging artifacts, installers, application bundles, archives, and
+checksums are maintained outside the source repository.
 
 ## 11. Deferred v2 Functionality
 
@@ -386,8 +389,8 @@ as future-feature placeholders.
 Current versions:
 
 ```text
-Application:     v1.0.0
-v1.0 status:     Feature-complete; final code review and QA complete
+Application:     v1.1.0
+v1.0 status:     Feature-complete; v1.1.0 adds release/update infrastructure
 Project format:  3
 CSV format:      1.0
 ```
